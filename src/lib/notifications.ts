@@ -71,7 +71,8 @@ export async function syncPaymentReminders(state: AppState): Promise<void> {
 
   // Bills: 1 day before + day-of for this month's unpaid reminders.
   const key = monthKey(now);
-  for (const { bill, status } of billsForMonth(state.bills, now)) {
+  const billTitles = new Set(state.bills.map((b) => b.title.toLowerCase()));
+  for (const { bill, status } of billsForMonth(state.bills, state.transactions, now)) {
     if (status === 'paid') continue;
     const due = new Date(now.getFullYear(), now.getMonth(), bill.dueDay);
     for (const [offset, label] of [[-1, 'tomorrow'], [0, 'today']] as const) {
@@ -103,8 +104,10 @@ export async function syncPaymentReminders(state: AppState): Promise<void> {
     }
   }
 
-  // Subscriptions: 1 day before the next expected charge.
+  // Subscriptions: 1 day before the next expected charge. Merchants already
+  // tracked as bill reminders are skipped — one reminder per obligation.
   for (const sub of detectSubscriptions(state.transactions)) {
+    if (billTitles.has(sub.title.toLowerCase())) continue;
     const days = daysUntilNext(sub, now);
     if (days < 1 || days > 30) continue;
     const when = at9(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days - 1));

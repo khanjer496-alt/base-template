@@ -117,5 +117,19 @@ const ov = parseSms('Purchase of AED 55.00 at MYSTERY VENDOR with card ending 11
 if (ov && ov.categoryGuess === 'health') { pass++; console.log('✓ merchant override applied'); }
 else { fail++; console.log('✗ merchant override applied', JSON.stringify(ov && ov.categoryGuess)); }
 
+
+// ── transfer hints: bank-side card payments are not spending ──
+const bankLeg = parseSms('AED 3,240.00 was debited from your a/c XX9012 towards your Credit Card ending 4821');
+if (bankLeg && bankLeg.kind === 'transaction' && bankLeg.transferHint === true) { pass++; console.log('✓ bank-side card payment flagged as transfer'); }
+else { fail++; console.log('✗ bank-side card payment flagged as transfer', JSON.stringify(bankLeg && {k: bankLeg.kind, t: bankLeg.transferHint})); }
+
+const ownTransfer = parseSms('AED 5,000.00 was debited from your account for own account transfer');
+if (ownTransfer && ownTransfer.transferHint === true) { pass++; console.log('✓ own-account transfer flagged'); }
+else { fail++; console.log('✗ own-account transfer flagged', JSON.stringify(ownTransfer)); }
+
+const normalSpend = parseSms('Purchase of AED 187.50 with Debit Card ending 1234 at CARREFOUR on 17/07/2026');
+if (normalSpend && normalSpend.transferHint === false) { pass++; console.log('✓ normal purchase not flagged as transfer'); }
+else { fail++; console.log('✗ normal purchase not flagged as transfer'); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

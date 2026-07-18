@@ -76,8 +76,11 @@ export default function HomeScreen() {
   }, [subs, now]);
 
   const upcomingBills = useMemo(
-    () => billsForMonth(state.bills, now).filter((b) => b.status !== 'paid').slice(0, 3),
-    [state.bills, now],
+    () =>
+      billsForMonth(state.bills, state.transactions, now)
+        .filter((b) => b.status !== 'paid')
+        .slice(0, 3),
+    [state.bills, state.transactions, now],
   );
 
   const topBudgets = useMemo(() => {

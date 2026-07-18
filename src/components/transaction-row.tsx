@@ -28,7 +28,7 @@ export function TransactionRow({ transaction, account, onPress }: TransactionRow
       <View style={styles.middle}>
         <ThemedText numberOfLines={1}>{transaction.title}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-          {meta.label}
+          {transaction.isTransfer ? 'Transfer' : meta.label}
           {account ? ` · ${account.name}` : ''}
         </ThemedText>
       </View>

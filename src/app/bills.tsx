@@ -50,7 +50,10 @@ export default function BillsScreen() {
   const [dueDayText, setDueDayText] = useState('');
   const [category, setCategory] = useState<CategoryId>('utilities');
 
-  const rows = useMemo(() => billsForMonth(state.bills, now), [state.bills, now]);
+  const rows = useMemo(
+    () => billsForMonth(state.bills, state.transactions, now),
+    [state.bills, state.transactions, now],
+  );
   const detected = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
   const subs = useMemo(() => trueSubscriptions(detected), [detected]);
   const commitments = useMemo(() => fixedCommitments(detected), [detected]);

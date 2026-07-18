@@ -37,29 +37,14 @@ eq('monthLabel short', fmt.monthLabel('2026-07', true), 'Jul 2026');
 // ── bills ──
 const today = new Date(2026, 6, 18); // 18 Jul 2026
 const mkBill = (dueDay, paid = []) => ({ id: 'b', title: 'T', category: 'other', amountFils: 100, dueDay, paidMonths: paid });
-eq('bill paid status', bills.billsForMonth([mkBill(25, ['2026-07'])], today)[0].status, 'paid');
-eq('bill overdue', bills.billsForMonth([mkBill(5)], today)[0].status, 'overdue');
-eq('bill due-soon (today)', bills.billsForMonth([mkBill(18)], today)[0].status, 'due-soon');
-eq('bill due-soon (5d)', bills.billsForMonth([mkBill(23)], today)[0].status, 'due-soon');
-eq('bill upcoming', bills.billsForMonth([mkBill(30)], today)[0].status, 'upcoming');
-eq('bill dueDay 31 clamps in Jun', bills.billsForMonth([mkBill(31)], new Date(2026, 5, 15))[0].daysLeft, 15);
+eq('bill paid status', bills.billsForMonth([mkBill(25, ['2026-07'])], [], today)[0].status, 'paid');
+eq('bill overdue', bills.billsForMonth([mkBill(5)], [], today)[0].status, 'overdue');
+eq('bill due-soon (today)', bills.billsForMonth([mkBill(18)], [], today)[0].status, 'due-soon');
+eq('bill due-soon (5d)', bills.billsForMonth([mkBill(23)], [], today)[0].status, 'due-soon');
+eq('bill upcoming', bills.billsForMonth([mkBill(30)], [], today)[0].status, 'upcoming');
+eq('bill dueDay 31 clamps in Jun', bills.billsForMonth([mkBill(31)], [], new Date(2026, 5, 15))[0].daysLeft, 15);
 ok('bills sorted most urgent first',
-  bills.billsForMonth([mkBill(30), mkBill(5), mkBill(20)], today).map(r => r.status).join() === 'overdue,due-soon,upcoming');
-
-// ── detectRecurring ──
-const rec = (title, dates, amounts) => dates.map((d, i) => ({
-  id: `t${i}`, type: 'expense', amountFils: amounts[i] ?? amounts[0], category: 'other',
-  accountId: 'a', title, date: d,
-}));
-const found = bills.detectRecurring(rec('Netflix', ['2026-05-03', '2026-06-03', '2026-07-03'], [3900]));
-ok('recurring detected', found.length === 1 && found[0].title === 'Netflix');
-eq('recurring typical day', found[0]?.typicalDay, 3);
-ok('variable amounts rejected',
-  bills.detectRecurring(rec('Shop', ['2026-05-03', '2026-06-03'], [1000, 5000])).length === 0);
-ok('single month rejected',
-  bills.detectRecurring(rec('Once', ['2026-07-01', '2026-07-15'], [1000])).length === 0);
-ok('habit (many per month) rejected',
-  bills.detectRecurring(rec('Coffee', ['2026-06-01','2026-06-05','2026-06-20','2026-07-02','2026-07-09'], [2000])).length === 0);
+  bills.billsForMonth([mkBill(30), mkBill(5), mkBill(20)], [], today).map(r => r.status).join() === 'overdue,due-soon,upcoming');
 
 // ── insights ──
 const txs = [
@@ -149,6 +134,21 @@ ok('groups: Netflix stays a subscription', rentSubs.find(s => s.title === 'Netfl
 ok('groups: trueSubscriptions excludes rent/utilities',
   subsLib.trueSubscriptions(rentSubs).length === 1 && subsLib.trueSubscriptions(rentSubs)[0].title === 'Netflix');
 ok('groups: fixedCommitments has rent + DEWA', subsLib.fixedCommitments(rentSubs).length === 2);
+
+// ── bill auto-reconciliation ──
+const dewaBill = { id: 'b-dewa', title: 'DEWA Bill', category: 'utilities', amountFils: 45000, dueDay: 25, paidMonths: [] };
+const dewaTx = [{ id: 'x1', type: 'expense', amountFils: 45500, category: 'utilities', accountId: 'a', title: 'DEWA', date: '2026-07-12', source: 'sms' }];
+const recon1 = bills.billsForMonth([dewaBill], dewaTx, new Date(2026, 6, 18))[0];
+ok('reconcile: imported DEWA debit marks bill paid', recon1.status === 'paid' && recon1.autoReconciled === true);
+const wrongAmount = [{ ...dewaTx[0], amountFils: 90000 }];
+ok('reconcile: amount outside ±15% does not match',
+  bills.billsForMonth([dewaBill], wrongAmount, new Date(2026, 6, 18))[0].status !== 'paid');
+const wrongMonth = [{ ...dewaTx[0], date: '2026-06-12' }];
+ok('reconcile: other month does not match',
+  bills.billsForMonth([dewaBill], wrongMonth, new Date(2026, 6, 18))[0].status !== 'paid');
+const transferTx = [{ ...dewaTx[0], isTransfer: true }];
+ok('reconcile: transfers never match bills',
+  bills.billsForMonth([dewaBill], transferTx, new Date(2026, 6, 18))[0].status !== 'paid');
 
 // ── cards & dues (v2) ──
 const cardsLib = require('./build/cards');

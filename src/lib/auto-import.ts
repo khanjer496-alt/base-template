@@ -172,7 +172,8 @@ export function buildImportPlan(
       });
       continue;
     }
-    // Plain transaction
+    // Plain transaction. transferHint = the bank-side leg of a card payment /
+    // own-account transfer: keep it for balances, exclude it from spending.
     const key = dedupeKey(date, p.amountFils, p.merchant);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -184,6 +185,7 @@ export function buildImportPlan(
       title: p.merchant,
       date,
       source: 'sms',
+      isTransfer: p.transferHint || undefined,
     });
   }
 

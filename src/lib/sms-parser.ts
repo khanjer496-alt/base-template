@@ -23,6 +23,8 @@ export interface ParsedSms {
   minDueFils: number | null;
   /** Card/account the message refers to, when identifiable. */
   card: ParsedCard | null;
+  /** Bank-side leg of a card payment / own-account transfer: money moved, not spent. */
+  transferHint: boolean;
   categoryGuess: CategoryId;
   raw: string;
 }
@@ -58,6 +60,10 @@ const MERCHANT_RE = new RegExp(
 );
 
 const DATE_RE = /\b(?:on|by|before)\s+(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i;
+
+/** Debit messages that are actually transfers: paying a card bill, moving between own accounts. */
+const TRANSFER_HINT_RE =
+  /(?:towards?|for)\s+your\s+(?:credit\s+)?card|credit\s+card\s+(?:bill\s+)?payment|own\s+account\s+transfer|transfer\s+to\s+(?:your\s+)?own\s+account|self\s+transfer/i;
 
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|noon minutes|instashop|careem quik|hypermarket|supermarket|grocer/i, 'groceries'],
@@ -190,6 +196,7 @@ export function parseSms(
       dueDay: null,
       minDueFils: null,
       card,
+      transferHint: true,
       categoryGuess: 'other',
       raw,
     };
@@ -209,6 +216,7 @@ export function parseSms(
       dueDay: date ? Number(date.slice(8)) : null,
       minDueFils: minMatch ? Math.round(Number(minMatch[1].replace(/,/g, '')) * 100) : null,
       card,
+      transferHint: false,
       categoryGuess: 'other',
       raw,
     };
@@ -249,6 +257,7 @@ export function parseSms(
     dueDay: isBillDue && date ? Number(date.slice(8)) : null,
     minDueFils: null,
     card,
+    transferHint: !isBillDue && TRANSFER_HINT_RE.test(raw),
     categoryGuess: guessCategory(raw, type, overrides, merchant),
     raw,
   };
