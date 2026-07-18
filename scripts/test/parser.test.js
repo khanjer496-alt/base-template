@@ -152,5 +152,19 @@ if (unknownDebit && unknownDebit.merchant === 'Card purchase' && unknownDebit.tr
   pass++; console.log('✓ unknown-merchant debit titled Card purchase, not Card payment');
 } else { fail++; console.log('✗ unknown-merchant debit titled Card purchase', JSON.stringify(unknownDebit && { m: unknownDebit.merchant, t: unknownDebit.transferHint })); }
 
+// ── amount sanity + credit-card forcing ──
+const absurd = parseSms('AED 100,181,428,624.00 was debited from your account XX9012.');
+if (absurd === null) { pass++; console.log('✓ absurd amount (> AED 1M) rejected'); }
+else { fail++; console.log('✗ absurd amount rejected', JSON.stringify(absurd.amountFils)); }
+
+const bigButReal = parseSms('AED 550,000.00 was debited from your a/c XX9012 at EMAAR PROPERTIES.');
+if (bigButReal && bigButReal.amountFils === 55000000) { pass++; console.log('✓ large-but-plausible amount kept'); }
+else { fail++; console.log('✗ large-but-plausible amount kept', JSON.stringify(bigButReal && bigButReal.amountFils)); }
+
+const stmtKind = parseSms('Statement generated. Total due AED 3,240.00, minimum due AED 162.00 by 05/08/2026 on your card ending 8573');
+if (stmtKind && stmtKind.kind === 'cardStatement' && stmtKind.card && stmtKind.card.kind === 'credit') {
+  pass++; console.log('✓ statement forces credit-card identity');
+} else { fail++; console.log('✗ statement forces credit-card identity', JSON.stringify(stmtKind && stmtKind.card)); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

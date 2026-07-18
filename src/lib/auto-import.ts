@@ -98,7 +98,11 @@ export function buildImportPlan(
   parsed: ParsedSms[],
   state: AppState,
   newestTs: number,
+  today: Date = new Date(),
 ): ImportPlan {
+  // A full-history scan surfaces statements from years back; only dues still
+  // near their pay-by date are live obligations worth tracking.
+  const staleDueCutoff = toISODate(new Date(today.getTime() - 45 * 86400000));
   const seen = new Set(
     state.transactions.map((t) => dedupeKey(t.date, t.amountFils, t.title)),
   );
@@ -145,6 +149,7 @@ export function buildImportPlan(
     }
     if (p.kind === 'cardStatement') {
       if (!p.card || !p.date) continue;
+      if (p.date < staleDueCutoff) continue;
       const accountId = resolveAccount(p);
       newDues.push({
         accountId,

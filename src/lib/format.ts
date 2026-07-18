@@ -28,6 +28,10 @@ export function formatAED(fils: number, opts?: { decimals?: boolean }): string {
 /** Compact form for chart labels: "1.2k", "18k". */
 export function formatCompactAED(fils: number): string {
   const aed = Math.abs(fils) / 100;
+  if (aed >= 1_000_000) {
+    const m = aed / 1_000_000;
+    return `${m >= 100 ? Math.round(m) : Math.round(m * 10) / 10}M`;
+  }
   if (aed >= 1000) {
     const k = aed / 1000;
     return `${k >= 100 ? Math.round(k) : Math.round(k * 10) / 10}k`;

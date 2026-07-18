@@ -25,7 +25,7 @@ import {
 import { billsForMonth } from '@/lib/bills';
 import { openDues } from '@/lib/cards';
 import { getCategory } from '@/lib/categories';
-import { formatAED, greetingForHour, shortDate } from '@/lib/format';
+import { formatAED, formatCompactAED, greetingForHour, shortDate } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
 import { inPeriod, isCurrentMonth, periodEndISO, periodLabel } from '@/lib/period';
@@ -198,7 +198,14 @@ export default function HomeScreen() {
                 </ThemedText>
               </Pressable>
             </View>
-            <CountUpAmount fils={netWorth} type="display" />
+            {Math.abs(netWorth) >= 1_000_000_000 ? (
+              // Ten million AED and beyond: compact form instead of a wall of digits.
+              <ThemedText type="display" tabular>
+                {netWorth < 0 ? '−' : ''}AED {formatCompactAED(netWorth)}
+              </ThemedText>
+            ) : (
+              <CountUpAmount fils={netWorth} type="display" />
+            )}
             {!live && period.mode !== 'all' && (
               <ThemedText type="micro" themeColor="textSecondary">
                 Balance at end of {periodLabel(period)}

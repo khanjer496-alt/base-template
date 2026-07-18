@@ -8,6 +8,7 @@ import React, {
   useReducer,
 } from 'react';
 
+import { toISODate } from '@/lib/format';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
 import type {
   Account,
@@ -303,11 +304,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // Repair rows imported before the masked-PAN parser fix: titles like
           // "4782********4499 Has Bee..." are card settlements, not spending.
           if (parsed.transactions) {
-            parsed.transactions = parsed.transactions.map((t) =>
-              t.source === 'sms' && /^\d{4,6}[Xx*•]{2,}\d{4}/.test(t.title)
-                ? { ...t, title: 'Card payment', isTransfer: true, category: 'other' as const }
-                : t,
-            );
+            parsed.transactions = parsed.transactions
+              .map((t) =>
+                t.source === 'sms' && /^\d{4,6}[Xx*•]{2,}\d{4}/.test(t.title)
+                  ? { ...t, title: 'Card payment', isTransfer: true, category: 'other' as const }
+                  : t,
+              )
+              // Amounts above AED 1M in a single SMS are misread balances/refs.
+              .filter((t) => t.source !== 'sms' || t.amountFils <= 100_000_000);
+          }
+          // Drop stale unsettled card dues imported from years-old statements.
+          if (parsed.cardDues) {
+            const cutoff = toISODate(new Date(Date.now() - 60 * 86400000));
+            parsed.cardDues = parsed.cardDues.filter((d) => d.settledAt || d.dueDate >= cutoff);
           }
           dispatch({ type: 'hydrate', state: parsed });
         } else {

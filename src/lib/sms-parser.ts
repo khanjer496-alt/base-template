@@ -45,6 +45,11 @@ const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:p
 const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
 
 const AED_AMOUNT_RE = /(?:AED|Dhs?\.?|د\.إ)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+/**
+ * A single SMS transaction above AED 1,000,000 is almost certainly a misread
+ * balance, loan figure, or reference number — never spending.
+ */
+const MAX_PLAUSIBLE_AMOUNT_FILS = 100_000_000;
 const BALANCE_PREFIX_RE = /(?:bal(?:ance)?|avl|avail(?:able)?|limit|outstanding|total)\s*(?:is|:|\.|-)?\s*$/i;
 const MIN_DUE_RE = /min(?:imum)?\s+(?:amount\s+)?due\s*(?:of|:|is)?\s*(?:AED|Dhs?\.?)\s*([\d,]+(?:\.\d{1,2})?)/i;
 
@@ -121,7 +126,7 @@ function extractAmountFils(raw: string, allowBalanceFallback: boolean): number |
   let match: RegExpExecArray | null;
   while ((match = AED_AMOUNT_RE.exec(raw))) {
     const value = Math.round(Number(match[1].replace(/,/g, '')) * 100);
-    if (!Number.isFinite(value) || value <= 0) continue;
+    if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_AMOUNT_FILS) continue;
     if (first === null) first = value;
     const prefix = raw.slice(Math.max(0, match.index - 24), match.index);
     if (BALANCE_PREFIX_RE.test(prefix)) continue;
@@ -192,7 +197,8 @@ export function parseSms(
   const date = extractDate(raw);
 
   // Card payment received (transfer into the card) — before debit detection,
-  // since these messages also contain the word "payment".
+  // since these messages also contain the word "payment". Only credit cards
+  // receive payments, whatever the message called the card.
   if (card?.kind !== 'account' && card && CARD_PAYMENT_RE.test(raw)) {
     const amountFils = extractAmountFils(raw, true);
     if (!amountFils) return null;
@@ -204,14 +210,14 @@ export function parseSms(
       date,
       dueDay: null,
       minDueFils: null,
-      card,
+      card: { ...card, kind: 'credit' },
       transferHint: true,
       categoryGuess: 'other',
       raw,
     };
   }
 
-  // Credit-card statement with dues.
+  // Credit-card statement with dues. Statements only exist for credit cards.
   if (card && STATEMENT_RE.test(raw) && BILL_DUE_WORDS.test(raw)) {
     const amountFils = extractAmountFils(raw, true);
     if (!amountFils) return null;
@@ -224,7 +230,7 @@ export function parseSms(
       date,
       dueDay: date ? Number(date.slice(8)) : null,
       minDueFils: minMatch ? Math.round(Number(minMatch[1].replace(/,/g, '')) * 100) : null,
-      card,
+      card: { ...card, kind: 'credit' },
       transferHint: false,
       categoryGuess: 'other',
       raw,
