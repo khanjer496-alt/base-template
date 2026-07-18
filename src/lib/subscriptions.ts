@@ -5,10 +5,11 @@ export type Cadence = 'weekly' | 'monthly' | 'yearly';
 
 /**
  * subscription — cancellable online/lifestyle services (streaming, apps, gym);
- * utility — recurring DEWA/telecom-style bills; housing — rent.
+ * utility — recurring DEWA/telecom-style bills; housing — rent;
+ * commitment — anything else that recurs (suppliers, fees, transfers to people).
  * Kept separate so "subscriptions total" only counts what you could cancel.
  */
-export type RecurringGroup = 'subscription' | 'utility' | 'housing';
+export type RecurringGroup = 'subscription' | 'utility' | 'housing' | 'commitment';
 
 export interface Subscription {
   title: string;
@@ -64,15 +65,26 @@ function median(values: number[]): number {
 }
 
 /**
- * Real subscription detection: per-merchant charge cadence with amount
- * stability, boosted by a known-subscription merchant list.
+ * Categories where a recurring charge can plausibly BE a subscription service.
+ * A recurring supplier invoice or school fee is a commitment, not a Netflix.
  */
-export function detectSubscriptions(transactions: Transaction[]): Subscription[] {
+const SUBSCRIPTION_CATEGORIES = new Set<CategoryId>(['entertainment', 'shopping', 'health']);
+
+/**
+ * Real subscription detection: per-merchant charge cadence with amount
+ * stability, boosted by a known-subscription merchant list. Merchants the
+ * user marked "not a subscription" are skipped entirely.
+ */
+export function detectSubscriptions(
+  transactions: Transaction[],
+  notSubscriptions: string[] = [],
+): Subscription[] {
+  const dismissed = new Set(notSubscriptions.map((s) => s.trim().toLowerCase()));
   const groups = new Map<string, Transaction[]>();
   for (const t of transactions) {
     if (t.type !== 'expense' || t.isTransfer) continue;
     const k = t.title.trim().toLowerCase();
-    if (!k) continue;
+    if (!k || dismissed.has(k)) continue;
     const list = groups.get(k) ?? [];
     list.push(t);
     groups.set(k, list);
@@ -142,7 +154,9 @@ export function detectSubscriptions(transactions: Transaction[]): Subscription[]
         ? 'housing'
         : last.category === 'utilities' || last.category === 'telecom'
           ? 'utility'
-          : 'subscription';
+          : known || SUBSCRIPTION_CATEGORIES.has(last.category)
+            ? 'subscription'
+            : 'commitment';
 
     subs.push({
       title,

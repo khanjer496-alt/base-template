@@ -63,8 +63,8 @@ export default function HomeScreen() {
     [state.transactions, period],
   );
   const insights = useMemo(
-    () => buildInsights(state.transactions, state.budgets, period, now).slice(0, 5),
-    [state.transactions, state.budgets, period, now],
+    () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions).slice(0, 5),
+    [state.transactions, state.budgets, period, now, state.notSubscriptions],
   );
   // Balance is point-in-time: today's for live views, end-of-period otherwise.
   const netWorth = useMemo(
@@ -80,8 +80,8 @@ export default function HomeScreen() {
   );
   const dues = useMemo(() => openDues(state, now), [state, now]);
   const subs = useMemo(
-    () => trueSubscriptions(detectSubscriptions(state.transactions)),
-    [state.transactions],
+    () => trueSubscriptions(detectSubscriptions(state.transactions, state.notSubscriptions)),
+    [state.transactions, state.notSubscriptions],
   );
   const nextSub = useMemo(() => {
     const upcoming = subs
@@ -205,7 +205,10 @@ export default function HomeScreen() {
               </ThemedText>
             )}
             <View style={styles.heroStats}>
-              <View style={styles.heroStat}>
+              <Pressable
+                onPress={() => router.push('/transactions?type=income')}
+                hitSlop={6}
+                style={styles.heroStat}>
                 <View style={[styles.heroDot, { backgroundColor: theme.income }]} />
                 <ThemedText type="small" themeColor="textSecondary">
                   In{' '}
@@ -213,8 +216,12 @@ export default function HomeScreen() {
                     {formatAED(summary.incomeFils, { decimals: false })}
                   </ThemedText>
                 </ThemedText>
-              </View>
-              <View style={styles.heroStat}>
+                <Icon name="chevron-right" size={11} color={theme.textSecondary} />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/transactions?type=expense')}
+                hitSlop={6}
+                style={styles.heroStat}>
                 <View style={[styles.heroDot, { backgroundColor: theme.expense }]} />
                 <ThemedText type="small" themeColor="textSecondary">
                   Out{' '}
@@ -222,7 +229,8 @@ export default function HomeScreen() {
                     {formatAED(summary.expenseFils, { decimals: false })}
                   </ThemedText>
                 </ThemedText>
-              </View>
+                <Icon name="chevron-right" size={11} color={theme.textSecondary} />
+              </Pressable>
             </View>
           </Animated.View>
 

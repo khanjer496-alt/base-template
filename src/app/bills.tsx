@@ -37,7 +37,7 @@ type Segment = 'reminders' | 'subscriptions';
 export default function BillsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, addBill, deleteBill, markBillPaid } = useStore();
+  const { state, addBill, deleteBill, markBillPaid, setNotSubscription } = useStore();
 
   const now = useMemo(() => new Date(), []);
   const key = monthKey(now);
@@ -54,7 +54,10 @@ export default function BillsScreen() {
     () => billsForMonth(state.bills, state.transactions, now),
     [state.bills, state.transactions, now],
   );
-  const detected = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
+  const detected = useMemo(
+    () => detectSubscriptions(state.transactions, state.notSubscriptions),
+    [state.transactions, state.notSubscriptions],
+  );
   const subs = useMemo(() => trueSubscriptions(detected), [detected]);
   const commitments = useMemo(() => fixedCommitments(detected), [detected]);
   const subsTotal = subscriptionsMonthlyTotal(subs);
@@ -121,12 +124,24 @@ export default function BillsScreen() {
     ]);
   };
 
+  const onDismissSub = (sub: Subscription) => {
+    Alert.alert(
+      'Not a subscription?',
+      `"${sub.title}" will stop appearing in subscriptions and won't count toward the monthly total.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => setNotSubscription(sub.title, true) },
+      ],
+    );
+  };
+
   const renderRecurringRow = (sub: Subscription, i: number) => {
     const next = daysUntilNext(sub, now);
     const tracked = trackedTitles.has(sub.title.toLowerCase());
     return (
       <Animated.View key={sub.title} entering={FadeInDown.delay(Math.min(i, 8) * 40).duration(300)}>
-        <View
+        <Pressable
+          onLongPress={() => onDismissSub(sub)}
           style={[
             styles.row,
             i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
@@ -171,7 +186,7 @@ export default function BillsScreen() {
               </Pressable>
             )}
           </View>
-        </View>
+        </Pressable>
       </Animated.View>
     );
   };
@@ -214,7 +229,7 @@ export default function BillsScreen() {
               {subs.length > 0 && (
                 <View style={styles.totalRow}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Detected from your charge history
+                    Detected from your charge history · long-press to remove
                   </ThemedText>
                   <ThemedText type="smallBold" tabular>
                     {formatAED(subsTotal, { decimals: false })}/mo
@@ -229,7 +244,8 @@ export default function BillsScreen() {
                     Fixed monthly commitments
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Rent and utilities: recurring, but not cancellable subscriptions.
+                    Rent, utilities and other regular payments — recurring, but not
+                    cancellable subscriptions.
                   </ThemedText>
                   <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
                 </View>

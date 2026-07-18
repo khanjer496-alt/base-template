@@ -104,6 +104,8 @@ export interface AppState {
   merchantOverrides: Record<string, CategoryId>;
   /** Card/account last4 → accountId, learned from SMS. */
   accountHints: Record<string, string>;
+  /** Merchants (lowercased) the user marked as NOT a subscription. */
+  notSubscriptions: string[];
   /** Epoch ms of the newest SMS already scanned. */
   lastScanTs: number;
   /** Whether the first-run onboarding has completed. */

@@ -79,6 +79,7 @@ export function buildInsights(
   budgets: Budget[],
   periodLike: PeriodLike,
   today: Date,
+  notSubscriptions: string[] = [],
 ): Insight[] {
   const insights: Insight[] = [];
   const period = toPeriod(periodLike);
@@ -204,7 +205,7 @@ export function buildInsights(
 
   // Subscription load + price increases (true subscriptions only — rent and
   // utilities are fixed commitments, not cancellable services)
-  const subs = trueSubscriptions(detectSubscriptions(transactions));
+  const subs = trueSubscriptions(detectSubscriptions(transactions, notSubscriptions));
   if (subs.length >= 2) {
     const monthly = subscriptionsMonthlyTotal(subs);
     if (isMonthMode && current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {

@@ -57,7 +57,7 @@ export default function TransactionsScreen() {
   const router = useRouter();
   const { state } = useStore();
   const { period } = usePeriod();
-  const { source } = useLocalSearchParams<{ source?: string }>();
+  const { source, type: typeParam } = useLocalSearchParams<{ source?: string; type?: string }>();
 
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filters>(() => ({
@@ -66,6 +66,8 @@ export default function TransactionsScreen() {
     // reviewing an SMS import must show the new rows even if the app is
     // scoped to a past period, so it starts unscoped
     datePreset: source === 'sms' ? 'all' : 'selected',
+    // Home's In/Out figures deep-link here pre-filtered by type
+    type: typeParam === 'income' || typeParam === 'expense' ? typeParam : null,
   }));
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);

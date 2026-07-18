@@ -32,6 +32,7 @@ const EMPTY_STATE: AppState = {
   goals: [],
   merchantOverrides: {},
   accountHints: {},
+  notSubscriptions: [],
   lastScanTs: 0,
   onboarded: false,
   userName: 'there',
@@ -73,6 +74,7 @@ type Action =
   | { type: 'upsertCardDue'; due: CardDue }
   | { type: 'payCardDue'; id: string; amountFils: number; transaction: Transaction | null; settledAt: string | null }
   | { type: 'setMerchantOverride'; merchant: string; category: CategoryId; applyToExisting: boolean }
+  | { type: 'setNotSubscription'; merchant: string; dismissed: boolean }
   | { type: 'reassignAccountHint'; last4: string; accountId: string }
   | { type: 'addGoal'; goal: Goal }
   | { type: 'editGoal'; id: string; patch: Partial<Omit<Goal, 'id'>> }
@@ -189,6 +191,11 @@ function reducer(state: AppState, action: Action): AppState {
         : state.transactions;
       return { ...state, merchantOverrides, transactions };
     }
+    case 'setNotSubscription': {
+      const key = action.merchant.trim().toLowerCase();
+      const rest = state.notSubscriptions.filter((m) => m !== key);
+      return { ...state, notSubscriptions: action.dismissed ? [...rest, key] : rest };
+    }
     case 'reassignAccountHint':
       return {
         ...state,
@@ -247,6 +254,7 @@ interface StoreValue {
   upsertCardDue: (due: Omit<CardDue, 'id'>) => void;
   payCardDue: (id: string, amountFils: number, transaction: Omit<Transaction, 'id'> | null, settled: boolean) => void;
   setMerchantOverride: (merchant: string, category: CategoryId, applyToExisting: boolean) => void;
+  setNotSubscription: (merchant: string, dismissed: boolean) => void;
   reassignAccountHint: (last4: string, accountId: string) => void;
   addGoal: (g: Omit<Goal, 'id'>) => void;
   editGoal: (id: string, patch: Partial<Omit<Goal, 'id'>>) => void;
@@ -433,6 +441,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setNotSubscription = useCallback((merchant: string, dismissed: boolean) => {
+    dispatch({ type: 'setNotSubscription', merchant, dismissed });
+  }, []);
+
   const reassignAccountHint = useCallback((last4: string, accountId: string) => {
     dispatch({ type: 'reassignAccountHint', last4, accountId });
   }, []);
@@ -502,6 +514,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       upsertCardDue,
       payCardDue,
       setMerchantOverride,
+      setNotSubscription,
       reassignAccountHint,
       addGoal,
       editGoal,
@@ -531,6 +544,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       upsertCardDue,
       payCardDue,
       setMerchantOverride,
+      setNotSubscription,
       reassignAccountHint,
       addGoal,
       editGoal,

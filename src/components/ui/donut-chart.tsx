@@ -13,6 +13,8 @@ interface DonutChartProps {
   strokeWidth?: number;
   trackColor: string;
   children?: React.ReactNode;
+  /** When provided, each ring segment becomes tappable (index into `segments`). */
+  onPressSegment?: (index: number) => void;
 }
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
@@ -34,6 +36,7 @@ export function DonutChart({
   strokeWidth = 22,
   trackColor,
   children,
+  onPressSegment,
 }: DonutChartProps) {
   const r = (size - strokeWidth) / 2;
   const c = size / 2;
@@ -42,15 +45,24 @@ export function DonutChart({
 
   let cursor = 0;
   const arcs = total > 0
-    ? segments
-        .filter((s) => s.value > 0)
-        .map((seg, i) => {
-          const sweep = (seg.value / total) * 360;
-          const start = cursor + gapDeg / 2;
-          const end = cursor + Math.max(sweep - gapDeg / 2, 0.5);
-          cursor += sweep;
-          return <Path key={i} d={arcPath(c, c, r, start, Math.min(end, 359.9))} stroke={seg.color} strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />;
-        })
+    ? segments.map((seg, i) => {
+        if (seg.value <= 0) return null;
+        const sweep = (seg.value / total) * 360;
+        const start = cursor + gapDeg / 2;
+        const end = cursor + Math.max(sweep - gapDeg / 2, 0.5);
+        cursor += sweep;
+        return (
+          <Path
+            key={i}
+            d={arcPath(c, c, r, start, Math.min(end, 359.9))}
+            stroke={seg.color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            fill="none"
+            onPress={onPressSegment ? () => onPressSegment(i) : undefined}
+          />
+        );
+      })
     : null;
 
   return (

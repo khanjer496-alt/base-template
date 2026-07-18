@@ -133,6 +133,37 @@ ok('groups: DEWA classified as utility', rentSubs.find(s => s.title === 'DEWA Bi
 ok('groups: Netflix stays a subscription', rentSubs.find(s => s.title === 'Netflix')?.group === 'subscription');
 ok('groups: trueSubscriptions excludes rent/utilities',
   subsLib.trueSubscriptions(rentSubs).length === 1 && subsLib.trueSubscriptions(rentSubs)[0].title === 'Netflix');
+
+// Recurring payments in non-subscription categories are commitments, not subscriptions
+const supplier = subsLib.detectSubscriptions([
+  subTx('Fishbasket', '2026-05-03', 1070000, 'business'),
+  subTx('Fishbasket', '2026-06-03', 1070000, 'business'),
+  subTx('Fishbasket', '2026-07-03', 1070000, 'business'),
+  subTx('Maid Salary', '2026-05-28', 250000, 'other'),
+  subTx('Maid Salary', '2026-06-28', 250000, 'other'),
+  subTx('Maid Salary', '2026-07-28', 250000, 'other'),
+]);
+ok('groups: business supplier is a commitment, not a subscription',
+  supplier.find(s => s.title === 'Fishbasket')?.group === 'commitment');
+ok('groups: recurring other-category payment is a commitment',
+  supplier.find(s => s.title === 'Maid Salary')?.group === 'commitment');
+ok('groups: commitments never count in trueSubscriptions',
+  subsLib.trueSubscriptions(supplier).length === 0);
+ok('groups: commitments listed under fixedCommitments',
+  subsLib.fixedCommitments(supplier).length === 2);
+
+// User dismissals remove a merchant from detection everywhere
+const dismissed = subsLib.detectSubscriptions(
+  [
+    subTx('Netflix', '2026-06-03', 3900),
+    subTx('Netflix', '2026-07-03', 3900),
+    subTx('Spotify', '2026-06-10', 2100),
+    subTx('Spotify', '2026-07-10', 2100),
+  ],
+  ['netflix'],
+);
+ok('dismiss: not-a-subscription merchant skipped',
+  dismissed.length === 1 && dismissed[0].title === 'Spotify');
 ok('groups: fixedCommitments has rent + DEWA', subsLib.fixedCommitments(rentSubs).length === 2);
 
 // ── bill auto-reconciliation ──

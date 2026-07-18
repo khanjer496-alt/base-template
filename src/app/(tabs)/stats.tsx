@@ -43,6 +43,7 @@ import type { CategoryId } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
 
 export default function StatsScreen() {
   const theme = useTheme();
@@ -55,11 +56,12 @@ export default function StatsScreen() {
 
   const monthMode = period.mode === 'month';
   const key = monthMode ? period.key : currentKey; // anchors the 6-month trend window
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const summary = useMemo(() => summarizeMonth(state.transactions, period), [state.transactions, period]);
   const insights = useMemo(
-    () => buildInsights(state.transactions, state.budgets, period, now),
-    [state.transactions, state.budgets, period, now],
+    () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions),
+    [state.transactions, state.budgets, period, now, state.notSubscriptions],
   );
   const merchants = useMemo(() => topMerchants(state.transactions, period), [state.transactions, period]);
   const movers = useMemo(() => categoryMovers(state.transactions, period), [state.transactions, period]);
@@ -156,9 +158,15 @@ export default function StatsScreen() {
             </Pressable>
           </View>
 
-          {/* Donut + tappable legend */}
+          {/* Donut + tappable legend (ring segments drill too) */}
           <Animated.View entering={FadeInDown.duration(350)} style={styles.donutBlock}>
-            <DonutChart segments={segments} trackColor={theme.track}>
+            <DonutChart
+              segments={segments}
+              trackColor={theme.track}
+              onPressSegment={(i) => {
+                const cat = summary.byCategory[i]?.category ?? null;
+                setDrillCategory(drillCategory === cat ? null : cat);
+              }}>
               <ThemedText type="micro" themeColor="textSecondary">
                 Spent
               </ThemedText>
@@ -223,6 +231,10 @@ export default function StatsScreen() {
                   label: monthLabel(m.key, true).split(' ')[0],
                   values: [{ value: m.fils, color: getCategory(drillCategory).color }],
                 }))}
+                onPressGroup={(gi) => {
+                  const k = drillTrend[gi]?.key;
+                  if (k) setPeriod({ mode: 'month', key: k });
+                }}
               />
               {topMerchants(
                 state.transactions.filter((t) => t.category === drillCategory),
@@ -320,12 +332,22 @@ export default function StatsScreen() {
             </Animated.View>
           )}
 
-          {/* Day-of-week pattern */}
+          {/* Day-of-week pattern (tap a bar for the exact amount) */}
           <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.section}>
-            <ThemedText type="smallBold">Spending by weekday</ThemedText>
+            <View style={styles.sectionTitleRow}>
+              <ThemedText type="smallBold">Spending by weekday</ThemedText>
+              {selectedDay !== null && (
+                <ThemedText type="smallBold" tabular style={{ color: theme.primary }}>
+                  {DAY_FULL[selectedDay]} · {formatAED(weekSpend[selectedDay], { decimals: false })}
+                </ThemedText>
+              )}
+            </View>
             <View style={styles.weekRow}>
               {weekSpend.map((v, i) => (
-                <View key={i} style={styles.weekCol}>
+                <Pressable
+                  key={i}
+                  onPress={() => setSelectedDay(selectedDay === i ? null : i)}
+                  style={styles.weekCol}>
                   <View style={[styles.weekTrack, { backgroundColor: theme.track }]}>
                     <View
                       style={[
@@ -333,14 +355,17 @@ export default function StatsScreen() {
                         {
                           height: `${Math.max(4, (v / weekMax) * 100)}%`,
                           backgroundColor: i === 5 || i === 6 ? theme.gold : theme.primary,
+                          opacity: selectedDay === null || selectedDay === i ? 1 : 0.4,
                         },
                       ]}
                     />
                   </View>
-                  <ThemedText type="micro" themeColor="textSecondary">
+                  <ThemedText
+                    type="micro"
+                    themeColor={selectedDay === i ? 'text' : 'textSecondary'}>
                     {DAY_LABELS[i]}
                   </ThemedText>
-                </View>
+                </Pressable>
               ))}
             </View>
           </Animated.View>
@@ -395,9 +420,14 @@ export default function StatsScreen() {
                 ],
               }))}
               highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined}
+              onPressGroup={(gi) => {
+                setPeriod({ mode: 'month', key: trend[gi].key });
+                setDrillCategory(null);
+              }}
             />
             <ThemedText type="micro" themeColor="textSecondary">
-              Peak spend {formatCompactAED(Math.max(...trend.map((m) => m.expense)))} AED
+              Peak spend {formatCompactAED(Math.max(...trend.map((m) => m.expense)))} AED · tap a
+              month to open it
             </ThemedText>
           </Animated.View>
 
