@@ -292,6 +292,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const parsed = JSON.parse(raw) as Partial<Omit<AppState, 'hydrated'>>;
           // Pre-onboarding builds stored data without the flag; count them as onboarded.
           if (parsed.onboarded === undefined) parsed.onboarded = true;
+          // Repair rows imported before the masked-PAN parser fix: titles like
+          // "4782********4499 Has Bee..." are card settlements, not spending.
+          if (parsed.transactions) {
+            parsed.transactions = parsed.transactions.map((t) =>
+              t.source === 'sms' && /^\d{4,6}[Xx*•]{2,}\d{4}/.test(t.title)
+                ? { ...t, title: 'Card payment', isTransfer: true, category: 'other' as const }
+                : t,
+            );
+          }
           dispatch({ type: 'hydrate', state: parsed });
         } else {
           dispatch({ type: 'hydrate', state: { onboarded: false } });
@@ -557,4 +566,14 @@ export function accountBalanceFils(state: AppState, accountId: string): number {
 
 export function netWorthFils(state: AppState): number {
   return state.accounts.reduce((sum, a) => sum + accountBalanceFils(state, a.id), 0);
+}
+
+/** Net worth as of end-of-day on the given ISO date. */
+export function netWorthAtDate(state: AppState, dateISO: string): number {
+  let total = state.accounts.reduce((sum, a) => sum + a.openingFils, 0);
+  for (const t of state.transactions) {
+    if (t.date > dateISO) continue;
+    total += t.type === 'income' ? t.amountFils : -t.amountFils;
+  }
+  return total;
 }

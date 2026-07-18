@@ -8,6 +8,7 @@ import { LockGate } from '@/components/lock-gate';
 import { OnboardingGate } from '@/components/onboarding-gate';
 import { ToastProvider } from '@/components/ui/toast';
 import { Colors } from '@/constants/theme';
+import { PeriodProvider } from '@/lib/period-context';
 import { StoreProvider } from '@/lib/store';
 
 export default function RootLayout() {
@@ -29,6 +30,7 @@ export default function RootLayout() {
 
   return (
     <StoreProvider>
+      <PeriodProvider>
       <ThemeProvider value={navTheme}>
         <StatusBar style={dark ? 'light' : 'dark'} />
         <LockGate>
@@ -48,6 +50,7 @@ export default function RootLayout() {
           </OnboardingGate>
         </LockGate>
       </ThemeProvider>
+      </PeriodProvider>
     </StoreProvider>
   );
 }

@@ -37,7 +37,7 @@ const BILL_MERCHANT_RE = /(?:your|the)\s+([A-Za-z0-9][A-Za-z0-9 &.'\-]{1,30}?)\s
 /** Credit-card statement: has "statement"/"total due" language plus a card reference. */
 const STATEMENT_RE = /statement|total\s+(?:amount\s+)?due|outstanding\s+(?:amount|balance)\s+of/i;
 /** Payment INTO a card: settles dues rather than spending. */
-const CARD_PAYMENT_RE = /payment\s+(?:of\s+(?:AED|Dhs?\.?)\s*[\d,.]+\s+)?(?:is\s+|was\s+|has\s+been\s+)?(?:received|credited|processed)\s+(?:towards?|to|on|for)\s+your\s+(?:credit\s+)?card|received\s+payment\s+for\s+your\s+(?:credit\s+)?card|thank you for (?:your )?payment.*card/i;
+const CARD_PAYMENT_RE = /payment\s+(?:of\s+(?:AED|Dhs?\.?)\s*[\d,.]+\s+)?(?:is\s+|was\s+|has\s+been\s+)?(?:received|credited|processed)\s+(?:towards?|to|on|for)\s+(?:your\s+)?(?:credit\s+)?card|received\s+payment\s+for\s+your\s+(?:credit\s+)?card|thank you for (?:your )?payment.*card|card\s+(?:no\.?\s*)?[\dXx*•]*\s*has\s+been\s+paid/i;
 
 /** OTP / verification messages describe an ATTEMPT, not a completed transaction. */
 const OTP_RE = /\botp\b|one[\s-]?time\s+(?:password|pin|code)|verification code|auth(?:oris|oriz)ation code|do not share|never share/i;
@@ -51,9 +51,11 @@ const MIN_DUE_RE = /min(?:imum)?\s+(?:amount\s+)?due\s*(?:of|:|is)?\s*(?:AED|Dhs
 /** Card identity: "Credit Card ending 1234", "Debit Card ..5678", "a/c XX9012", "card no. *1234". */
 const CARD_RE = /(credit|debit)?\s*card(?:\s*(?:no\.?|number))?\s*(?:ending(?:\s+in)?|\.\.+|x+|\*+)?\s*(\d{4})\b/i;
 const ACCOUNT_RE = /a\/?c(?:count)?\s*(?:no\.?)?\s*(?:ending(?:\s+in)?|\.\.+|x+|\*+)?\s*(\d{4})\b/i;
+/** Fully masked PAN like "4782********4499" — the LAST four digits identify the card. */
+const MASKED_PAN_RE = /\b\d{4,6}[Xx*•]{2,}(\d{4})\b/;
 
 const MERCHANT_STOP =
-  String.raw`(?=\s*(?:,|\.|;|\bon\b|\bwith\b|\busing\b|\bvia\b|\bending\b|\bcard\b|\ba\/c\b|\bacc(?:ount)?\b|\bref\b|\btxn\b|\bdated\b|\bavl\b|\bavail(?:able)?\b|\bbal(?:ance)?\b|\botp\b|\bfor\b|\bis\b|$))`;
+  String.raw`(?=\s*(?:,|\.|;|\bon\b|\bwith\b|\busing\b|\bvia\b|\bending\b|\bcard\b|\ba\/c\b|\bacc(?:ount)?\b|\bref\b|\btxn\b|\bdated\b|\bavl\b|\bavail(?:able)?\b|\bbal(?:ance)?\b|\botp\b|\bfor\b|\bis\b|\bhas\b|\bhave\b|\bwas\b|\bwill\b|$))`;
 const MERCHANT_RE = new RegExp(
   String.raw`(?:\bat|\bto|@)\s+([A-Za-z0-9][A-Za-z0-9 &'\-*]{1,40}?)` + MERCHANT_STOP,
   'gi',
@@ -63,7 +65,7 @@ const DATE_RE = /\b(?:on|by|before)\s+(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i;
 
 /** Debit messages that are actually transfers: paying a card bill, moving between own accounts. */
 const TRANSFER_HINT_RE =
-  /(?:towards?|for)\s+your\s+(?:credit\s+)?card|credit\s+card\s+(?:bill\s+)?payment|own\s+account\s+transfer|transfer\s+to\s+(?:your\s+)?own\s+account|self\s+transfer/i;
+  /(?:towards?|for)\s+(?:your\s+(?:credit\s+)?card|credit\s+card|card\s+(?:no\.?\s*)?[\dXx*•])|credit\s+card\s+(?:bill\s+)?payment|c\/?c\s+payment|card\s+settlement|own\s+account\s+transfer|transfer\s+to\s+(?:your\s+)?own\s+account|self\s+transfer/i;
 
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|noon minutes|instashop|careem quik|hypermarket|supermarket|grocer/i, 'groceries'],
@@ -135,6 +137,7 @@ function extractMerchant(raw: string, re: RegExp): string {
     const candidate = match[1].trim().replace(/\s{2,}/g, ' ');
     if (/^your\b/i.test(candidate) || /^(?:the |an? )?account\b/i.test(candidate)) continue;
     if (/^\d+$/.test(candidate)) continue; // bare digits are a card number, not a merchant
+    if (/\d{4}[Xx*•]{2,}/.test(candidate) || /^\d{6,}/.test(candidate)) continue; // masked PANs
     if (candidate) return candidate;
     if (re.lastIndex === match.index) re.lastIndex++;
   }
@@ -142,6 +145,12 @@ function extractMerchant(raw: string, re: RegExp): string {
 }
 
 function extractCard(raw: string): ParsedCard | null {
+  // Masked PANs first: CARD_RE would otherwise grab the FIRST four digits of
+  // "Credit Card 4782********4499" as the identity.
+  const masked = raw.match(MASKED_PAN_RE);
+  if (masked) {
+    return { last4: masked[1], kind: /credit/i.test(raw) ? 'credit' : 'debit' };
+  }
   const cardMatch = raw.match(CARD_RE);
   if (cardMatch) {
     const kindWord = cardMatch[1]?.toLowerCase();
@@ -241,9 +250,16 @@ export function parseSms(
   } else {
     merchant = extractMerchant(raw, MERCHANT_RE);
   }
+  const transferHint = !isBillDue && TRANSFER_HINT_RE.test(raw);
   merchant = merchant.replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE)$/i, '').trim();
   if (!merchant) {
-    merchant = isBillDue ? 'Bill payment' : type === 'income' ? 'Incoming transfer' : 'Card payment';
+    merchant = isBillDue
+      ? 'Bill payment'
+      : type === 'income'
+        ? 'Incoming transfer'
+        : transferHint
+          ? 'Card payment'
+          : 'Card purchase';
   } else {
     merchant = titleCase(merchant);
   }
@@ -257,7 +273,7 @@ export function parseSms(
     dueDay: isBillDue && date ? Number(date.slice(8)) : null,
     minDueFils: null,
     card,
-    transferHint: !isBillDue && TRANSFER_HINT_RE.test(raw),
+    transferHint,
     categoryGuess: guessCategory(raw, type, overrides, merchant),
     raw,
   };

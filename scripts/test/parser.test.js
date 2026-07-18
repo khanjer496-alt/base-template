@@ -131,5 +131,26 @@ const normalSpend = parseSms('Purchase of AED 187.50 with Debit Card ending 1234
 if (normalSpend && normalSpend.transferHint === false) { pass++; console.log('✓ normal purchase not flagged as transfer'); }
 else { fail++; console.log('✗ normal purchase not flagged as transfer'); }
 
+// ── masked PANs and "has been paid" settlements (real-device formats) ──
+const maskedPaid = parseSms('Your Credit Card 4782********4499 Has Been Paid AED 10,700.00. Thank you for banking with us.');
+if (maskedPaid && maskedPaid.kind === 'cardPayment' && maskedPaid.card && maskedPaid.card.last4 === '4499' && maskedPaid.transferHint === true) {
+  pass++; console.log('✓ masked-PAN "has been paid" is a card payment');
+} else { fail++; console.log('✗ masked-PAN "has been paid" is a card payment', JSON.stringify(maskedPaid && { k: maskedPaid.kind, c: maskedPaid.card, m: maskedPaid.merchant })); }
+
+const maskedPaid2 = parseSms('Payment of AED 7,663.00 has been received on your Credit Card 5492********3749.');
+if (maskedPaid2 && maskedPaid2.kind === 'cardPayment' && maskedPaid2.card && maskedPaid2.card.last4 === '3749') {
+  pass++; console.log('✓ masked-PAN payment-received keeps the LAST four digits');
+} else { fail++; console.log('✗ masked-PAN payment-received keeps the LAST four digits', JSON.stringify(maskedPaid2 && maskedPaid2.card)); }
+
+const maskedDebit = parseSms('AED 10,700.00 debited from your a/c XX9012 towards Credit Card 4782********4499 payment.');
+if (maskedDebit && maskedDebit.transferHint === true && !/[*Xx]{2,}/.test(maskedDebit.merchant)) {
+  pass++; console.log('✓ debit leg toward a masked card is a transfer, PAN never a merchant');
+} else { fail++; console.log('✗ debit leg toward a masked card is a transfer, PAN never a merchant', JSON.stringify(maskedDebit && { t: maskedDebit.transferHint, m: maskedDebit.merchant })); }
+
+const unknownDebit = parseSms('AED 250.00 was debited from your account XX9012 on 12/07/2026.');
+if (unknownDebit && unknownDebit.merchant === 'Card purchase' && unknownDebit.transferHint === false) {
+  pass++; console.log('✓ unknown-merchant debit titled Card purchase, not Card payment');
+} else { fail++; console.log('✗ unknown-merchant debit titled Card purchase', JSON.stringify(unknownDebit && { m: unknownDebit.merchant, t: unknownDebit.transferHint })); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

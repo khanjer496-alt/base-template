@@ -5,6 +5,7 @@ import Svg, { Polyline } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InsightCard } from '@/components/insight-card';
+import { PeriodSheet } from '@/components/period-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BarChart } from '@/components/ui/bar-chart';
@@ -30,6 +31,13 @@ import {
   shiftMonthKey,
 } from '@/lib/format';
 import { buildInsights, summarizeMonth } from '@/lib/insights';
+import {
+  elapsedDays as periodElapsedDays,
+  isCurrentMonth,
+  periodLabel,
+  previousPeriod,
+} from '@/lib/period';
+import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
@@ -41,17 +49,21 @@ export default function StatsScreen() {
   const { state } = useStore();
   const now = useMemo(() => new Date(), []);
   const currentKey = monthKey(now);
-  const [key, setKey] = useState(currentKey);
+  const { period, setPeriod } = usePeriod();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [drillCategory, setDrillCategory] = useState<CategoryId | null>(null);
 
-  const summary = useMemo(() => summarizeMonth(state.transactions, key), [state.transactions, key]);
+  const monthMode = period.mode === 'month';
+  const key = monthMode ? period.key : currentKey; // anchors the 6-month trend window
+
+  const summary = useMemo(() => summarizeMonth(state.transactions, period), [state.transactions, period]);
   const insights = useMemo(
-    () => buildInsights(state.transactions, state.budgets, key, now),
-    [state.transactions, state.budgets, key, now],
+    () => buildInsights(state.transactions, state.budgets, period, now),
+    [state.transactions, state.budgets, period, now],
   );
-  const merchants = useMemo(() => topMerchants(state.transactions, key), [state.transactions, key]);
-  const movers = useMemo(() => categoryMovers(state.transactions, key), [state.transactions, key]);
-  const weekSpend = useMemo(() => dayOfWeekSpend(state.transactions, key), [state.transactions, key]);
+  const merchants = useMemo(() => topMerchants(state.transactions, period), [state.transactions, period]);
+  const movers = useMemo(() => categoryMovers(state.transactions, period), [state.transactions, period]);
+  const weekSpend = useMemo(() => dayOfWeekSpend(state.transactions, period), [state.transactions, period]);
   const netWorth = useMemo(() => netWorthSeries(state), [state]);
   const drillTrend = useMemo(
     () => (drillCategory ? categoryTrend(state.transactions, drillCategory) : []),
@@ -73,11 +85,12 @@ export default function StatsScreen() {
     return months;
   }, [state.transactions, currentKey]);
 
-  const highlightIndex = trend.findIndex((m) => m.key === key);
-  const isCurrent = key === currentKey;
-  const elapsedDays = isCurrent ? now.getDate() : daysInMonth(key);
-  const dailyAvg = elapsedDays > 0 ? Math.round(summary.expenseFils / elapsedDays) : 0;
-  const projected = isCurrent ? dailyAvg * daysInMonth(key) : summary.expenseFils;
+  const highlightIndex = monthMode ? trend.findIndex((m) => m.key === key) : -1;
+  const live = isCurrentMonth(period, now);
+  const coveredDays = Math.max(1, periodElapsedDays(period, now, state.transactions));
+  const dailyAvg = Math.round(summary.expenseFils / coveredDays);
+  const projected = live ? dailyAvg * daysInMonth(key) : summary.expenseFils;
+  const prev = previousPeriod(period);
   const savings = summary.incomeFils - summary.expenseFils;
   const weekMax = Math.max(1, ...weekSpend);
 
@@ -104,31 +117,40 @@ export default function StatsScreen() {
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Month navigator */}
+          {/* Period navigator: chevrons step months, the title opens the full picker */}
           <View style={styles.monthNav}>
             <Pressable
+              disabled={!monthMode}
               onPress={() => {
-                setKey(shiftMonthKey(key, -1));
-                setDrillCategory(null);
-              }}
-              style={[styles.navBtn, { backgroundColor: theme.backgroundSelected }]}>
-              <Icon name="chevron-left" size={18} color={theme.text} />
-            </Pressable>
-            <View style={styles.monthTitleWrap}>
-              <ThemedText type="heading">{monthLabel(key)}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Monthly report
-              </ThemedText>
-            </View>
-            <Pressable
-              disabled={isCurrent}
-              onPress={() => {
-                setKey(shiftMonthKey(key, 1));
+                setPeriod({ mode: 'month', key: shiftMonthKey(key, -1) });
                 setDrillCategory(null);
               }}
               style={[
                 styles.navBtn,
-                { backgroundColor: theme.backgroundSelected, opacity: isCurrent ? 0.35 : 1 },
+                { backgroundColor: theme.backgroundSelected, opacity: monthMode ? 1 : 0.35 },
+              ]}>
+              <Icon name="chevron-left" size={18} color={theme.text} />
+            </Pressable>
+            <Pressable style={styles.monthTitleWrap} onPress={() => setSheetOpen(true)}>
+              <View style={styles.monthTitleRow}>
+                <ThemedText type="heading">
+                  {monthMode ? monthLabel(key) : periodLabel(period)}
+                </ThemedText>
+                <Icon name="chevron-down" size={14} color={theme.textSecondary} />
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Tap to change period
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              disabled={!monthMode || live}
+              onPress={() => {
+                setPeriod({ mode: 'month', key: shiftMonthKey(key, 1) });
+                setDrillCategory(null);
+              }}
+              style={[
+                styles.navBtn,
+                { backgroundColor: theme.backgroundSelected, opacity: monthMode && !live ? 1 : 0.35 },
               ]}>
               <Icon name="chevron-right" size={18} color={theme.text} />
             </Pressable>
@@ -177,7 +199,7 @@ export default function StatsScreen() {
               })}
               {summary.byCategory.length === 0 && (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                  No expenses recorded for this month.
+                  No expenses recorded in this period.
                 </ThemedText>
               )}
             </View>
@@ -204,7 +226,7 @@ export default function StatsScreen() {
               />
               {topMerchants(
                 state.transactions.filter((t) => t.category === drillCategory),
-                key,
+                period,
                 3,
               ).map((m) => (
                 <View key={m.title} style={styles.merchantRow}>
@@ -234,7 +256,7 @@ export default function StatsScreen() {
             <View style={[styles.statDivider, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.statItem}>
               <ThemedText type="micro" themeColor="textSecondary">
-                {isCurrent ? 'Projected' : 'Spent'}
+                {live ? 'Projected' : 'Spent'}
               </ThemedText>
               <ThemedText type="smallBold" tabular>{formatAED(projected, { decimals: false })}</ThemedText>
             </View>
@@ -253,7 +275,9 @@ export default function StatsScreen() {
           {/* Biggest movers */}
           {movers.length > 0 && (
             <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.section}>
-              <ThemedText type="smallBold">Biggest changes vs {monthLabel(shiftMonthKey(key, -1), true)}</ThemedText>
+              <ThemedText type="smallBold">
+                Biggest changes vs {prev ? periodLabel(prev) : 'before'}
+              </ThemedText>
               {movers.map((m) => {
                 const meta = getCategory(m.category);
                 const up = m.deltaFils > 0;
@@ -398,6 +422,7 @@ export default function StatsScreen() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
+      <PeriodSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
     </ThemedView>
   );
 }
@@ -424,6 +449,11 @@ const styles = StyleSheet.create({
   },
   monthTitleWrap: {
     alignItems: 'center',
+  },
+  monthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   navBtn: {
     width: 38,

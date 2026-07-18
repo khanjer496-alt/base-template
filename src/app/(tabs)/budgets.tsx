@@ -21,6 +21,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
 import { daysInMonth, formatAED, monthKey, monthLabel, parseAmountToFils } from '@/lib/format';
 import { spentInMonthForCategory } from '@/lib/insights';
+import { isCurrentMonth } from '@/lib/period';
+import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
@@ -29,8 +31,12 @@ const TAB_BAR_CLEARANCE = 110;
 export default function BudgetsScreen() {
   const theme = useTheme();
   const { state, upsertBudget, deleteBudget } = useStore();
+  const { period } = usePeriod();
   const now = new Date();
-  const key = monthKey(now);
+  // Budgets are monthly, so follow the global period only when it IS a month;
+  // year/range/all views fall back to the current month.
+  const key = period.mode === 'month' ? period.key : monthKey(now);
+  const live = isCurrentMonth({ mode: 'month', key }, now);
 
   const [editorVisible, setEditorVisible] = useState(false);
   const [editCategory, setEditCategory] = useState<CategoryId | null>(null);
@@ -49,7 +55,7 @@ export default function BudgetsScreen() {
 
   const totalLimit = rows.reduce((s, r) => s + r.budget.limitFils, 0);
   const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
-  const monthProgress = now.getDate() / daysInMonth(key);
+  const monthProgress = live ? now.getDate() / daysInMonth(key) : 1;
   const available = EXPENSE_CATEGORIES.filter(
     (c) => !state.budgets.some((b) => b.category === c.id) || c.id === editCategory,
   );
@@ -75,7 +81,8 @@ export default function BudgetsScreen() {
             <View>
               <ThemedText style={styles.title}>Budgets</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {monthLabel(key)} · {Math.round(monthProgress * 100)}% of the month gone
+                {monthLabel(key)}
+                {live ? ` · ${Math.round(monthProgress * 100)}% of the month gone` : ' · full month'}
               </ThemedText>
             </View>
             <Pressable
@@ -90,7 +97,7 @@ export default function BudgetsScreen() {
               <Card style={styles.totalCard}>
                 <View style={styles.totalTop}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Overall this month
+                    {live ? 'Overall this month' : `Overall in ${monthLabel(key, true)}`}
                   </ThemedText>
                   <ThemedText type="smallBold">
                     {formatAED(totalSpent, { decimals: false })} / {formatAED(totalLimit, { decimals: false })}

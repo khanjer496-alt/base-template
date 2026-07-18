@@ -25,10 +25,13 @@ import {
 import { billsForMonth } from '@/lib/bills';
 import { openDues } from '@/lib/cards';
 import { getCategory } from '@/lib/categories';
-import { formatAED, greetingForHour, monthKey, monthLabel, shortDate } from '@/lib/format';
+import { formatAED, greetingForHour, shortDate } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
-import { netWorthFils, useStore } from '@/lib/store';
+import { inPeriod, isCurrentMonth, periodEndISO, periodLabel } from '@/lib/period';
+import { usePeriod } from '@/lib/period-context';
+import { PeriodSheet } from '@/components/period-sheet';
+import { netWorthAtDate, netWorthFils, useStore } from '@/lib/store';
 import {
   detectSubscriptions,
   daysUntilNext,
@@ -46,21 +49,34 @@ export default function HomeScreen() {
   const router = useRouter();
   const toast = useToast();
   const { state, importBatch, undoBatch } = useStore();
+  const { period } = usePeriod();
 
   const now = useMemo(() => new Date(), []);
-  const key = monthKey(now);
+  const live = isCurrentMonth(period, now);
+  const monthMode = period.mode === 'month';
   const [refreshing, setRefreshing] = useState(false);
   const [needsPermission, setNeedsPermission] = useState(false);
+  const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
 
-  const summary = useMemo(() => summarizeMonth(state.transactions, key), [state.transactions, key]);
-  const insights = useMemo(
-    () => buildInsights(state.transactions, state.budgets, key, now).slice(0, 5),
-    [state.transactions, state.budgets, key, now],
+  const summary = useMemo(
+    () => summarizeMonth(state.transactions, period),
+    [state.transactions, period],
   );
-  const netWorth = useMemo(() => netWorthFils(state), [state]);
+  const insights = useMemo(
+    () => buildInsights(state.transactions, state.budgets, period, now).slice(0, 5),
+    [state.transactions, state.budgets, period, now],
+  );
+  // Balance is point-in-time: today's for live views, end-of-period otherwise.
+  const netWorth = useMemo(
+    () =>
+      live || period.mode === 'all'
+        ? netWorthFils(state)
+        : netWorthAtDate(state, periodEndISO(period, now)),
+    [state, live, period, now],
+  );
   const recent = useMemo(
-    () => state.transactions.filter((t) => !t.isTransfer).slice(0, 5),
-    [state.transactions],
+    () => state.transactions.filter((t) => !t.isTransfer && inPeriod(t.date, period)).slice(0, 5),
+    [state.transactions, period],
   );
   const dues = useMemo(() => openDues(state, now), [state, now]);
   const subs = useMemo(
@@ -83,15 +99,17 @@ export default function HomeScreen() {
     [state.bills, state.transactions, now],
   );
 
+  // Budgets are monthly: valid for any selected month, hidden for year/range/all.
   const topBudgets = useMemo(() => {
+    if (!monthMode) return [];
     return state.budgets
       .map((b) => ({
         budget: b,
-        spent: spentInMonthForCategory(state.transactions, key, b.category),
+        spent: spentInMonthForCategory(state.transactions, period, b.category),
       }))
       .sort((a, b) => b.spent / b.budget.limitFils - a.spent / a.budget.limitFils)
       .slice(0, 3);
-  }, [state.budgets, state.transactions, key]);
+  }, [state.budgets, state.transactions, period, monthMode]);
 
   const runAutoImport = useCallback(
     async (interactive: boolean) => {
@@ -163,9 +181,17 @@ export default function HomeScreen() {
           {/* Typographic hero: no card, no gradient */}
           <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
             <View style={styles.heroTopRow}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {greetingForHour(now.getHours())} · {monthLabel(key, true)}
-              </ThemedText>
+              <Pressable onPress={() => setPeriodSheetOpen(true)} hitSlop={8} style={styles.periodChipWrap}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {greetingForHour(now.getHours())} ·{' '}
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  style={{ color: live ? theme.textSecondary : theme.primary, fontWeight: '700' }}>
+                  {periodLabel(period)}
+                </ThemedText>
+                <Icon name="chevron-right" size={12} color={theme.textSecondary} />
+              </Pressable>
               <Pressable onPress={() => router.push('/stats')} hitSlop={8}>
                 <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
                   Report
@@ -173,6 +199,11 @@ export default function HomeScreen() {
               </Pressable>
             </View>
             <CountUpAmount fils={netWorth} type="display" />
+            {!live && period.mode !== 'all' && (
+              <ThemedText type="micro" themeColor="textSecondary">
+                Balance at end of {periodLabel(period)}
+              </ThemedText>
+            )}
             <View style={styles.heroStats}>
               <View style={styles.heroStat}>
                 <View style={[styles.heroDot, { backgroundColor: theme.income }]} />
@@ -213,7 +244,7 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
-          {/* Card dues strip */}
+          {/* Card dues: current obligations, shown regardless of period */}
           {dues.length > 0 && (
             <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -302,8 +333,8 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
-          {/* Upcoming bills */}
-          {upcomingBills.length > 0 && (
+          {/* Upcoming bills: about NOW — hidden when viewing other periods */}
+          {live && upcomingBills.length > 0 && (
             <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.section}>
               <View style={styles.sectionHeader}>
                 <ThemedText type="micro" themeColor="textSecondary">Upcoming bills</ThemedText>
@@ -425,6 +456,7 @@ export default function HomeScreen() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
+      <PeriodSheet visible={periodSheetOpen} onClose={() => setPeriodSheetOpen(false)} />
     </ThemedView>
   );
 }
@@ -452,6 +484,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  periodChipWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   heroStats: {
     flexDirection: 'row',

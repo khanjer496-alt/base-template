@@ -1,5 +1,14 @@
 import { getCategory } from '@/lib/categories';
-import { daysInMonth, formatAED, monthKey, monthLabel, shiftMonthKey } from '@/lib/format';
+import { formatAED } from '@/lib/format';
+import {
+  elapsedDays,
+  inPeriod,
+  isCurrentMonth,
+  periodLabel,
+  previousPeriod,
+  toPeriod,
+  type PeriodLike,
+} from '@/lib/period';
 import { detectSubscriptions, subscriptionsMonthlyTotal, trueSubscriptions } from '@/lib/subscriptions';
 import type { Budget, CategoryId, Transaction } from '@/lib/types';
 
@@ -9,14 +18,14 @@ export interface MonthSummary {
   byCategory: { category: CategoryId; totalFils: number; share: number }[];
 }
 
-export function summarizeMonth(transactions: Transaction[], key: string): MonthSummary {
+export function summarizeMonth(transactions: Transaction[], period: PeriodLike): MonthSummary {
   let incomeFils = 0;
   let expenseFils = 0;
   const catTotals = new Map<CategoryId, number>();
 
   for (const t of transactions) {
     if (t.isTransfer) continue; // card payments move money, they aren't income/spending
-    if (monthKey(t.date) !== key) continue;
+    if (!inPeriod(t.date, period)) continue;
     if (t.type === 'income') {
       incomeFils += t.amountFils;
     } else {
@@ -38,13 +47,13 @@ export function summarizeMonth(transactions: Transaction[], key: string): MonthS
 
 export function spentInMonthForCategory(
   transactions: Transaction[],
-  key: string,
+  period: PeriodLike,
   category: CategoryId,
 ): number {
   let total = 0;
   for (const t of transactions) {
     if (t.isTransfer) continue;
-    if (t.type === 'expense' && t.category === category && monthKey(t.date) === key) {
+    if (t.type === 'expense' && t.category === category && inPeriod(t.date, period)) {
       total += t.amountFils;
     }
   }
@@ -68,21 +77,27 @@ export interface Insight {
 export function buildInsights(
   transactions: Transaction[],
   budgets: Budget[],
-  key: string,
+  periodLike: PeriodLike,
   today: Date,
 ): Insight[] {
   const insights: Insight[] = [];
-  const current = summarizeMonth(transactions, key);
-  const prevKey = shiftMonthKey(key, -1);
-  const previous = summarizeMonth(transactions, prevKey);
-  const isCurrentMonth = key === monthKey(today);
-  const dayOfMonth = isCurrentMonth ? today.getDate() : daysInMonth(key);
+  const period = toPeriod(periodLike);
+  const current = summarizeMonth(transactions, period);
+  const prev = previousPeriod(period);
+  const previous = prev ? summarizeMonth(transactions, prev) : { incomeFils: 0, expenseFils: 0, byCategory: [] };
+  const live = isCurrentMonth(period, today);
+  const isMonthMode = period.mode === 'month';
+  const dayOfMonth = Math.max(1, elapsedDays(period, today, transactions));
+  const totalDaysInPeriod =
+    period.mode === 'month'
+      ? Number(new Date(Number(period.key.slice(0, 4)), Number(period.key.slice(5, 7)), 0).getDate())
+      : dayOfMonth;
 
-  // Month-over-month spending change
-  if (previous.expenseFils > 0 && current.expenseFils > 0) {
-    if (isCurrentMonth) {
+  // Change vs the previous period (pace projection only mid-current-month)
+  if (prev && previous.expenseFils > 0 && current.expenseFils > 0) {
+    if (live) {
       const pace = current.expenseFils / dayOfMonth;
-      const projected = pace * daysInMonth(key);
+      const projected = pace * totalDaysInPeriod;
       const delta = (projected - previous.expenseFils) / previous.expenseFils;
       if (Math.abs(delta) >= 0.08) {
         const pct = Math.round(Math.abs(delta) * 100);
@@ -91,7 +106,7 @@ export function buildInsights(
           tone: delta > 0 ? 'warning' : 'positive',
           icon: delta > 0 ? 'arrow-up-right' : 'arrow-down-right',
           title: delta > 0 ? `Trending ${pct}% higher` : `Trending ${pct}% lower`,
-          body: `At today's pace you'll spend about ${formatAED(Math.round(projected), { decimals: false })} this month, vs ${formatAED(previous.expenseFils, { decimals: false })} in ${monthLabel(prevKey, true)}.`,
+          body: `At today's pace you'll spend about ${formatAED(Math.round(projected), { decimals: false })} this month, vs ${formatAED(previous.expenseFils, { decimals: false })} in ${periodLabel(prev)}.`,
         });
       }
     } else {
@@ -103,15 +118,15 @@ export function buildInsights(
           tone: delta > 0 ? 'warning' : 'positive',
           icon: delta > 0 ? 'arrow-up-right' : 'arrow-down-right',
           title: `Spent ${pct}% ${delta > 0 ? 'more' : 'less'}`,
-          body: `${formatAED(current.expenseFils, { decimals: false })} vs ${formatAED(previous.expenseFils, { decimals: false })} in ${monthLabel(prevKey, true)}.`,
+          body: `${formatAED(current.expenseFils, { decimals: false })} vs ${formatAED(previous.expenseFils, { decimals: false })} in ${periodLabel(prev)}.`,
         });
       }
     }
   }
 
-  // Budget alerts
-  for (const b of budgets) {
-    const spent = spentInMonthForCategory(transactions, key, b.category);
+  // Budget alerts (budgets are monthly — skip in year/range/all views)
+  for (const b of isMonthMode ? budgets : []) {
+    const spent = spentInMonthForCategory(transactions, period, b.category);
     if (b.limitFils <= 0) continue;
     const ratio = spent / b.limitFils;
     const cat = getCategory(b.category);
@@ -123,7 +138,7 @@ export function buildInsights(
         title: `${cat.label} budget exceeded`,
         body: `${formatAED(spent, { decimals: false })} spent of your ${formatAED(b.limitFils, { decimals: false })} limit.`,
       });
-    } else if (ratio >= 0.85 && isCurrentMonth) {
+    } else if (ratio >= 0.85 && live) {
       insights.push({
         id: `budget-near-${b.category}`,
         tone: 'warning',
@@ -134,8 +149,8 @@ export function buildInsights(
     }
   }
 
-  // Top category concentration
-  const top = current.byCategory.filter((c) => c.category !== 'rent')[0];
+  // Top category concentration (rent and business costs aren't lifestyle spending)
+  const top = current.byCategory.filter((c) => c.category !== 'rent' && c.category !== 'business')[0];
   if (top && top.share >= 0.15) {
     const cat = getCategory(top.category);
     insights.push({
@@ -156,7 +171,7 @@ export function buildInsights(
         tone: 'positive',
         icon: 'leaf',
         title: `Saving ${Math.round(rate * 100)}% of income`,
-        body: `${formatAED(current.incomeFils - current.expenseFils, { decimals: false })} kept aside so far this month. Keep it up!`,
+        body: `${formatAED(current.incomeFils - current.expenseFils, { decimals: false })} kept aside${live ? ' so far this month' : ''}. Keep it up!`,
       });
     } else if (rate < 0) {
       insights.push({
@@ -164,7 +179,7 @@ export function buildInsights(
         tone: 'warning',
         icon: 'alert',
         title: 'Spending exceeds income',
-        body: `Expenses are ${formatAED(current.expenseFils - current.incomeFils, { decimals: false })} above income this month.`,
+        body: `Expenses are ${formatAED(current.expenseFils - current.incomeFils, { decimals: false })} above income${isMonthMode ? ' this month' : ' in this period'}.`,
       });
     }
   }
@@ -173,7 +188,7 @@ export function buildInsights(
   let largest: Transaction | null = null;
   for (const t of transactions) {
     if (t.isTransfer) continue;
-    if (t.type === 'expense' && monthKey(t.date) === key && t.category !== 'rent') {
+    if (t.type === 'expense' && inPeriod(t.date, period) && t.category !== 'rent' && t.category !== 'business') {
       if (!largest || t.amountFils > largest.amountFils) largest = t;
     }
   }
@@ -192,7 +207,7 @@ export function buildInsights(
   const subs = trueSubscriptions(detectSubscriptions(transactions));
   if (subs.length >= 2) {
     const monthly = subscriptionsMonthlyTotal(subs);
-    if (current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {
+    if (isMonthMode && current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {
       insights.push({
         id: 'subs-load',
         tone: 'warning',
@@ -228,7 +243,7 @@ export function buildInsights(
       tone: 'neutral',
       icon: 'sun',
       title: 'Daily average',
-      body: `You spend about ${formatAED(Math.round(current.expenseFils / dayOfMonth), { decimals: false })} per day this month.`,
+      body: `You spend about ${formatAED(Math.round(current.expenseFils / dayOfMonth), { decimals: false })} per day${isMonthMode ? ' this month' : ' in this period'}.`,
     });
   }
 

@@ -200,5 +200,47 @@ ok('analytics: dining moved down vs June', mv.some(m => m.category === 'dining' 
 const dw = an.dayOfWeekSpend(aTx, '2026-07');
 ok('analytics: transfers excluded from weekday spend', dw.reduce((a, b) => a + b, 0) === 100000);
 
+// ── period model ──
+const per = require('./build/period');
+const pTx = [
+  { id: 'q1', type: 'expense', amountFils: 10000, category: 'dining', accountId: 'a', title: 'A', date: '2025-11-20' },
+  { id: 'q2', type: 'expense', amountFils: 20000, category: 'dining', accountId: 'a', title: 'B', date: '2026-03-05' },
+];
+ok('period: string coerces to month', per.toPeriod('2026-07').mode === 'month');
+ok('period: inPeriod month', per.inPeriod('2026-07-15', '2026-07') && !per.inPeriod('2026-06-30', '2026-07'));
+ok('period: inPeriod year', per.inPeriod('2026-01-01', { mode: 'year', year: 2026 }) && !per.inPeriod('2025-12-31', { mode: 'year', year: 2026 }));
+ok('period: inPeriod range inclusive', per.inPeriod('2026-07-01', { mode: 'range', from: '2026-07-01', to: '2026-07-10' }) && per.inPeriod('2026-07-10', { mode: 'range', from: '2026-07-01', to: '2026-07-10' }) && !per.inPeriod('2026-07-11', { mode: 'range', from: '2026-07-01', to: '2026-07-10' }));
+ok('period: inPeriod all', per.inPeriod('1999-01-01', { mode: 'all' }));
+
+ok('period: previous month wraps year', per.previousPeriod('2026-01').key === '2025-12');
+ok('period: previous year', per.previousPeriod({ mode: 'year', year: 2026 }).year === 2025);
+const prevRange = per.previousPeriod({ mode: 'range', from: '2026-07-11', to: '2026-07-20' });
+ok('period: previous range equal length', prevRange.from === '2026-07-01' && prevRange.to === '2026-07-10');
+ok('period: all has no previous', per.previousPeriod({ mode: 'all' }) === null);
+
+const pNow = new Date(2026, 6, 18); // 18 Jul 2026
+ok('period: current month detected', per.isCurrentMonth('2026-07', pNow) && !per.isCurrentMonth('2026-06', pNow));
+ok('period: elapsed days current month', per.elapsedDays('2026-07', pNow, []) === 18);
+ok('period: elapsed days past month is full', per.elapsedDays('2026-06', pNow, []) === 30);
+ok('period: elapsed days future month is zero', per.elapsedDays('2026-08', pNow, []) === 0);
+ok('period: elapsed days current year', per.elapsedDays({ mode: 'year', year: 2026 }, pNow, []) === 199);
+ok('period: elapsed days range clamps at today', per.elapsedDays({ mode: 'range', from: '2026-07-10', to: '2026-07-31' }, pNow, []) === 9);
+ok('period: elapsed days all from earliest tx', per.elapsedDays({ mode: 'all' }, pNow, pTx) === 241);
+
+ok('period: end of past month', per.periodEndISO('2026-06', pNow) === '2026-06-30');
+ok('period: end of current month clamps to today', per.periodEndISO('2026-07', pNow) === '2026-07-18');
+ok('period: end of past year', per.periodEndISO({ mode: 'year', year: 2025 }, pNow) === '2025-12-31');
+ok('period: end of range', per.periodEndISO({ mode: 'range', from: '2026-05-01', to: '2026-05-20' }, pNow) === '2026-05-20');
+ok('period: label month', per.periodLabel('2026-07').length > 0);
+
+// summarize + movers accept Period objects
+const yearSum = insights.summarizeMonth(aTx, { mode: 'year', year: 2026 });
+ok('period: year summary aggregates all months', yearSum.expenseFils === 190000);
+const allSum = insights.summarizeMonth(aTx, { mode: 'all' });
+ok('period: all-time summary equals year here', allSum.expenseFils === 190000);
+ok('period: movers empty for all-time', an.categoryMovers(aTx, { mode: 'all' }).length === 0);
+const rangeTop = an.topMerchants(aTx, { mode: 'range', from: '2026-07-01', to: '2026-07-05' });
+ok('period: range-scoped top merchants', rangeTop[0].totalFils === 50000 && rangeTop.length === 2);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

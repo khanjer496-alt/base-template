@@ -20,10 +20,12 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
 import { formatAED, friendlyDate, monthKey, shiftMonthKey, toISODate } from '@/lib/format';
+import { inPeriod, periodLabel } from '@/lib/period';
+import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId, Transaction, TransactionType } from '@/lib/types';
 
-type DatePreset = 'all' | 'month' | 'lastMonth' | '3months';
+type DatePreset = 'selected' | 'all' | 'month' | 'lastMonth' | '3months';
 type SortMode = 'newest' | 'oldest' | 'largest';
 
 interface Filters {
@@ -39,7 +41,7 @@ const DEFAULT_FILTERS: Filters = {
   type: null,
   accountId: null,
   categories: new Set(),
-  datePreset: 'all',
+  datePreset: 'selected', // follow the app-wide reporting period by default
   minFils: null,
   sort: 'newest',
 };
@@ -54,13 +56,17 @@ export default function TransactionsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { state } = useStore();
+  const { period } = usePeriod();
   const { source } = useLocalSearchParams<{ source?: string }>();
 
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<Filters>({
+  const [filters, setFilters] = useState<Filters>(() => ({
     ...DEFAULT_FILTERS,
     categories: new Set(),
-  });
+    // reviewing an SMS import must show the new rows even if the app is
+    // scoped to a past period, so it starts unscoped
+    datePreset: source === 'sms' ? 'all' : 'selected',
+  }));
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
 
@@ -71,7 +77,7 @@ export default function TransactionsScreen() {
     (filters.type ? 1 : 0) +
     (filters.accountId ? 1 : 0) +
     (filters.categories.size > 0 ? 1 : 0) +
-    (filters.datePreset !== 'all' ? 1 : 0) +
+    (filters.datePreset !== 'selected' ? 1 : 0) +
     (filters.minFils ? 1 : 0);
 
   const filtered = useMemo(() => {
@@ -85,6 +91,7 @@ export default function TransactionsScreen() {
       if (filters.categories.size > 0 && !filters.categories.has(t.category)) return false;
       if (filters.minFils && t.amountFils < filters.minFils) return false;
       const k = monthKey(t.date);
+      if (filters.datePreset === 'selected' && !inPeriod(t.date, period)) return false;
       if (filters.datePreset === 'month' && k !== currentKey) return false;
       if (filters.datePreset === 'lastMonth' && k !== lastKey) return false;
       if (filters.datePreset === '3months' && k < threeKey) return false;
@@ -100,7 +107,7 @@ export default function TransactionsScreen() {
       list = [...list].reverse();
     }
     return list;
-  }, [state.transactions, query, filters, source, currentKey]);
+  }, [state.transactions, query, filters, source, currentKey, period]);
 
   const totalShown = useMemo(
     () =>
@@ -141,6 +148,7 @@ export default function TransactionsScreen() {
   const clearFilters = () => setFilters({ ...DEFAULT_FILTERS, categories: new Set() });
 
   const presetLabel: Record<DatePreset, string> = {
+    selected: period.mode === 'all' ? 'Selected period' : periodLabel(period),
     all: 'All time',
     month: 'This month',
     lastMonth: 'Last month',
@@ -195,6 +203,9 @@ export default function TransactionsScreen() {
           <View style={styles.summaryRow}>
             <ThemedText type="small" themeColor="textSecondary">
               {filtered.length} transaction{filtered.length === 1 ? '' : 's'}
+              {filters.datePreset === 'selected' && period.mode !== 'all'
+                ? ` · ${periodLabel(period)}`
+                : ''}
               {activeFilterCount > 0 ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'}` : ''}
             </ThemedText>
             <View style={styles.summaryRight}>

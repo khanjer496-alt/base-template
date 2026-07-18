@@ -1,4 +1,5 @@
 import { monthKey, shiftMonthKey } from '@/lib/format';
+import { inPeriod, previousPeriod, toPeriod, type PeriodLike } from '@/lib/period';
 import type { AppState, CategoryId, Transaction } from '@/lib/types';
 
 export interface MerchantStat {
@@ -9,10 +10,10 @@ export interface MerchantStat {
 }
 
 /** Top merchants by spend within a month. */
-export function topMerchants(transactions: Transaction[], key: string, limit = 5): MerchantStat[] {
+export function topMerchants(transactions: Transaction[], period: PeriodLike, limit = 5): MerchantStat[] {
   const map = new Map<string, MerchantStat>();
   for (const t of transactions) {
-    if (t.type !== 'expense' || t.isTransfer || monthKey(t.date) !== key) continue;
+    if (t.type !== 'expense' || t.isTransfer || !inPeriod(t.date, period)) continue;
     const k = t.title.trim().toLowerCase();
     const cur = map.get(k);
     if (cur) {
@@ -33,15 +34,16 @@ export interface CategoryMover {
 }
 
 /** Categories with the biggest spend change vs the previous month. */
-export function categoryMovers(transactions: Transaction[], key: string, limit = 4): CategoryMover[] {
-  const prevKey = shiftMonthKey(key, -1);
+export function categoryMovers(transactions: Transaction[], periodLike: PeriodLike, limit = 4): CategoryMover[] {
+  const period = toPeriod(periodLike);
+  const prevPeriod = previousPeriod(period);
+  if (!prevPeriod) return []; // 'all time' has nothing to compare against
   const cur = new Map<CategoryId, number>();
   const prev = new Map<CategoryId, number>();
   for (const t of transactions) {
     if (t.type !== 'expense' || t.isTransfer) continue;
-    const k = monthKey(t.date);
-    if (k === key) cur.set(t.category, (cur.get(t.category) ?? 0) + t.amountFils);
-    else if (k === prevKey) prev.set(t.category, (prev.get(t.category) ?? 0) + t.amountFils);
+    if (inPeriod(t.date, period)) cur.set(t.category, (cur.get(t.category) ?? 0) + t.amountFils);
+    else if (inPeriod(t.date, prevPeriod)) prev.set(t.category, (prev.get(t.category) ?? 0) + t.amountFils);
   }
   const cats = new Set<CategoryId>([...cur.keys(), ...prev.keys()]);
   const movers: CategoryMover[] = [];
@@ -57,10 +59,10 @@ export function categoryMovers(transactions: Transaction[], key: string, limit =
 }
 
 /** Spend per weekday (0 = Sunday … 6 = Saturday) within a month. */
-export function dayOfWeekSpend(transactions: Transaction[], key: string): number[] {
+export function dayOfWeekSpend(transactions: Transaction[], period: PeriodLike): number[] {
   const buckets = new Array(7).fill(0);
   for (const t of transactions) {
-    if (t.type !== 'expense' || t.isTransfer || monthKey(t.date) !== key) continue;
+    if (t.type !== 'expense' || t.isTransfer || !inPeriod(t.date, period)) continue;
     const day = new Date(`${t.date}T12:00:00`).getDay();
     buckets[day] += t.amountFils;
   }

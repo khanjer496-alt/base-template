@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 rm -rf build && mkdir -p build
-for f in types format categories sms-parser bills insights seed subscriptions cards analytics; do
+for f in types format categories sms-parser bills insights seed subscriptions cards analytics period; do
   sed -e "s|from '@/lib/|from './|g" \
       -e "s|import type { IconName } from '@/components/ui/icon';|type IconName = string;|" \
       -e "s|import('@/components/ui/icon').IconName|string|g" \
