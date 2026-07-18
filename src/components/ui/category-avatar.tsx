@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Icon } from '@/components/ui/icon';
 import { getCategory } from '@/lib/categories';
 import type { CategoryId } from '@/lib/types';
 
@@ -9,7 +10,7 @@ interface CategoryAvatarProps {
   size?: number;
 }
 
-/** Emoji badge tinted with the category color. */
+/** Category glyph on a tinted circle. */
 export function CategoryAvatar({ category, size = 44 }: CategoryAvatarProps) {
   const meta = getCategory(category);
   return (
@@ -20,10 +21,10 @@ export function CategoryAvatar({ category, size = 44 }: CategoryAvatarProps) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: `${meta.color}26`,
+          backgroundColor: `${meta.color}22`,
         },
       ]}>
-      <Text style={{ fontSize: size * 0.45 }}>{meta.emoji}</Text>
+      <Icon name={meta.icon} size={size * 0.5} color={meta.color} strokeWidth={1.8} />
     </View>
   );
 }

@@ -158,7 +158,9 @@ export default function BudgetsScreen() {
 
             {rows.length === 0 && (
               <Card style={styles.emptyCard}>
-                <ThemedText style={styles.emptyEmoji}>🎯</ThemedText>
+                <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
+                  <Icon name="target" size={26} color={theme.textSecondary} strokeWidth={1.7} />
+                </View>
                 <ThemedText type="smallBold">No budgets yet</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
                   Set monthly limits per category and Wafra will track your pace and warn you
@@ -199,9 +201,10 @@ export default function BudgetsScreen() {
                       borderColor: editCategory === c.id ? c.color : 'transparent',
                     },
                   ]}>
-                  <ThemedText type="small">
-                    {c.emoji} {c.label}
-                  </ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={c.icon} size={13} color={c.color} />
+                    <ThemedText type="small">{c.label}</ThemedText>
+                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -314,9 +317,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.five,
   },
-  emptyEmoji: {
-    fontSize: 40,
-    lineHeight: 48,
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     textAlign: 'center',

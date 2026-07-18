@@ -31,14 +31,18 @@ import type { AccountKind } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
 
-const KIND_META: Record<AccountKind, { label: string; emoji: string }> = {
-  bank: { label: 'Bank', emoji: '🏦' },
-  card: { label: 'Card', emoji: '💳' },
-  cash: { label: 'Cash', emoji: '💵' },
+const KIND_META: Record<AccountKind, { label: string; icon: import('@/components/ui/icon').IconName }> = {
+  bank: { label: 'Bank', icon: 'bank' },
+  card: { label: 'Card', icon: 'wallet' },
+  cash: { label: 'Cash', icon: 'cash' },
 };
 
 const ACCOUNT_COLORS = ['#2DD4A8', '#60A5FA', '#E3B54A', '#F472B6', '#A78BFA', '#FB923C'];
-const GOAL_EMOJIS = ['🛟', '✈️', '🏠', '🕋', '🚗', '🎓', '💍', '📈'];
+const GOAL_ICONS: import('@/components/ui/icon').IconName[] = [
+  'target', 'plane', 'home', 'gift', 'car', 'cap', 'diamond', 'chart',
+];
+const isIconName = (v: string): v is (typeof GOAL_ICONS)[number] =>
+  (GOAL_ICONS as string[]).includes(v);
 
 export default function WalletScreen() {
   const theme = useTheme();
@@ -70,7 +74,7 @@ export default function WalletScreen() {
   const [goalVisible, setGoalVisible] = useState(false);
   const [goalTitle, setGoalTitle] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
-  const [goalEmoji, setGoalEmoji] = useState(GOAL_EMOJIS[0]);
+  const [goalIcon, setGoalIcon] = useState(GOAL_ICONS[0]);
 
   const total = netWorthFils(state);
   const dues = useMemo(() => openDues(state, now), [state, now]);
@@ -91,7 +95,7 @@ export default function WalletScreen() {
   const saveGoal = () => {
     const target = parseAmountToFils(goalTarget);
     if (!goalTitle.trim() || !target) return;
-    addGoal({ title: goalTitle.trim(), emoji: goalEmoji, targetFils: target, savedFils: 0 });
+    addGoal({ title: goalTitle.trim(), emoji: goalIcon, targetFils: target, savedFils: 0 });
     setGoalTitle('');
     setGoalTarget('');
     setGoalVisible(false);
@@ -315,7 +319,7 @@ export default function WalletScreen() {
                       i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
                     ]}>
                     <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
-                      <ThemedText style={styles.accountBadgeEmoji}>{meta.emoji}</ThemedText>
+                      <Icon name={meta.icon} size={20} color={account.color} strokeWidth={1.8} />
                     </View>
                     <View style={styles.accountInfo}>
                       <ThemedText type="default" numberOfLines={1}>
@@ -379,9 +383,14 @@ export default function WalletScreen() {
                   }
                   style={styles.goalRow}>
                   <View style={styles.goalTop}>
-                    <ThemedText type="small">
-                      {goal.emoji}  {goal.title}
-                    </ThemedText>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                      <Icon
+                        name={isIconName(goal.emoji) ? goal.emoji : 'target'}
+                        size={14}
+                        color={theme.gold}
+                      />
+                      <ThemedText type="small">{goal.title}</ThemedText>
+                    </View>
                     <ThemedText type="small" themeColor="textSecondary" tabular>
                       {formatAED(goal.savedFils, { decimals: false })} / {formatAED(goal.targetFils, { decimals: false })}
                     </ThemedText>
@@ -407,17 +416,26 @@ export default function WalletScreen() {
             <ThemedText type="micro" themeColor="textSecondary">Features</ThemedText>
             <View>
               <Pressable style={styles.settingRow} onPress={() => router.push('/bills')}>
-                <ThemedText type="small">📅 Bills and subscriptions</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="calendar" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Bills and subscriptions</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={() => router.push('/import-sms')}>
-                <ThemedText type="small">✉️ Import from bank SMS</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="mail" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Import from bank SMS</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <View style={styles.settingRow}>
-                <ThemedText type="small">🔒 App lock (biometric)</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="lock" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">App lock (biometric)</ThemedText>
+                </View>
                 <Switch
                   value={state.appLock}
                   onValueChange={toggleAppLock}
@@ -433,29 +451,44 @@ export default function WalletScreen() {
             <ThemedText type="micro" themeColor="textSecondary">Data</ThemedText>
             <View>
               <Pressable style={styles.settingRow} onPress={backupJson}>
-                <ThemedText type="small">🗄️ Back up everything (JSON)</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="download" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Back up everything (JSON)</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={restoreFromFile}>
-                <ThemedText type="small">📥 Restore from backup</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="upload" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Restore from backup</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={exportCsv}>
-                <ThemedText type="small">📤 Export transactions (CSV)</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="receipt" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Export transactions (CSV)</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={() => confirmReset(true)}>
-                <ThemedText type="small">🧪 Load demo data</ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="spark" size={15} color={theme.textSecondary} />
+                  <ThemedText type="small">Load demo data</ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={() => confirmReset(false)}>
-                <ThemedText type="small" style={{ color: theme.expense }}>
-                  🗑️ Erase all data
-                </ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Icon name="trash" size={15} color={theme.expense} />
+                  <ThemedText type="small" style={{ color: theme.expense }}>
+                    Erase all data
+                  </ThemedText>
+                </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
             </View>
@@ -504,9 +537,10 @@ export default function WalletScreen() {
                       borderColor: kind === k ? theme.primary : 'transparent',
                     },
                   ]}>
-                  <ThemedText type="small">
-                    {KIND_META[k].emoji} {KIND_META[k].label}
-                  </ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={KIND_META[k].icon} size={13} color={theme.text} />
+                    <ThemedText type="small">{KIND_META[k].label}</ThemedText>
+                  </View>
                 </Pressable>
               ))}
             </View>
@@ -581,18 +615,18 @@ export default function WalletScreen() {
             </View>
 
             <View style={styles.colorRow}>
-              {GOAL_EMOJIS.map((e) => (
+              {GOAL_ICONS.map((ic) => (
                 <Pressable
-                  key={e}
-                  onPress={() => setGoalEmoji(e)}
+                  key={ic}
+                  onPress={() => setGoalIcon(ic)}
                   style={[
                     styles.emojiPick,
                     {
-                      backgroundColor: goalEmoji === e ? `${theme.primary}22` : theme.backgroundSelected,
-                      borderColor: goalEmoji === e ? theme.primary : 'transparent',
+                      backgroundColor: goalIcon === ic ? `${theme.primary}22` : theme.backgroundSelected,
+                      borderColor: goalIcon === ic ? theme.primary : 'transparent',
                     },
                   ]}>
-                  <ThemedText style={styles.emojiText}>{e}</ThemedText>
+                  <Icon name={ic} size={19} color={goalIcon === ic ? theme.primary : theme.textSecondary} />
                 </Pressable>
               ))}
             </View>

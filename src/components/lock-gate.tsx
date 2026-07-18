@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useStore } from '@/lib/store';
@@ -54,8 +55,9 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       <Pressable
         onPress={tryUnlock}
         style={[styles.button, { backgroundColor: theme.primary }]}>
+        <Icon name="lock" size={16} color={theme.onPrimary} />
         <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>
-          🔓 Unlock
+          Unlock
         </ThemedText>
       </Pressable>
       </ThemedView>
@@ -87,6 +89,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     marginTop: Spacing.three,
     paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.three,

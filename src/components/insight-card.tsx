@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Insight } from '@/lib/insights';
@@ -24,8 +25,8 @@ export function InsightCard({ insight, width }: InsightCardProps) {
   return (
     <Card style={[styles.card, width !== undefined && { width }]}>
       <View style={styles.header}>
-        <View style={[styles.emojiBubble, { backgroundColor: `${accent}22` }]}>
-          <Text style={styles.emoji}>{insight.emoji}</Text>
+        <View style={[styles.iconBubble, { backgroundColor: `${accent}1e` }]}>
+          <Icon name={insight.icon} size={18} color={accent} strokeWidth={1.8} />
         </View>
         <View style={[styles.dot, { backgroundColor: accent }]} />
       </View>
@@ -48,15 +49,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  emojiBubble: {
-    width: 38,
-    height: 38,
+  iconBubble: {
+    width: 36,
+    height: 36,
     borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 18,
   },
   dot: {
     width: 8,

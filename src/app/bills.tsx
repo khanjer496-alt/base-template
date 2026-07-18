@@ -237,7 +237,9 @@ export default function BillsScreen() {
 
               {subs.length === 0 && commitments.length === 0 && (
                 <View style={styles.empty}>
-                  <ThemedText style={styles.emptyEmoji}>🔁</ThemedText>
+                  <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
+                    <Icon name="repeat" size={26} color={theme.textSecondary} strokeWidth={1.7} />
+                  </View>
                   <ThemedText type="smallBold">No subscriptions detected yet</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
                     Import your bank SMS and repeat charges will show up here.
@@ -294,7 +296,9 @@ export default function BillsScreen() {
               </View>
               {rows.length === 0 && (
                 <View style={styles.empty}>
-                  <ThemedText style={styles.emptyEmoji}>📅</ThemedText>
+                  <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
+                    <Icon name="calendar" size={26} color={theme.textSecondary} strokeWidth={1.7} />
+                  </View>
                   <ThemedText type="smallBold">No reminders yet</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
                     Tap + to track DEWA, rent, or any monthly payment.
@@ -365,9 +369,10 @@ export default function BillsScreen() {
                       borderColor: category === c.id ? c.color : 'transparent',
                     },
                   ]}>
-                  <ThemedText type="small">
-                    {c.emoji} {c.label}
-                  </ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={c.icon} size={13} color={c.color} />
+                    <ThemedText type="small">{c.label}</ThemedText>
+                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -477,9 +482,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.six,
   },
-  emptyEmoji: {
-    fontSize: 40,
-    lineHeight: 48,
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     textAlign: 'center',

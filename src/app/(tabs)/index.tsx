@@ -233,9 +233,12 @@ export default function HomeScreen() {
                     key={due.id}
                     onPress={() => router.push('/wallet')}
                     style={styles.dueRow}>
-                    <ThemedText type="small" style={styles.dueName} numberOfLines={1}>
-                      💳 {account?.name ?? 'Card'}
-                    </ThemedText>
+                    <View style={[styles.dueName, { flexDirection: 'row', alignItems: 'center', gap: 7 }]}>
+                      <Icon name="wallet" size={14} color={theme.textSecondary} />
+                      <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+                        {account?.name ?? 'Card'}
+                      </ThemedText>
+                    </View>
                     <ThemedText
                       type="small"
                       style={{ color: urgent ? theme.expense : theme.textSecondary }}>
@@ -285,8 +288,9 @@ export default function HomeScreen() {
           {subs.length > 0 && (
             <Animated.View entering={FadeInDown.delay(140).duration(350)}>
               <Pressable onPress={() => router.push('/bills')} style={styles.subsRow}>
+                <Icon name="repeat" size={14} color={theme.textSecondary} />
                 <ThemedText type="small">
-                  🔁 {subs.length} subscription{subs.length === 1 ? '' : 's'}
+                  {subs.length} subscription{subs.length === 1 ? '' : 's'}
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.subsNext}>
                   {nextSub ? `${nextSub.s.title} in ${nextSub.d}d` : ''}
@@ -315,9 +319,12 @@ export default function HomeScreen() {
                   key={bill.id}
                   onPress={() => router.push('/bills')}
                   style={styles.billRow}>
-                  <ThemedText type="small" style={styles.billTitle} numberOfLines={1}>
-                    {getCategory(bill.category).emoji}  {bill.title}
-                  </ThemedText>
+                  <View style={[styles.billTitle, { flexDirection: 'row', alignItems: 'center', gap: 7 }]}>
+                    <Icon name={getCategory(bill.category).icon} size={14} color={getCategory(bill.category).color} />
+                    <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {bill.title}
+                    </ThemedText>
+                  </View>
                   <ThemedText
                     type="small"
                     style={{
@@ -361,9 +368,10 @@ export default function HomeScreen() {
                 return (
                   <View key={budget.category} style={styles.budgetRow}>
                     <View style={styles.budgetTop}>
-                      <ThemedText type="small">
-                        {meta.emoji}  {meta.label}
-                      </ThemedText>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                        <Icon name={meta.icon} size={14} color={meta.color} />
+                        <ThemedText type="small">{meta.label}</ThemedText>
+                      </View>
                       <ThemedText type="small" themeColor="textSecondary" tabular>
                         {formatAED(spent, { decimals: false })} / {formatAED(budget.limitFils, { decimals: false })}
                       </ThemedText>

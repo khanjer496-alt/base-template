@@ -253,7 +253,9 @@ export default function TransactionsScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <ThemedText style={styles.emptyEmoji}>🔍</ThemedText>
+              <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
+                <Icon name="search" size={24} color={theme.textSecondary} strokeWidth={1.7} />
+              </View>
               <ThemedText type="small" themeColor="textSecondary">
                 Nothing matches. Adjust search or filters.
               </ThemedText>
@@ -367,9 +369,10 @@ export default function TransactionsScreen() {
                       borderColor: filters.categories.has(c.id) ? c.color : 'transparent',
                     },
                   ]}>
-                  <ThemedText type="small">
-                    {c.emoji} {c.label}
-                  </ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={c.icon} size={13} color={c.color} />
+                    <ThemedText type="small">{c.label}</ThemedText>
+                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -512,9 +515,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.six,
   },
-  emptyEmoji: {
-    fontSize: 36,
-    lineHeight: 44,
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backdrop: {
     flex: 1,

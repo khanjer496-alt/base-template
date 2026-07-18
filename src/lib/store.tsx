@@ -273,7 +273,7 @@ function demoState(): Partial<Omit<AppState, 'hydrated'>> {
     transactions: generateSeedTransactions(new Date()),
     budgets: SEED_BUDGETS,
     bills: SEED_BILLS,
-    goals: [{ id: 'goal-demo', title: 'Emergency fund', emoji: '🛟', targetFils: 2_000_000, savedFils: 650_000 }],
+    goals: [{ id: 'goal-demo', title: 'Emergency fund', emoji: 'target', targetFils: 2_000_000, savedFils: 650_000 }],
     onboarded: true,
     userName: 'there',
   };

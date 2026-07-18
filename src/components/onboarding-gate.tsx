@@ -74,13 +74,17 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
               </ThemedText>
             </View>
             <View style={styles.points}>
-              {[
-                ['✉️', 'Reads bank SMS to log spending, cards, and salary by itself'],
-                ['📅', 'Tracks bills, credit card dues, and subscriptions with reminders'],
-                ['📊', 'Explains where your money goes in plain language'],
-              ].map(([emoji, text]) => (
+              {(
+                [
+                  ['mail', 'Reads bank SMS to log spending, cards, and salary by itself'],
+                  ['calendar', 'Tracks bills, credit card dues, and subscriptions with reminders'],
+                  ['chart', 'Explains where your money goes in plain language'],
+                ] as [import('@/components/ui/icon').IconName, string][]
+              ).map(([icon, text]) => (
                 <View key={text} style={styles.pointRow}>
-                  <ThemedText style={styles.pointEmoji}>{emoji}</ThemedText>
+                  <View style={[styles.pointIcon, { backgroundColor: `${theme.primary}1a` }]}>
+                    <Icon name={icon} size={17} color={theme.primary} strokeWidth={1.8} />
+                  </View>
                   <ThemedText type="small" style={styles.pointText}>
                     {text}
                   </ThemedText>
@@ -100,7 +104,9 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         {step === 'permissions' && (
           <Animated.View entering={FadeInDown.duration(350)} style={styles.body}>
             <View style={styles.hero}>
-              <ThemedText style={styles.bigEmoji}>🔐</ThemedText>
+              <View style={[styles.bigIcon, { backgroundColor: `${theme.primary}1a` }]}>
+                <Icon name="lock" size={30} color={theme.primary} strokeWidth={1.7} />
+              </View>
               <ThemedText type="subtitle" style={styles.center}>
                 Two permissions, zero cloud
               </ThemedText>
@@ -128,7 +134,9 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         {step === 'scanning' && (
           <Animated.View entering={FadeIn.duration(300)} style={styles.body}>
             <View style={styles.hero}>
-              <ThemedText style={styles.bigEmoji}>{result ? '✅' : '📡'}</ThemedText>
+              <View style={[styles.bigIcon, { backgroundColor: `${theme.primary}1a` }]}>
+                <Icon name={result ? 'check' : 'repeat'} size={30} color={theme.primary} strokeWidth={1.7} />
+              </View>
               <ThemedText type="subtitle" style={styles.center}>
                 {result ? 'All set' : 'Reading your history'}
               </ThemedText>
@@ -152,7 +160,9 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         {step === 'choose' && (
           <Animated.View entering={FadeInDown.duration(350)} style={styles.body}>
             <View style={styles.hero}>
-              <ThemedText style={styles.bigEmoji}>🧭</ThemedText>
+              <View style={[styles.bigIcon, { backgroundColor: `${theme.primary}1a` }]}>
+                <Icon name="target" size={30} color={theme.primary} strokeWidth={1.7} />
+              </View>
               <ThemedText type="subtitle" style={styles.center}>
                 How do you want to start?
               </ThemedText>
@@ -221,9 +231,12 @@ const styles = StyleSheet.create({
     lineHeight: 70,
     fontWeight: '700',
   },
-  bigEmoji: {
-    fontSize: 52,
-    lineHeight: 62,
+  bigIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   center: {
     textAlign: 'center',
@@ -237,9 +250,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
   },
-  pointEmoji: {
-    fontSize: 22,
-    lineHeight: 28,
+  pointIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pointText: {
     flex: 1,

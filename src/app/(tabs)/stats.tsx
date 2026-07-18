@@ -187,9 +187,10 @@ export default function StatsScreen() {
           {drillCategory && (
             <Animated.View entering={FadeInDown.duration(300)} style={styles.drill}>
               <View style={styles.sectionTitleRow}>
-                <ThemedText type="smallBold">
-                  {getCategory(drillCategory).emoji} {getCategory(drillCategory).label} · 6 months
-                </ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name={getCategory(drillCategory).icon} size={15} color={getCategory(drillCategory).color} />
+                  <ThemedText type="smallBold">{getCategory(drillCategory).label} · 6 months</ThemedText>
+                </View>
                 <Pressable onPress={() => setDrillCategory(null)}>
                   <Icon name="close" size={16} color={theme.textSecondary} />
                 </Pressable>
@@ -258,9 +259,10 @@ export default function StatsScreen() {
                 const up = m.deltaFils > 0;
                 return (
                   <View key={m.category} style={styles.moverRow}>
-                    <ThemedText type="small" style={styles.moverLabel}>
-                      {meta.emoji} {meta.label}
-                    </ThemedText>
+                    <View style={[styles.moverLabel, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                      <Icon name={meta.icon} size={14} color={meta.color} />
+                      <ThemedText type="small">{meta.label}</ThemedText>
+                    </View>
                     <ThemedText
                       type="smallBold"
                       tabular

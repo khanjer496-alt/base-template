@@ -4,7 +4,10 @@ set -e
 cd "$(dirname "$0")"
 rm -rf build && mkdir -p build
 for f in types format categories sms-parser bills insights seed subscriptions cards analytics; do
-  sed "s|from '@/lib/|from './|g" ../../src/lib/$f.ts > build/$f.ts
+  sed -e "s|from '@/lib/|from './|g" \
+      -e "s|import type { IconName } from '@/components/ui/icon';|type IconName = string;|" \
+      -e "s|import('@/components/ui/icon').IconName|string|g" \
+      ../../src/lib/$f.ts > build/$f.ts
 done
 npx tsc build/*.ts --module commonjs --target es2020 --outDir build --skipLibCheck
 node parser.test.js

@@ -167,9 +167,10 @@ export function TransactionEditSheet({ transaction, onClose }: TransactionEditSh
                     borderColor: category === c.id ? c.color : 'transparent',
                   },
                 ]}>
-                <ThemedText type="small">
-                  {c.emoji} {c.label}
-                </ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={c.icon} size={13} color={c.color} />
+                    <ThemedText type="small">{c.label}</ThemedText>
+                  </View>
               </Pressable>
             ))}
           </ScrollView>

@@ -207,7 +207,10 @@ export default function ImportSmsScreen() {
 
       {billParsed.length > 0 && (
         <View style={styles.fieldBlock}>
-          <ThemedText type="smallBold">📅 Bill reminders detected</ThemedText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <Icon name="calendar" size={15} color={theme.gold} />
+            <ThemedText type="smallBold">Bill reminders detected</ThemedText>
+          </View>
           {billParsed.map((p, i) => {
             const meta = getCategory(p.categoryGuess);
             const tracked = trackedBills.has(i);

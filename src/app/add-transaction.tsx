@@ -144,9 +144,10 @@ export default function AddTransactionScreen() {
                           borderColor: active ? c.color : theme.cardBorder,
                         },
                       ]}>
-                      <ThemedText type="small">
-                        {c.emoji} {c.label}
-                      </ThemedText>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Icon name={c.icon} size={13} color={c.color} />
+                    <ThemedText type="small">{c.label}</ThemedText>
+                  </View>
                     </Pressable>
                   );
                 })}

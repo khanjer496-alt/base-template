@@ -56,7 +56,7 @@ export type InsightTone = 'positive' | 'warning' | 'neutral';
 export interface Insight {
   id: string;
   tone: InsightTone;
-  emoji: string;
+  icon: import('@/components/ui/icon').IconName;
   title: string;
   body: string;
 }
@@ -89,7 +89,7 @@ export function buildInsights(
         insights.push({
           id: 'pace',
           tone: delta > 0 ? 'warning' : 'positive',
-          emoji: delta > 0 ? '📈' : '📉',
+          icon: delta > 0 ? 'arrow-up-right' : 'arrow-down-right',
           title: delta > 0 ? `Trending ${pct}% higher` : `Trending ${pct}% lower`,
           body: `At today's pace you'll spend about ${formatAED(Math.round(projected), { decimals: false })} this month, vs ${formatAED(previous.expenseFils, { decimals: false })} in ${monthLabel(prevKey, true)}.`,
         });
@@ -101,7 +101,7 @@ export function buildInsights(
         insights.push({
           id: 'mom',
           tone: delta > 0 ? 'warning' : 'positive',
-          emoji: delta > 0 ? '📈' : '📉',
+          icon: delta > 0 ? 'arrow-up-right' : 'arrow-down-right',
           title: `Spent ${pct}% ${delta > 0 ? 'more' : 'less'}`,
           body: `${formatAED(current.expenseFils, { decimals: false })} vs ${formatAED(previous.expenseFils, { decimals: false })} in ${monthLabel(prevKey, true)}.`,
         });
@@ -119,7 +119,7 @@ export function buildInsights(
       insights.push({
         id: `budget-over-${b.category}`,
         tone: 'warning',
-        emoji: '🚨',
+        icon: 'alert',
         title: `${cat.label} budget exceeded`,
         body: `${formatAED(spent, { decimals: false })} spent of your ${formatAED(b.limitFils, { decimals: false })} limit.`,
       });
@@ -127,7 +127,7 @@ export function buildInsights(
       insights.push({
         id: `budget-near-${b.category}`,
         tone: 'warning',
-        emoji: '⚠️',
+        icon: 'alert',
         title: `${cat.label} almost at limit`,
         body: `${Math.round(ratio * 100)}% used — ${formatAED(b.limitFils - spent, { decimals: false })} left for the month.`,
       });
@@ -141,7 +141,7 @@ export function buildInsights(
     insights.push({
       id: 'top-category',
       tone: 'neutral',
-      emoji: cat.emoji,
+      icon: cat.icon,
       title: `${cat.label} leads your spending`,
       body: `${formatAED(top.totalFils, { decimals: false })} — ${Math.round(top.share * 100)}% of this month's expenses.`,
     });
@@ -154,7 +154,7 @@ export function buildInsights(
       insights.push({
         id: 'savings',
         tone: 'positive',
-        emoji: '🌱',
+        icon: 'leaf',
         title: `Saving ${Math.round(rate * 100)}% of income`,
         body: `${formatAED(current.incomeFils - current.expenseFils, { decimals: false })} kept aside so far this month. Keep it up!`,
       });
@@ -162,7 +162,7 @@ export function buildInsights(
       insights.push({
         id: 'overspend',
         tone: 'warning',
-        emoji: '🔻',
+        icon: 'alert',
         title: 'Spending exceeds income',
         body: `Expenses are ${formatAED(current.expenseFils - current.incomeFils, { decimals: false })} above income this month.`,
       });
@@ -181,7 +181,7 @@ export function buildInsights(
     insights.push({
       id: 'largest',
       tone: 'neutral',
-      emoji: '💎',
+      icon: 'diamond',
       title: 'Biggest purchase',
       body: `${largest.title} — ${formatAED(largest.amountFils, { decimals: false })} on ${largest.date.slice(8)}/${largest.date.slice(5, 7)}.`,
     });
@@ -196,7 +196,7 @@ export function buildInsights(
       insights.push({
         id: 'subs-load',
         tone: 'warning',
-        emoji: '🔁',
+        icon: 'repeat',
         title: `${subs.length} subscriptions cost ${formatAED(monthly, { decimals: false })}/mo`,
         body: `That's ${Math.round((monthly / current.incomeFils) * 100)}% of this month's income. Review them in Bills.`,
       });
@@ -204,7 +204,7 @@ export function buildInsights(
       insights.push({
         id: 'subs-total',
         tone: 'neutral',
-        emoji: '🔁',
+        icon: 'repeat',
         title: `${subs.length} active subscriptions`,
         body: `About ${formatAED(monthly, { decimals: false })} per month combined.`,
       });
@@ -215,7 +215,7 @@ export function buildInsights(
     insights.push({
       id: `price-up-${increased.title}`,
       tone: 'warning',
-      emoji: '💹',
+      icon: 'arrow-up-right',
       title: `${increased.title} got pricier`,
       body: `Last charge ${formatAED(increased.lastAmountFils, { decimals: false })} vs the usual ${formatAED(increased.avgAmountFils, { decimals: false })}.`,
     });
@@ -226,7 +226,7 @@ export function buildInsights(
     insights.push({
       id: 'daily',
       tone: 'neutral',
-      emoji: '☀️',
+      icon: 'sun',
       title: 'Daily average',
       body: `You spend about ${formatAED(Math.round(current.expenseFils / dayOfMonth), { decimals: false })} per day this month.`,
     });
