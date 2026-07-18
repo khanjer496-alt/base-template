@@ -3,9 +3,17 @@ import type { CategoryId, Transaction } from '@/lib/types';
 
 export type Cadence = 'weekly' | 'monthly' | 'yearly';
 
+/**
+ * subscription — cancellable online/lifestyle services (streaming, apps, gym);
+ * utility — recurring DEWA/telecom-style bills; housing — rent.
+ * Kept separate so "subscriptions total" only counts what you could cancel.
+ */
+export type RecurringGroup = 'subscription' | 'utility' | 'housing';
+
 export interface Subscription {
   title: string;
   category: CategoryId;
+  group: RecurringGroup;
   cadence: Cadence;
   avgAmountFils: number;
   lastAmountFils: number;
@@ -129,9 +137,17 @@ export function detectSubscriptions(transactions: Transaction[]): Subscription[]
           ? Math.round(avg * 4.33)
           : Math.round(avg / 12);
 
+    const group: RecurringGroup =
+      last.category === 'rent'
+        ? 'housing'
+        : last.category === 'utilities' || last.category === 'telecom'
+          ? 'utility'
+          : 'subscription';
+
     subs.push({
       title,
       category: last.category,
+      group,
       cadence: window.cadence,
       avgAmountFils: avg,
       lastAmountFils: last.amountFils,
@@ -149,6 +165,16 @@ export function detectSubscriptions(transactions: Transaction[]): Subscription[]
 
 export function subscriptionsMonthlyTotal(subs: Subscription[]): number {
   return subs.reduce((s, sub) => s + sub.monthlyEquivalentFils, 0);
+}
+
+/** Only the cancellable online/lifestyle subscriptions. */
+export function trueSubscriptions(subs: Subscription[]): Subscription[] {
+  return subs.filter((s) => s.group === 'subscription');
+}
+
+/** Rent + utilities/telecom recurring commitments. */
+export function fixedCommitments(subs: Subscription[]): Subscription[] {
+  return subs.filter((s) => s.group !== 'subscription');
 }
 
 /** Days until the next expected charge; negative if the date passed. */

@@ -1,6 +1,6 @@
 import { getCategory } from '@/lib/categories';
 import { daysInMonth, formatAED, monthKey, monthLabel, shiftMonthKey } from '@/lib/format';
-import { detectSubscriptions, subscriptionsMonthlyTotal } from '@/lib/subscriptions';
+import { detectSubscriptions, subscriptionsMonthlyTotal, trueSubscriptions } from '@/lib/subscriptions';
 import type { Budget, CategoryId, Transaction } from '@/lib/types';
 
 export interface MonthSummary {
@@ -187,8 +187,9 @@ export function buildInsights(
     });
   }
 
-  // Subscription load + price increases
-  const subs = detectSubscriptions(transactions);
+  // Subscription load + price increases (true subscriptions only — rent and
+  // utilities are fixed commitments, not cancellable services)
+  const subs = trueSubscriptions(detectSubscriptions(transactions));
   if (subs.length >= 2) {
     const monthly = subscriptionsMonthlyTotal(subs);
     if (current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {

@@ -132,6 +132,24 @@ ok('subscription: irregular merchant rejected',
     subTx('Random Shop', '2026-07-29', 2000, 'shopping'),
   ]).length === 0);
 
+// ── recurring group classification ──
+const rentSubs = subsLib.detectSubscriptions([
+  subTx('Apartment Rent', '2026-05-01', 550000, 'rent'),
+  subTx('Apartment Rent', '2026-06-01', 550000, 'rent'),
+  subTx('Apartment Rent', '2026-07-01', 550000, 'rent'),
+  subTx('DEWA Bill', '2026-05-25', 45000, 'utilities'),
+  subTx('DEWA Bill', '2026-06-25', 46000, 'utilities'),
+  subTx('DEWA Bill', '2026-07-25', 45500, 'utilities'),
+  subTx('Netflix', '2026-06-03', 3900),
+  subTx('Netflix', '2026-07-03', 3900),
+]);
+ok('groups: rent classified as housing', rentSubs.find(s => s.title === 'Apartment Rent')?.group === 'housing');
+ok('groups: DEWA classified as utility', rentSubs.find(s => s.title === 'DEWA Bill')?.group === 'utility');
+ok('groups: Netflix stays a subscription', rentSubs.find(s => s.title === 'Netflix')?.group === 'subscription');
+ok('groups: trueSubscriptions excludes rent/utilities',
+  subsLib.trueSubscriptions(rentSubs).length === 1 && subsLib.trueSubscriptions(rentSubs)[0].title === 'Netflix');
+ok('groups: fixedCommitments has rent + DEWA', subsLib.fixedCommitments(rentSubs).length === 2);
+
 // ── cards & dues (v2) ──
 const cardsLib = require('./build/cards');
 const dueState = {

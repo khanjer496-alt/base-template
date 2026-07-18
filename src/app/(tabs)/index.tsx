@@ -29,7 +29,12 @@ import { formatAED, greetingForHour, monthKey, monthLabel, shortDate } from '@/l
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
 import { netWorthFils, useStore } from '@/lib/store';
-import { detectSubscriptions, daysUntilNext, subscriptionsMonthlyTotal } from '@/lib/subscriptions';
+import {
+  detectSubscriptions,
+  daysUntilNext,
+  subscriptionsMonthlyTotal,
+  trueSubscriptions,
+} from '@/lib/subscriptions';
 
 const TAB_BAR_CLEARANCE = 110;
 
@@ -58,7 +63,10 @@ export default function HomeScreen() {
     [state.transactions],
   );
   const dues = useMemo(() => openDues(state, now), [state, now]);
-  const subs = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
+  const subs = useMemo(
+    () => trueSubscriptions(detectSubscriptions(state.transactions)),
+    [state.transactions],
+  );
   const nextSub = useMemo(() => {
     const upcoming = subs
       .map((s) => ({ s, d: daysUntilNext(s, now) }))

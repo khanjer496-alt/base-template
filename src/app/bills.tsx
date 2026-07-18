@@ -21,7 +21,14 @@ import { useTheme } from '@/hooks/use-theme';
 import { billsForMonth, type BillStatus } from '@/lib/bills';
 import { EXPENSE_CATEGORIES } from '@/lib/categories';
 import { formatAED, monthKey, parseAmountToFils, toISODate } from '@/lib/format';
-import { detectSubscriptions, daysUntilNext, subscriptionsMonthlyTotal } from '@/lib/subscriptions';
+import {
+  detectSubscriptions,
+  daysUntilNext,
+  fixedCommitments,
+  subscriptionsMonthlyTotal,
+  trueSubscriptions,
+  type Subscription,
+} from '@/lib/subscriptions';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
@@ -44,7 +51,9 @@ export default function BillsScreen() {
   const [category, setCategory] = useState<CategoryId>('utilities');
 
   const rows = useMemo(() => billsForMonth(state.bills, now), [state.bills, now]);
-  const subs = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
+  const detected = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
+  const subs = useMemo(() => trueSubscriptions(detected), [detected]);
+  const commitments = useMemo(() => fixedCommitments(detected), [detected]);
   const subsTotal = subscriptionsMonthlyTotal(subs);
   const trackedTitles = useMemo(
     () => new Set(state.bills.map((b) => b.title.toLowerCase())),
@@ -109,6 +118,61 @@ export default function BillsScreen() {
     ]);
   };
 
+  const renderRecurringRow = (sub: Subscription, i: number) => {
+    const next = daysUntilNext(sub, now);
+    const tracked = trackedTitles.has(sub.title.toLowerCase());
+    return (
+      <Animated.View key={sub.title} entering={FadeInDown.delay(Math.min(i, 8) * 40).duration(300)}>
+        <View
+          style={[
+            styles.row,
+            i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+          ]}>
+          <MerchantAvatar title={sub.title} category={sub.category} size={42} />
+          <View style={styles.rowInfo}>
+            <View style={styles.rowTitleLine}>
+              <ThemedText type="default" numberOfLines={1} style={styles.rowTitle}>
+                {sub.title}
+              </ThemedText>
+              {sub.priceIncreased && (
+                <View style={[styles.badge, { backgroundColor: `${theme.warning}22` }]}>
+                  <ThemedText type="micro" style={{ color: theme.warning }}>
+                    price up
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+              {sub.cadence} · {sub.chargeCount}x charged ·{' '}
+              {next >= 0 ? `next in ${next}d` : `expected ${-next}d ago`}
+            </ThemedText>
+          </View>
+          <View style={styles.rowRight}>
+            <ThemedText type="smallBold" tabular>
+              {formatAED(sub.avgAmountFils, { decimals: false })}
+            </ThemedText>
+            {!tracked && (
+              <Pressable
+                onPress={() =>
+                  addBill({
+                    title: sub.title,
+                    category: sub.category,
+                    amountFils: sub.avgAmountFils,
+                    dueDay: Number(sub.nextExpectedISO.slice(8)),
+                    autoDetected: true,
+                  })
+                }>
+                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                  Remind me
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Animated.View>
+    );
+  };
+
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -154,65 +218,21 @@ export default function BillsScreen() {
                   </ThemedText>
                 </View>
               )}
-              <View>
-                {subs.map((sub, i) => {
-                  const next = daysUntilNext(sub, now);
-                  const tracked = trackedTitles.has(sub.title.toLowerCase());
-                  return (
-                    <Animated.View
-                      key={sub.title}
-                      entering={FadeInDown.delay(Math.min(i, 8) * 40).duration(300)}>
-                      <View
-                        style={[
-                          styles.row,
-                          i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
-                        ]}>
-                        <MerchantAvatar title={sub.title} category={sub.category} size={42} />
-                        <View style={styles.rowInfo}>
-                          <View style={styles.rowTitleLine}>
-                            <ThemedText type="default" numberOfLines={1} style={styles.rowTitle}>
-                              {sub.title}
-                            </ThemedText>
-                            {sub.priceIncreased && (
-                              <View style={[styles.badge, { backgroundColor: `${theme.warning}22` }]}>
-                                <ThemedText type="micro" style={{ color: theme.warning }}>
-                                  price up
-                                </ThemedText>
-                              </View>
-                            )}
-                          </View>
-                          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                            {sub.cadence} · {sub.chargeCount}x charged ·{' '}
-                            {next >= 0 ? `next in ${next}d` : `expected ${-next}d ago`}
-                          </ThemedText>
-                        </View>
-                        <View style={styles.rowRight}>
-                          <ThemedText type="smallBold" tabular>
-                            {formatAED(sub.avgAmountFils, { decimals: false })}
-                          </ThemedText>
-                          {!tracked && (
-                            <Pressable
-                              onPress={() =>
-                                addBill({
-                                  title: sub.title,
-                                  category: sub.category,
-                                  amountFils: sub.avgAmountFils,
-                                  dueDay: Number(sub.nextExpectedISO.slice(8)),
-                                  autoDetected: true,
-                                })
-                              }>
-                              <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-                                Remind me
-                              </ThemedText>
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    </Animated.View>
-                  );
-                })}
-              </View>
-              {subs.length === 0 && (
+              <View>{subs.map((sub, i) => renderRecurringRow(sub, i))}</View>
+
+              {commitments.length > 0 && (
+                <View style={styles.commitBlock}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    Fixed monthly commitments
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Rent and utilities: recurring, but not cancellable subscriptions.
+                  </ThemedText>
+                  <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                </View>
+              )}
+
+              {subs.length === 0 && commitments.length === 0 && (
                 <View style={styles.empty}>
                   <ThemedText style={styles.emptyEmoji}>🔁</ThemedText>
                   <ThemedText type="smallBold">No subscriptions detected yet</ThemedText>
@@ -414,6 +434,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.two,
+  },
+  commitBlock: {
+    marginTop: Spacing.four,
+    gap: Spacing.one,
   },
   row: {
     flexDirection: 'row',
