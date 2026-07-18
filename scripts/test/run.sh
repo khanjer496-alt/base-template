@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Transpiles the pure-logic modules from src/lib and runs the unit + parser suites.
+set -e
+cd "$(dirname "$0")"
+rm -rf build && mkdir -p build
+for f in types format categories sms-parser bills insights seed; do
+  sed "s|from '@/lib/|from './|g" ../../src/lib/$f.ts > build/$f.ts
+done
+npx tsc build/*.ts --module commonjs --target es2020 --outDir build --skipLibCheck
+node parser.test.js
+node unit.test.js

@@ -7,6 +7,7 @@ on:
       - claude/uae-android-app-ui-muatsu
     paths-ignore:
       - '**.md'
+      - 'scripts/test/**'
 
 jobs:
   build:
