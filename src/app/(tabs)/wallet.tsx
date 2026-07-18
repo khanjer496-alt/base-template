@@ -498,7 +498,7 @@ export default function WalletScreen() {
           <View style={styles.about}>
             <WafraLogo markSize={36} />
             <ThemedText type="small" themeColor="textSecondary" style={styles.aboutText}>
-              Wafra · UAE money manager. All data stays on this device.
+              Know where it goes. Watch it grow. All data stays on this device.
             </ThemedText>
           </View>
         </ScrollView>

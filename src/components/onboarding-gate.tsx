@@ -67,7 +67,10 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
           <Animated.View entering={FadeIn.duration(400)} style={styles.body}>
             <View style={styles.hero}>
               <WafraLogo markSize={64} />
-              <ThemedText type="default" themeColor="textSecondary" style={styles.center}>
+              <ThemedText type="heading" style={styles.center}>
+                Know where it goes. Watch it grow.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
                 Your money in AED, tracked automatically. Everything stays on this phone.
               </ThemedText>
             </View>
