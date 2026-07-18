@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,9 +17,13 @@ import { useTheme } from '@/hooks/use-theme';
 import { getCategory } from '@/lib/categories';
 import { formatAED, greetingForHour, monthKey, monthLabel } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
+import { hasSmsPermission, scanInboxForBankMessages } from '@/lib/sms-inbox';
 import { netWorthFils, useStore } from '@/lib/store';
 
 const TAB_BAR_CLEARANCE = 110;
+
+// Scan the inbox at most once per app session; the import screen dedupes anyway.
+let scannedThisSession = false;
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -37,6 +41,24 @@ export default function HomeScreen() {
   );
   const netWorth = useMemo(() => netWorthFils(state), [state]);
   const recent = state.transactions.slice(0, 5);
+  const [pendingSmsCount, setPendingSmsCount] = useState(0);
+
+  // FINART-style auto-detection: if SMS permission is already granted, quietly
+  // look for unrecorded bank messages and offer a one-tap review.
+  useEffect(() => {
+    if (!state.hydrated || scannedThisSession) return;
+    scannedThisSession = true;
+    (async () => {
+      try {
+        if (!(await hasSmsPermission())) return;
+        const found = await scanInboxForBankMessages(state.transactions);
+        setPendingSmsCount(found.length);
+      } catch {
+        // Scanning is best-effort; the manual import screen still works.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.hydrated]);
 
   const topBudgets = useMemo(() => {
     return state.budgets
@@ -112,6 +134,32 @@ export default function HomeScreen() {
               </View>
             </View>
           </Animated.View>
+
+          {/* SMS auto-detection banner */}
+          {pendingSmsCount > 0 && (
+            <Animated.View entering={FadeInDown.delay(120).duration(400)}>
+              <Pressable
+                onPress={() => {
+                  setPendingSmsCount(0);
+                  router.push('/import-sms?auto=1');
+                }}>
+                <Card style={[styles.smsBanner, { borderColor: theme.primary }]}>
+                  <View style={[styles.smsBannerIcon, { backgroundColor: `${theme.primary}22` }]}>
+                    <Icon name="spark" size={20} color={theme.primary} />
+                  </View>
+                  <View style={styles.smsBannerText}>
+                    <ThemedText type="smallBold">
+                      {pendingSmsCount} bank message{pendingSmsCount === 1 ? '' : 's'} detected
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Review and import them in one tap
+                    </ThemedText>
+                  </View>
+                  <Icon name="chevron-right" size={18} color={theme.textSecondary} />
+                </Card>
+              </Pressable>
+            </Animated.View>
+          )}
 
           {/* Insights carousel */}
           {insights.length > 0 && (
@@ -290,6 +338,23 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 34,
     backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  smsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    borderWidth: 1,
+  },
+  smsBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smsBannerText: {
+    flex: 1,
+    gap: 1,
   },
   section: {
     gap: Spacing.two,

@@ -1,6 +1,7 @@
-import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,11 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getCategory } from '@/lib/categories';
 import { formatAED, toISODate } from '@/lib/format';
+import {
+  isSmsScanningAvailable,
+  requestSmsPermission,
+  scanInboxForBankMessages,
+} from '@/lib/sms-inbox';
 import { parseSmsBatch, type ParsedSms } from '@/lib/sms-parser';
 import { useStore } from '@/lib/store';
 
@@ -32,12 +38,14 @@ Salary of AED 18,500.00 has been credited to your account ending 5678`;
 export default function ImportSmsScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { auto } = useLocalSearchParams<{ auto?: string }>();
   const { state, addTransaction } = useStore();
 
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedSms[] | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [accountId, setAccountId] = useState(state.accounts[0]?.id ?? '');
+  const [scanning, setScanning] = useState(false);
 
   const selectedCount = parsed ? parsed.length - excluded.size : 0;
 
@@ -45,6 +53,39 @@ export default function ImportSmsScreen() {
     setParsed(parseSmsBatch(input));
     setExcluded(new Set());
   };
+
+  const scanInbox = async () => {
+    if (scanning) return;
+    setScanning(true);
+    try {
+      const granted = await requestSmsPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permission needed',
+          'Wafra needs SMS access to scan bank alerts. You can also paste messages manually below.',
+        );
+        return;
+      }
+      const found = await scanInboxForBankMessages(state.transactions);
+      setParsed(found);
+      setExcluded(new Set());
+      if (found.length === 0) {
+        Alert.alert(
+          'Nothing new found',
+          'No unrecorded bank messages in the last 90 days. Transactions you already imported are skipped automatically.',
+        );
+      }
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (auto === '1' && isSmsScanningAvailable()) {
+      scanInbox();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = (i: number) => {
     const next = new Set(excluded);
@@ -94,10 +135,22 @@ export default function ImportSmsScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
             <ThemedText type="small" themeColor="textSecondary">
-              Paste one or more bank alert messages below (separate multiple messages with a
-              blank line). Wafra reads the amount, merchant, date, and direction, and guesses a
-              category — nothing leaves your device.
+              {isSmsScanningAvailable()
+                ? 'Scan your inbox for bank alerts, or paste messages below (separate multiple messages with a blank line). Wafra reads the amount, merchant, date, and direction, and guesses a category — nothing leaves your device.'
+                : 'Paste one or more bank alert messages below (separate multiple messages with a blank line). Wafra reads the amount, merchant, date, and direction, and guesses a category — nothing leaves your device.'}
             </ThemedText>
+
+            {isSmsScanningAvailable() && (
+              <Pressable
+                onPress={scanInbox}
+                disabled={scanning}
+                style={[styles.scanBtn, { backgroundColor: theme.primary, opacity: scanning ? 0.6 : 1 }]}>
+                <Icon name="search" size={19} color={theme.onPrimary} strokeWidth={2.4} />
+                <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 15 }}>
+                  {scanning ? 'Scanning inbox…' : 'Scan phone inbox (90 days)'}
+                </ThemedText>
+              </Pressable>
+            )}
 
             <TextInput
               value={text}
@@ -291,6 +344,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlignVertical: 'top',
+  },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.three,
   },
   parseRow: {
     flexDirection: 'row',
