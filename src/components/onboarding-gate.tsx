@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { WafraLogo } from '@/components/wafra-logo';
 import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -65,10 +66,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         {step === 'welcome' && (
           <Animated.View entering={FadeIn.duration(400)} style={styles.body}>
             <View style={styles.hero}>
-              <ThemedText style={styles.logo}>وفرة</ThemedText>
-              <ThemedText type="title" style={styles.center}>
-                Wafra
-              </ThemedText>
+              <WafraLogo markSize={64} />
               <ThemedText type="default" themeColor="textSecondary" style={styles.center}>
                 Your money in AED, tracked automatically. Everything stays on this phone.
               </ThemedText>
@@ -225,11 +223,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.three,
     paddingHorizontal: Spacing.two,
-  },
-  logo: {
-    fontSize: 56,
-    lineHeight: 70,
-    fontWeight: '700',
   },
   bigIcon: {
     width: 64,

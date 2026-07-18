@@ -22,6 +22,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Icon } from '@/components/ui/icon';
 import { ProgressBar } from '@/components/ui/progress-bar';
+import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { openDues } from '@/lib/cards';
@@ -495,7 +496,7 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.about}>
-            <ThemedText style={styles.aboutLogo}>وفرة</ThemedText>
+            <WafraLogo markSize={36} />
             <ThemedText type="small" themeColor="textSecondary" style={styles.aboutText}>
               Wafra · UAE money manager. All data stays on this device.
             </ThemedText>
@@ -746,11 +747,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
     paddingVertical: Spacing.three,
-  },
-  aboutLogo: {
-    fontSize: 30,
-    lineHeight: 40,
-    fontWeight: '700',
   },
   aboutText: {
     textAlign: 'center',

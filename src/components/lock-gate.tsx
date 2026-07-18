@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Icon } from '@/components/ui/icon';
+import { WafraMark } from '@/components/wafra-logo';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useStore } from '@/lib/store';
@@ -45,7 +46,7 @@ export function LockGate({ children }: { children: React.ReactNode }) {
     <View style={styles.container}>
       <View style={styles.hidden}>{children}</View>
       <ThemedView style={[StyleSheet.absoluteFillObject, styles.root]}>
-      <ThemedText style={styles.logo}>وفرة</ThemedText>
+      <WafraMark size={56} />
       <ThemedText type="smallBold" style={styles.title}>
         Wafra is locked
       </ThemedText>
@@ -79,11 +80,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.two,
     padding: Spacing.four,
-  },
-  logo: {
-    fontSize: 44,
-    lineHeight: 56,
-    fontWeight: '700',
   },
   title: {
     fontSize: 18,
