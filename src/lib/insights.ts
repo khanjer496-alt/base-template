@@ -1,5 +1,6 @@
 import { getCategory } from '@/lib/categories';
 import { daysInMonth, formatAED, monthKey, monthLabel, shiftMonthKey } from '@/lib/format';
+import { detectSubscriptions, subscriptionsMonthlyTotal } from '@/lib/subscriptions';
 import type { Budget, CategoryId, Transaction } from '@/lib/types';
 
 export interface MonthSummary {
@@ -14,6 +15,7 @@ export function summarizeMonth(transactions: Transaction[], key: string): MonthS
   const catTotals = new Map<CategoryId, number>();
 
   for (const t of transactions) {
+    if (t.isTransfer) continue; // card payments move money, they aren't income/spending
     if (monthKey(t.date) !== key) continue;
     if (t.type === 'income') {
       incomeFils += t.amountFils;
@@ -41,6 +43,7 @@ export function spentInMonthForCategory(
 ): number {
   let total = 0;
   for (const t of transactions) {
+    if (t.isTransfer) continue;
     if (t.type === 'expense' && t.category === category && monthKey(t.date) === key) {
       total += t.amountFils;
     }
@@ -169,6 +172,7 @@ export function buildInsights(
   // Largest single expense
   let largest: Transaction | null = null;
   for (const t of transactions) {
+    if (t.isTransfer) continue;
     if (t.type === 'expense' && monthKey(t.date) === key && t.category !== 'rent') {
       if (!largest || t.amountFils > largest.amountFils) largest = t;
     }
@@ -180,6 +184,39 @@ export function buildInsights(
       emoji: '💎',
       title: 'Biggest purchase',
       body: `${largest.title} — ${formatAED(largest.amountFils, { decimals: false })} on ${largest.date.slice(8)}/${largest.date.slice(5, 7)}.`,
+    });
+  }
+
+  // Subscription load + price increases
+  const subs = detectSubscriptions(transactions);
+  if (subs.length >= 2) {
+    const monthly = subscriptionsMonthlyTotal(subs);
+    if (current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {
+      insights.push({
+        id: 'subs-load',
+        tone: 'warning',
+        emoji: '🔁',
+        title: `${subs.length} subscriptions cost ${formatAED(monthly, { decimals: false })}/mo`,
+        body: `That's ${Math.round((monthly / current.incomeFils) * 100)}% of this month's income. Review them in Bills.`,
+      });
+    } else {
+      insights.push({
+        id: 'subs-total',
+        tone: 'neutral',
+        emoji: '🔁',
+        title: `${subs.length} active subscriptions`,
+        body: `About ${formatAED(monthly, { decimals: false })} per month combined.`,
+      });
+    }
+  }
+  const increased = subs.find((s) => s.priceIncreased);
+  if (increased) {
+    insights.push({
+      id: `price-up-${increased.title}`,
+      tone: 'warning',
+      emoji: '💹',
+      title: `${increased.title} got pricier`,
+      body: `Last charge ${formatAED(increased.lastAmountFils, { decimals: false })} vs the usual ${formatAED(increased.avgAmountFils, { decimals: false })}.`,
     });
   }
 

@@ -14,16 +14,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { billsForMonth, detectRecurring, type BillStatus } from '@/lib/bills';
-import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
+import { billsForMonth, type BillStatus } from '@/lib/bills';
+import { EXPENSE_CATEGORIES } from '@/lib/categories';
 import { formatAED, monthKey, parseAmountToFils, toISODate } from '@/lib/format';
+import { detectSubscriptions, daysUntilNext, subscriptionsMonthlyTotal } from '@/lib/subscriptions';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
+
+type Segment = 'reminders' | 'subscriptions';
 
 export default function BillsScreen() {
   const theme = useTheme();
@@ -34,6 +36,7 @@ export default function BillsScreen() {
   const key = monthKey(now);
   const todayISO = toISODate(now);
 
+  const [segment, setSegment] = useState<Segment>('subscriptions');
   const [adderVisible, setAdderVisible] = useState(false);
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
@@ -41,15 +44,12 @@ export default function BillsScreen() {
   const [category, setCategory] = useState<CategoryId>('utilities');
 
   const rows = useMemo(() => billsForMonth(state.bills, now), [state.bills, now]);
-
-  const recurring = useMemo(() => {
-    const existing = new Set(state.bills.map((b) => b.title.toLowerCase()));
-    return detectRecurring(state.transactions)
-      .filter((r) => !existing.has(r.title.toLowerCase()))
-      .slice(0, 5);
-  }, [state.transactions, state.bills]);
-
-  const monthlyTotal = state.bills.reduce((s, b) => s + b.amountFils, 0);
+  const subs = useMemo(() => detectSubscriptions(state.transactions), [state.transactions]);
+  const subsTotal = subscriptionsMonthlyTotal(subs);
+  const trackedTitles = useMemo(
+    () => new Set(state.bills.map((b) => b.title.toLowerCase())),
+    [state.bills],
+  );
 
   const statusMeta = (status: BillStatus, daysLeft: number) => {
     switch (status) {
@@ -82,7 +82,7 @@ export default function BillsScreen() {
     if (!accountId) return;
     Alert.alert(
       `Mark "${bill.title}" as paid?`,
-      `This records an expense of ${formatAED(bill.amountFils, { decimals: false })} today.`,
+      `Records an expense of ${formatAED(bill.amountFils, { decimals: false })} today.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -95,6 +95,7 @@ export default function BillsScreen() {
               accountId,
               title: bill.title,
               date: todayISO,
+              source: 'manual',
             }),
         },
       ],
@@ -117,9 +118,7 @@ export default function BillsScreen() {
             style={[styles.backBtn, { backgroundColor: theme.backgroundSelected }]}>
             <Icon name="chevron-left" size={18} color={theme.text} />
           </Pressable>
-          <ThemedText type="smallBold" style={styles.headerTitle}>
-            Bills & subscriptions
-          </ThemedText>
+          <ThemedText type="heading">Bills</ThemedText>
           <Pressable
             onPress={() => setAdderVisible(true)}
             style={[styles.backBtn, { backgroundColor: theme.primary }]}>
@@ -127,118 +126,172 @@ export default function BillsScreen() {
           </Pressable>
         </View>
 
+        <View style={[styles.segment, { backgroundColor: theme.backgroundSelected }]}>
+          {(['subscriptions', 'reminders'] as Segment[]).map((s) => (
+            <Pressable
+              key={s}
+              onPress={() => setSegment(s)}
+              style={[styles.segmentItem, segment === s && { backgroundColor: theme.card }]}>
+              <ThemedText
+                type="smallBold"
+                themeColor={segment === s ? 'text' : 'textSecondary'}>
+                {s === 'subscriptions' ? `Subscriptions (${subs.length})` : `Reminders (${rows.length})`}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {state.bills.length > 0 && (
-            <ThemedText type="small" themeColor="textSecondary">
-              {state.bills.length} tracked · about {formatAED(monthlyTotal, { decimals: false })} per
-              month · long-press to delete
-            </ThemedText>
+          {segment === 'subscriptions' && (
+            <>
+              {subs.length > 0 && (
+                <View style={styles.totalRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Detected from your charge history
+                  </ThemedText>
+                  <ThemedText type="smallBold" tabular>
+                    {formatAED(subsTotal, { decimals: false })}/mo
+                  </ThemedText>
+                </View>
+              )}
+              <View>
+                {subs.map((sub, i) => {
+                  const next = daysUntilNext(sub, now);
+                  const tracked = trackedTitles.has(sub.title.toLowerCase());
+                  return (
+                    <Animated.View
+                      key={sub.title}
+                      entering={FadeInDown.delay(Math.min(i, 8) * 40).duration(300)}>
+                      <View
+                        style={[
+                          styles.row,
+                          i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+                        ]}>
+                        <MerchantAvatar title={sub.title} category={sub.category} size={42} />
+                        <View style={styles.rowInfo}>
+                          <View style={styles.rowTitleLine}>
+                            <ThemedText type="default" numberOfLines={1} style={styles.rowTitle}>
+                              {sub.title}
+                            </ThemedText>
+                            {sub.priceIncreased && (
+                              <View style={[styles.badge, { backgroundColor: `${theme.warning}22` }]}>
+                                <ThemedText type="micro" style={{ color: theme.warning }}>
+                                  price up
+                                </ThemedText>
+                              </View>
+                            )}
+                          </View>
+                          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                            {sub.cadence} · {sub.chargeCount}x charged ·{' '}
+                            {next >= 0 ? `next in ${next}d` : `expected ${-next}d ago`}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.rowRight}>
+                          <ThemedText type="smallBold" tabular>
+                            {formatAED(sub.avgAmountFils, { decimals: false })}
+                          </ThemedText>
+                          {!tracked && (
+                            <Pressable
+                              onPress={() =>
+                                addBill({
+                                  title: sub.title,
+                                  category: sub.category,
+                                  amountFils: sub.avgAmountFils,
+                                  dueDay: Number(sub.nextExpectedISO.slice(8)),
+                                  autoDetected: true,
+                                })
+                              }>
+                              <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                                Remind me
+                              </ThemedText>
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    </Animated.View>
+                  );
+                })}
+              </View>
+              {subs.length === 0 && (
+                <View style={styles.empty}>
+                  <ThemedText style={styles.emptyEmoji}>🔁</ThemedText>
+                  <ThemedText type="smallBold">No subscriptions detected yet</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                    Import your bank SMS and repeat charges will show up here.
+                  </ThemedText>
+                </View>
+              )}
+            </>
           )}
 
-          <View style={styles.list}>
-            {rows.map(({ bill, status, daysLeft }, i) => {
-              const meta = statusMeta(status, daysLeft);
-              return (
-                <Animated.View key={bill.id} entering={FadeInDown.delay(i * 50).duration(350)}>
-                  <Pressable onLongPress={() => onLongPressBill(bill.id, bill.title)}>
-                    <Card style={styles.billCard}>
+          {segment === 'reminders' && (
+            <>
+              {rows.length > 0 && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
+                  Long-press a reminder to delete it.
+                </ThemedText>
+              )}
+              <View>
+                {rows.map(({ bill, status, daysLeft }, i) => {
+                  const meta = statusMeta(status, daysLeft);
+                  return (
+                    <Pressable
+                      key={bill.id}
+                      onLongPress={() => onLongPressBill(bill.id, bill.title)}
+                      style={[
+                        styles.row,
+                        i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+                      ]}>
                       <MerchantAvatar title={bill.title} category={bill.category} size={42} />
-                      <View style={styles.billInfo}>
-                        <ThemedText type="smallBold" numberOfLines={1}>
+                      <View style={styles.rowInfo}>
+                        <ThemedText type="default" numberOfLines={1}>
                           {bill.title}
                         </ThemedText>
                         <ThemedText type="small" style={{ color: meta.color }}>
                           {meta.label} · day {bill.dueDay}
                         </ThemedText>
                       </View>
-                      <View style={styles.billRight}>
-                        <ThemedText type="smallBold">
+                      <View style={styles.rowRight}>
+                        <ThemedText type="smallBold" tabular>
                           {formatAED(bill.amountFils, { decimals: false })}
                         </ThemedText>
                         {status !== 'paid' ? (
-                          <Pressable
-                            onPress={() => onPay(bill.id)}
-                            style={[styles.payBtn, { backgroundColor: `${theme.primary}22` }]}>
+                          <Pressable onPress={() => onPay(bill.id)}>
                             <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
                               Mark paid
                             </ThemedText>
                           </Pressable>
                         ) : (
-                          <Icon name="check" size={18} color={theme.income} strokeWidth={2.6} />
+                          <Icon name="check" size={16} color={theme.income} strokeWidth={2.6} />
                         )}
                       </View>
-                    </Card>
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
-
-            {rows.length === 0 && (
-              <Card style={styles.emptyCard}>
-                <ThemedText style={styles.emptyEmoji}>📅</ThemedText>
-                <ThemedText type="smallBold">No bill reminders yet</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                  Add DEWA, telecom, rent, or any monthly payment and Wafra will remind you before
-                  the due date.
-                </ThemedText>
-              </Card>
-            )}
-          </View>
-
-          {recurring.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Icon name="spark" size={18} color={theme.gold} />
-                <ThemedText type="smallBold">Detected recurring payments</ThemedText>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                These merchants charge you about the same amount every month.
-              </ThemedText>
-              {recurring.map((r) => {
-                const cat = getCategory(r.category);
-                return (
-                  <Card key={r.title} style={styles.billCard}>
-                    <MerchantAvatar title={r.title} category={r.category} size={42} />
-                    <View style={styles.billInfo}>
-                      <ThemedText type="smallBold" numberOfLines={1}>
-                        {r.title}
-                      </ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {cat.label} · ~{formatAED(r.avgAmountFils, { decimals: false })} · day{' '}
-                        {r.typicalDay} · seen {r.monthsSeen} months
-                      </ThemedText>
-                    </View>
-                    <Pressable
-                      onPress={() =>
-                        addBill({
-                          title: r.title,
-                          category: r.category,
-                          amountFils: r.avgAmountFils,
-                          dueDay: r.typicalDay,
-                          autoDetected: true,
-                        })
-                      }
-                      style={[styles.payBtn, { backgroundColor: `${theme.gold}22` }]}>
-                      <ThemedText type="small" style={{ color: theme.gold, fontWeight: '700' }}>
-                        Track
-                      </ThemedText>
                     </Pressable>
-                  </Card>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </View>
+              {rows.length === 0 && (
+                <View style={styles.empty}>
+                  <ThemedText style={styles.emptyEmoji}>📅</ThemedText>
+                  <ThemedText type="smallBold">No reminders yet</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                    Tap + to track DEWA, rent, or any monthly payment.
+                  </ThemedText>
+                </View>
+              )}
+            </>
           )}
         </ScrollView>
       </SafeAreaView>
 
-      {/* Add bill sheet */}
+      {/* Add reminder sheet */}
       <Modal visible={adderVisible} transparent animationType="fade" onRequestClose={() => setAdderVisible(false)}>
         <Pressable style={styles.backdrop} onPress={() => setAdderVisible(false)}>
           <Pressable
             style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             onPress={() => {}}>
+            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.sheetHeader}>
-              <ThemedText type="smallBold" style={styles.sheetTitle}>New bill reminder</ThemedText>
+              <ThemedText type="heading">New reminder</ThemedText>
               <Pressable onPress={() => setAdderVisible(false)}>
                 <Icon name="close" size={20} color={theme.textSecondary} />
               </Pressable>
@@ -247,7 +300,7 @@ export default function BillsScreen() {
             <TextInput
               value={title}
               onChangeText={setTitle}
-              placeholder="Bill name (e.g. DEWA, Netflix, Rent)"
+              placeholder="Name (e.g. DEWA, Netflix, Rent)"
               placeholderTextColor={theme.textSecondary}
               style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
             />
@@ -270,7 +323,7 @@ export default function BillsScreen() {
                   value={dueDayText}
                   onChangeText={setDueDayText}
                   keyboardType="numeric"
-                  placeholder="1–31"
+                  placeholder="1-31"
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.amountInput, { color: theme.text }]}
                 />
@@ -332,9 +385,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  headerTitle: {
-    fontSize: 16,
-  },
   backBtn: {
     width: 36,
     height: 36,
@@ -342,35 +392,63 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  segment: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.three,
+    borderRadius: Radius.md,
+    padding: 3,
+    gap: 3,
+  },
+  segmentItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.two + 2,
+    borderRadius: Radius.md - 3,
+  },
   content: {
     padding: Spacing.three,
-    gap: Spacing.three,
+    paddingTop: Spacing.two,
   },
-  list: {
-    gap: Spacing.two,
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.two,
   },
-  billCard: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two + 2,
+    paddingVertical: Spacing.two + 4,
   },
-  billInfo: {
+  rowInfo: {
     flex: 1,
     gap: 1,
   },
-  billRight: {
-    alignItems: 'flex-end',
-    gap: Spacing.one,
-  },
-  payBtn: {
-    paddingHorizontal: Spacing.two + 2,
-    paddingVertical: Spacing.one + 1,
-    borderRadius: Radius.full,
-  },
-  emptyCard: {
+  rowTitleLine: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingVertical: Spacing.five,
+  },
+  rowTitle: {
+    flexShrink: 1,
+  },
+  rowRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: Radius.full,
+  },
+  hint: {
+    paddingBottom: Spacing.one,
+  },
+  empty: {
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.six,
   },
   emptyEmoji: {
     fontSize: 40,
@@ -380,17 +458,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
-  section: {
-    gap: Spacing.two,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(7, 15, 12, 0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -401,13 +471,17 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.five,
     gap: Spacing.three,
   },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: -Spacing.two,
+  },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  sheetTitle: {
-    fontSize: 17,
   },
   input: {
     borderRadius: Radius.md,

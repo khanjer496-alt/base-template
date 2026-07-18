@@ -1,6 +1,8 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -18,28 +20,46 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { ProgressBar } from '@/components/ui/progress-bar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { formatAED, parseAmountToFils } from '@/lib/format';
+import { openDues } from '@/lib/cards';
+import { formatAED, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import { accountBalanceFils, netWorthFils, useStore } from '@/lib/store';
 import type { AccountKind } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
 
 const KIND_META: Record<AccountKind, { label: string; emoji: string }> = {
-  bank: { label: 'Bank account', emoji: '🏦' },
+  bank: { label: 'Bank', emoji: '🏦' },
   card: { label: 'Card', emoji: '💳' },
   cash: { label: 'Cash', emoji: '💵' },
 };
 
-const ACCOUNT_COLORS = ['#2DD4A8', '#60A5FA', '#E9B949', '#F472B6', '#A78BFA', '#FB923C'];
+const ACCOUNT_COLORS = ['#2DD4A8', '#60A5FA', '#E3B54A', '#F472B6', '#A78BFA', '#FB923C'];
+const GOAL_EMOJIS = ['🛟', '✈️', '🏠', '🕋', '🚗', '🎓', '💍', '📈'];
 
 export default function WalletScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, addAccount, deleteAccount, setAppLock, loadDemoData, clearAll } = useStore();
+  const {
+    state,
+    addAccount,
+    deleteAccount,
+    payCardDue,
+    addGoal,
+    editGoal,
+    deleteGoal,
+    setAppLock,
+    exportBackup,
+    restoreBackup,
+    loadDemoData,
+    clearAll,
+  } = useStore();
+
+  const now = useMemo(() => new Date(), []);
+  const todayISO = toISODate(now);
 
   const [adderVisible, setAdderVisible] = useState(false);
   const [name, setName] = useState('');
@@ -47,20 +67,55 @@ export default function WalletScreen() {
   const [openingText, setOpeningText] = useState('');
   const [colorIdx, setColorIdx] = useState(0);
 
+  const [goalVisible, setGoalVisible] = useState(false);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalTarget, setGoalTarget] = useState('');
+  const [goalEmoji, setGoalEmoji] = useState(GOAL_EMOJIS[0]);
+
   const total = netWorthFils(state);
+  const dues = useMemo(() => openDues(state, now), [state, now]);
 
   const saveAccount = () => {
     if (!name.trim()) return;
-    const opening = parseAmountToFils(openingText) ?? 0;
     addAccount({
       name: name.trim(),
       kind,
-      openingFils: opening,
+      openingFils: parseAmountToFils(openingText) ?? 0,
       color: ACCOUNT_COLORS[colorIdx],
     });
     setName('');
     setOpeningText('');
     setAdderVisible(false);
+  };
+
+  const saveGoal = () => {
+    const target = parseAmountToFils(goalTarget);
+    if (!goalTitle.trim() || !target) return;
+    addGoal({ title: goalTitle.trim(), emoji: goalEmoji, targetFils: target, savedFils: 0 });
+    setGoalTitle('');
+    setGoalTarget('');
+    setGoalVisible(false);
+  };
+
+  const addToGoal = (goalId: string, goalTitle2: string) => {
+    if (Platform.OS === 'web') return;
+    Alert.prompt?.(
+      `Add to ${goalTitle2}`,
+      'Amount in AED',
+      (text) => {
+        const fils = parseAmountToFils(text ?? '');
+        const goal = state.goals.find((g) => g.id === goalId);
+        if (fils && goal) editGoal(goalId, { savedFils: goal.savedFils + fils });
+      },
+      'plain-text',
+      '',
+      'numeric',
+    ) ??
+      // Android has no Alert.prompt: quick +100 with long-press hint
+      (() => {
+        const goal = state.goals.find((g) => g.id === goalId);
+        if (goal) editGoal(goalId, { savedFils: goal.savedFils + 10_000 });
+      })();
   };
 
   const confirmDeleteAccount = (id: string, accName: string) => {
@@ -70,6 +125,35 @@ export default function WalletScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => deleteAccount(id) },
+      ],
+    );
+  };
+
+  const onPayDue = (dueId: string, remainingFils: number, accountId: string, accName: string) => {
+    Alert.alert(
+      `Pay ${accName}?`,
+      `Marks ${formatAED(remainingFils, { decimals: false })} as paid and records the transfer.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          onPress: () =>
+            payCardDue(
+              dueId,
+              remainingFils,
+              {
+                type: 'income',
+                amountFils: remainingFils,
+                category: 'other',
+                accountId,
+                title: `${accName} payment`,
+                date: todayISO,
+                source: 'manual',
+                isTransfer: true,
+              },
+              true,
+            ),
+        },
       ],
     );
   };
@@ -99,16 +183,42 @@ export default function WalletScreen() {
   };
 
   const exportCsv = () => {
-    const header = 'date,type,amount_aed,category,title,account';
+    const header = 'date,type,amount_aed,category,title,account,transfer';
     const lines = state.transactions.map((t) => {
       const account = state.accounts.find((a) => a.id === t.accountId)?.name ?? '';
       const title = `"${t.title.replace(/"/g, '""')}"`;
-      return `${t.date},${t.type},${(t.amountFils / 100).toFixed(2)},${t.category},${title},"${account}"`;
+      return `${t.date},${t.type},${(t.amountFils / 100).toFixed(2)},${t.category},${title},"${account}",${t.isTransfer ? 1 : 0}`;
     });
-    Share.share({
-      title: 'wafra-export.csv',
-      message: [header, ...lines].join('\n'),
-    }).catch(() => {});
+    Share.share({ title: 'wafra-export.csv', message: [header, ...lines].join('\n') }).catch(() => {});
+  };
+
+  const backupJson = () => {
+    Share.share({ title: 'wafra-backup.json', message: exportBackup() }).catch(() => {});
+  };
+
+  const restoreFromFile = async () => {
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/plain', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const content = await FileSystem.readAsStringAsync(picked.assets[0].uri);
+      Alert.alert('Restore backup?', 'This replaces everything currently in the app.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: () => {
+            if (!restoreBackup(content)) {
+              Alert.alert('Invalid file', 'That does not look like a Wafra backup.');
+            }
+          },
+        },
+      ]);
+    } catch {
+      Alert.alert('Could not read file', 'Try exporting a fresh backup and restoring that.');
+    }
   };
 
   const confirmReset = (demo: boolean) => {
@@ -116,7 +226,7 @@ export default function WalletScreen() {
       demo ? 'Load demo data?' : 'Erase everything?',
       demo
         ? 'This replaces your current data with the sample UAE dataset.'
-        : 'All accounts, transactions and budgets will be permanently deleted.',
+        : 'All accounts, transactions, bills, and goals will be permanently deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -134,8 +244,8 @@ export default function WalletScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View>
-              <ThemedText style={styles.title}>Wallet</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="title">Wallet</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" tabular>
                 Net worth {formatAED(total, { decimals: false })}
               </ThemedText>
             </View>
@@ -146,47 +256,158 @@ export default function WalletScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.list}>
-            {state.accounts.map((account, i) => {
-              const balance = accountBalanceFils(state, account.id);
-              const meta = KIND_META[account.kind];
-              return (
-                <Animated.View key={account.id} entering={FadeInDown.delay(i * 60).duration(350)}>
-                  <Pressable onLongPress={() => confirmDeleteAccount(account.id, account.name)}>
-                    <Card style={styles.accountCard}>
-                      <View style={[styles.accountStripe, { backgroundColor: account.color }]} />
-                      <View style={[styles.accountEmoji, { backgroundColor: `${account.color}22` }]}>
-                        <ThemedText style={styles.accountEmojiText}>{meta.emoji}</ThemedText>
-                      </View>
-                      <View style={styles.accountInfo}>
-                        <ThemedText type="smallBold">{account.name}</ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {meta.label}
+          {/* Card dues */}
+          {dues.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText type="micro" themeColor="textSecondary">Card payments due</ThemedText>
+              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
+                const account = state.accounts.find((a) => a.id === due.accountId);
+                const urgent = status === 'urgent' || status === 'overdue';
+                return (
+                  <Animated.View key={due.id} entering={FadeInDown.duration(300)}>
+                    <View style={styles.dueRow}>
+                      <View style={styles.dueInfo}>
+                        <ThemedText type="default">{account?.name ?? 'Card'}</ThemedText>
+                        <ThemedText
+                          type="small"
+                          style={{ color: urgent ? theme.expense : theme.textSecondary }}>
+                          {status === 'overdue'
+                            ? `${-daysLeft}d overdue`
+                            : `Pay by ${shortDate(due.dueDate)} · ${daysLeft}d left`}
+                          {belowMinimum ? ` · min ${formatAED(due.minDueFils, { decimals: false })}` : ''}
                         </ThemedText>
                       </View>
+                      <View style={styles.dueRight}>
+                        <ThemedText type="smallBold" tabular style={urgent ? { color: theme.expense } : undefined}>
+                          {formatAED(remainingFils, { decimals: false })}
+                        </ThemedText>
+                        <Pressable
+                          onPress={() =>
+                            onPayDue(due.id, remainingFils, due.accountId, account?.name ?? 'Card')
+                          }>
+                          <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                            Mark paid
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Accounts */}
+          <View style={styles.section}>
+            <ThemedText type="micro" themeColor="textSecondary">Accounts</ThemedText>
+            <View>
+              {state.accounts.map((account, i) => {
+                const balance = accountBalanceFils(state, account.id);
+                const meta = KIND_META[account.kind];
+                const isCredit = account.cardType === 'credit';
+                const display = isCredit ? Math.abs(Math.min(0, balance)) : balance;
+                return (
+                  <Pressable
+                    key={account.id}
+                    onLongPress={() => confirmDeleteAccount(account.id, account.name)}
+                    style={[
+                      styles.accountRow,
+                      i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+                    ]}>
+                    <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
+                      <ThemedText style={styles.accountBadgeEmoji}>{meta.emoji}</ThemedText>
+                    </View>
+                    <View style={styles.accountInfo}>
+                      <ThemedText type="default" numberOfLines={1}>
+                        {account.name}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {account.cardType === 'credit'
+                          ? 'Credit card'
+                          : account.cardType === 'debit'
+                            ? 'Debit card'
+                            : meta.label}
+                        {account.last4 ? ` ••${account.last4}` : ''}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.accountRight}>
                       <ThemedText
                         type="smallBold"
+                        tabular
                         style={{
-                          color: balance >= 0 ? theme.text : theme.expense,
-                          fontSize: 16,
+                          color: isCredit && display > 0 ? theme.expense : theme.text,
+                          fontSize: 15,
                         }}>
-                        {formatAED(balance, { decimals: false })}
+                        {formatAED(display, { decimals: false })}
                       </ThemedText>
-                    </Card>
+                      {isCredit && (
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          outstanding
+                        </ThemedText>
+                      )}
+                    </View>
                   </Pressable>
-                </Animated.View>
-              );
-            })}
-            <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-              Long-press an account to remove it.
+                );
+              })}
+            </View>
+            <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
+              Long-press an account to remove it
             </ThemedText>
           </View>
 
+          {/* Goals */}
           <View style={styles.section}>
-            <ThemedText type="smallBold">Features</ThemedText>
-            <Card style={styles.settingsCard}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="micro" themeColor="textSecondary">Savings goals</ThemedText>
+              <Pressable onPress={() => setGoalVisible(true)}>
+                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                  + New goal
+                </ThemedText>
+              </Pressable>
+            </View>
+            {state.goals.map((goal) => {
+              const ratio = goal.targetFils > 0 ? goal.savedFils / goal.targetFils : 0;
+              return (
+                <Pressable
+                  key={goal.id}
+                  onPress={() => addToGoal(goal.id, goal.title)}
+                  onLongPress={() =>
+                    Alert.alert('Delete goal?', goal.title, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => deleteGoal(goal.id) },
+                    ])
+                  }
+                  style={styles.goalRow}>
+                  <View style={styles.goalTop}>
+                    <ThemedText type="small">
+                      {goal.emoji}  {goal.title}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" tabular>
+                      {formatAED(goal.savedFils, { decimals: false })} / {formatAED(goal.targetFils, { decimals: false })}
+                    </ThemedText>
+                  </View>
+                  <ProgressBar ratio={ratio} color={ratio >= 1 ? theme.income : theme.gold} height={6} />
+                </Pressable>
+              );
+            })}
+            {state.goals.length === 0 && (
+              <ThemedText type="small" themeColor="textSecondary">
+                Save toward something with + New goal.
+              </ThemedText>
+            )}
+            {state.goals.length > 0 && (
+              <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
+                Tap a goal to add AED 100 · long-press to delete
+              </ThemedText>
+            )}
+          </View>
+
+          {/* Features */}
+          <View style={styles.section}>
+            <ThemedText type="micro" themeColor="textSecondary">Features</ThemedText>
+            <View>
               <Pressable style={styles.settingRow} onPress={() => router.push('/bills')}>
-                <ThemedText type="small">📅 Bills & subscriptions</ThemedText>
+                <ThemedText type="small">📅 Bills and subscriptions</ThemedText>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
@@ -201,15 +422,26 @@ export default function WalletScreen() {
                   value={state.appLock}
                   onValueChange={toggleAppLock}
                   trackColor={{ true: theme.primary, false: theme.track }}
-                  thumbColor="#FFFFFF"
+                  thumbColor={theme.background}
                 />
               </View>
-            </Card>
+            </View>
           </View>
 
+          {/* Data */}
           <View style={styles.section}>
-            <ThemedText type="smallBold">Data</ThemedText>
-            <Card style={styles.settingsCard}>
+            <ThemedText type="micro" themeColor="textSecondary">Data</ThemedText>
+            <View>
+              <Pressable style={styles.settingRow} onPress={backupJson}>
+                <ThemedText type="small">🗄️ Back up everything (JSON)</ThemedText>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
+              <Pressable style={styles.settingRow} onPress={restoreFromFile}>
+                <ThemedText type="small">📥 Restore from backup</ThemedText>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={exportCsv}>
                 <ThemedText type="small">📤 Export transactions (CSV)</ThemedText>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
@@ -226,17 +458,15 @@ export default function WalletScreen() {
                 </ThemedText>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
-            </Card>
+            </View>
           </View>
 
-          <Card style={styles.aboutCard}>
+          <View style={styles.about}>
             <ThemedText style={styles.aboutLogo}>وفرة</ThemedText>
-            <ThemedText type="smallBold">Wafra — UAE Money Manager</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.aboutText}>
-              Track spending in AED, set monthly budgets, and get plain-language analysis of
-              where your money goes. All data stays on this device.
+              Wafra · UAE money manager. All data stays on this device.
             </ThemedText>
-          </Card>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -246,8 +476,9 @@ export default function WalletScreen() {
           <Pressable
             style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             onPress={() => {}}>
+            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.sheetHeader}>
-              <ThemedText type="smallBold" style={styles.sheetTitle}>New account</ThemedText>
+              <ThemedText type="heading">New account</ThemedText>
               <Pressable onPress={() => setAdderVisible(false)}>
                 <Icon name="close" size={20} color={theme.textSecondary} />
               </Pressable>
@@ -258,10 +489,7 @@ export default function WalletScreen() {
               onChangeText={setName}
               placeholder="Account name (e.g. ADCB Savings)"
               placeholderTextColor={theme.textSecondary}
-              style={[
-                styles.input,
-                { backgroundColor: theme.backgroundSelected, color: theme.text },
-              ]}
+              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
             />
 
             <View style={styles.kindRow}>
@@ -311,11 +539,75 @@ export default function WalletScreen() {
             <Pressable
               onPress={saveAccount}
               disabled={!name.trim()}
+              style={[styles.saveBtn, { backgroundColor: theme.primary, opacity: name.trim() ? 1 : 0.45 }]}>
+              <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>Add account</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* New goal sheet */}
+      <Modal visible={goalVisible} transparent animationType="fade" onRequestClose={() => setGoalVisible(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setGoalVisible(false)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => {}}>
+            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
+            <View style={styles.sheetHeader}>
+              <ThemedText type="heading">New goal</ThemedText>
+              <Pressable onPress={() => setGoalVisible(false)}>
+                <Icon name="close" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+
+            <TextInput
+              value={goalTitle}
+              onChangeText={setGoalTitle}
+              placeholder="Goal (e.g. Umrah trip, new car)"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
+            />
+
+            <View style={[styles.amountBox, { backgroundColor: theme.backgroundSelected }]}>
+              <ThemedText type="smallBold" themeColor="textSecondary">AED</ThemedText>
+              <TextInput
+                value={goalTarget}
+                onChangeText={setGoalTarget}
+                keyboardType="numeric"
+                placeholder="Target amount"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.amountInput, { color: theme.text }]}
+              />
+            </View>
+
+            <View style={styles.colorRow}>
+              {GOAL_EMOJIS.map((e) => (
+                <Pressable
+                  key={e}
+                  onPress={() => setGoalEmoji(e)}
+                  style={[
+                    styles.emojiPick,
+                    {
+                      backgroundColor: goalEmoji === e ? `${theme.primary}22` : theme.backgroundSelected,
+                      borderColor: goalEmoji === e ? theme.primary : 'transparent',
+                    },
+                  ]}>
+                  <ThemedText style={styles.emojiText}>{e}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable
+              onPress={saveGoal}
+              disabled={!goalTitle.trim() || !parseAmountToFils(goalTarget)}
               style={[
                 styles.saveBtn,
-                { backgroundColor: theme.primary, opacity: name.trim() ? 1 : 0.45 },
+                {
+                  backgroundColor: theme.primary,
+                  opacity: !goalTitle.trim() || !parseAmountToFils(goalTarget) ? 0.45 : 1,
+                },
               ]}>
-              <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>Add account</ThemedText>
+              <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>Create goal</ThemedText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -344,11 +636,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    lineHeight: 32,
-  },
   addBtn: {
     width: 42,
     height: 42,
@@ -356,72 +643,87 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  list: {
+  section: {
     gap: Spacing.two,
   },
-  accountCard: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    overflow: 'hidden',
+    justifyContent: 'space-between',
   },
-  accountStripe: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
+  dueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
   },
-  accountEmoji: {
-    width: 44,
-    height: 44,
+  dueInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  dueRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    paddingVertical: Spacing.two + 3,
+  },
+  accountBadge: {
+    width: 42,
+    height: 42,
     borderRadius: Radius.sm + 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accountEmojiText: {
-    fontSize: 20,
+  accountBadgeEmoji: {
+    fontSize: 19,
   },
   accountInfo: {
     flex: 1,
     gap: 1,
   },
+  accountRight: {
+    alignItems: 'flex-end',
+  },
   hint: {
-    textAlign: 'center',
-    fontSize: 12,
+    opacity: 0.8,
   },
-  section: {
-    gap: Spacing.two,
+  goalRow: {
+    gap: Spacing.one + 2,
+    paddingVertical: Spacing.one + 2,
   },
-  settingsCard: {
-    paddingVertical: Spacing.one,
+  goalTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.two + 4,
+    paddingVertical: Spacing.two + 3,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
   },
-  aboutCard: {
+  about: {
     alignItems: 'center',
     gap: Spacing.one,
-    paddingVertical: Spacing.four,
+    paddingVertical: Spacing.three,
   },
   aboutLogo: {
-    fontSize: 34,
-    lineHeight: 44,
+    fontSize: 30,
+    lineHeight: 40,
     fontWeight: '700',
   },
   aboutText: {
     textAlign: 'center',
-    maxWidth: 300,
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(7, 15, 12, 0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -432,13 +734,17 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.five,
     gap: Spacing.three,
   },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: -Spacing.two,
+  },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  sheetTitle: {
-    fontSize: 17,
   },
   input: {
     borderRadius: Radius.md,
@@ -474,12 +780,24 @@ const styles = StyleSheet.create({
   colorRow: {
     flexDirection: 'row',
     gap: Spacing.two,
+    flexWrap: 'wrap',
   },
   colorDot: {
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 3,
+  },
+  emojiPick: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  emojiText: {
+    fontSize: 20,
   },
   saveBtn: {
     borderRadius: Radius.md,

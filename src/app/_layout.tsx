@@ -5,6 +5,8 @@ import React from 'react';
 import { useColorScheme } from 'react-native';
 
 import { LockGate } from '@/components/lock-gate';
+import { OnboardingGate } from '@/components/onboarding-gate';
+import { ToastProvider } from '@/components/ui/toast';
 import { Colors } from '@/constants/theme';
 import { StoreProvider } from '@/lib/store';
 
@@ -30,6 +32,8 @@ export default function RootLayout() {
       <ThemeProvider value={navTheme}>
         <StatusBar style={dark ? 'light' : 'dark'} />
         <LockGate>
+          <OnboardingGate>
+          <ToastProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen
@@ -40,6 +44,8 @@ export default function RootLayout() {
             <Stack.Screen name="import-sms" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="bills" options={{ animation: 'slide_from_right' }} />
           </Stack>
+          </ToastProvider>
+          </OnboardingGate>
         </LockGate>
       </ThemeProvider>
     </StoreProvider>

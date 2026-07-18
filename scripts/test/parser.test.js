@@ -84,5 +84,38 @@ t('random chat message with amount is skipped',
 t('careem ride', 'AED 34.50 was charged to your card at CAREEM on 14/07/2026',
   { merchant: 'Careem', category: 'transport' });
 
+// ── v2: card identity, statements, payments, currency, overrides ──
+const p1 = parseSms('Purchase of AED 250.00 with Credit Card ending 4821 at IKEA on 10/07/2026');
+t('card identity extracted', 'Purchase of AED 250.00 with Credit Card ending 4821 at IKEA on 10/07/2026',
+  { merchant: 'Ikea', kind: 'transaction' });
+if (p1 && p1.card && p1.card.last4 === '4821' && p1.card.kind === 'credit') { pass++; console.log('✓ card last4 + credit kind'); }
+else { fail++; console.log('✗ card last4 + credit kind', JSON.stringify(p1 && p1.card)); }
+
+const p2 = parseSms('AED 90.00 was debited from a/c XX9012 for payment to DEWA');
+if (p2 && p2.card && p2.card.last4 === '9012' && p2.card.kind === 'account') { pass++; console.log('✓ account hint extracted'); }
+else { fail++; console.log('✗ account hint extracted', JSON.stringify(p2 && p2.card)); }
+
+const stmt = parseSms('Your Credit Card ending 4821 statement is generated. Total due AED 3,240.00, minimum due AED 162.00 by 05/08/2026');
+if (stmt && stmt.kind === 'cardStatement' && stmt.amountFils === 324000 && stmt.minDueFils === 16200 && stmt.date === '2026-08-05' && stmt.card.last4 === '4821') {
+  pass++; console.log('✓ card statement parsed with min due + date');
+} else { fail++; console.log('✗ card statement parsed', JSON.stringify(stmt)); }
+
+const pay = parseSms('Payment of AED 3,240.00 received towards your Credit Card ending 4821. Thank you.');
+if (pay && pay.kind === 'cardPayment' && pay.amountFils === 324000 && pay.card.last4 === '4821') {
+  pass++; console.log('✓ card payment is a transfer, not spending');
+} else { fail++; console.log('✗ card payment', JSON.stringify(pay)); }
+
+t('multi-currency prefers AED in parens',
+  'Purchase of USD 9.99 (AED 36.70) at NETFLIX with Credit Card ending 4821',
+  { amountFils: 3670, merchant: 'Netflix', category: 'entertainment' });
+
+t('foreign-only currency skipped',
+  'Purchase of USD 49.99 at STEAM GAMES with Credit Card ending 4821',
+  null);
+
+const ov = parseSms('Purchase of AED 55.00 at MYSTERY VENDOR with card ending 11', { 'mystery vendor': 'health' });
+if (ov && ov.categoryGuess === 'health') { pass++; console.log('✓ merchant override applied'); }
+else { fail++; console.log('✗ merchant override applied', JSON.stringify(ov && ov.categoryGuess)); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

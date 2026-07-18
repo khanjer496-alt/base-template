@@ -8,7 +8,8 @@ export interface RawSms {
 }
 
 interface SmsReaderModule {
-  getInboxSms(sinceMs: number, max: number): Promise<RawSms[]>;
+  /** Newest-first messages with sinceMs <= date < untilMs, up to max. */
+  getInboxSms(sinceMs: number, untilMs: number, max: number): Promise<RawSms[]>;
 }
 
 /** Null on iOS/web and in environments without the native module (e.g. Expo Go). */

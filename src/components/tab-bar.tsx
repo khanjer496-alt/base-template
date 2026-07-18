@@ -1,4 +1,5 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -98,7 +99,12 @@ export function WafraTabBar({ state, navigation }: BottomTabBarProps) {
         {left.map(renderTab)}
         <View style={styles.centerSlot}>
           <Pressable
-            onPress={() => router.push('/add-transaction')}
+            onPress={() => {
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              }
+              router.push('/add-transaction');
+            }}
             style={({ pressed }) => [
               styles.fab,
               {

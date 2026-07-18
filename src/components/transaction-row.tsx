@@ -32,7 +32,7 @@ export function TransactionRow({ transaction, account, onPress }: TransactionRow
           {account ? ` · ${account.name}` : ''}
         </ThemedText>
       </View>
-      <ThemedText style={{ color: isIncome ? theme.income : theme.text, fontWeight: '700' }}>
+      <ThemedText tabular style={{ color: isIncome ? theme.income : theme.text, fontWeight: '700' }}>
         {isIncome ? '+' : '−'}{formatAED(transaction.amountFils, { decimals: false })}
       </ThemedText>
     </Pressable>

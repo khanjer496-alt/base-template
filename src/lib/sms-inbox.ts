@@ -1,77 +1,51 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+/**
+ * Compatibility layer over the v2 auto-import engine for screens that used
+ * the original scan API. New code should use '@/lib/auto-import' directly.
+ */
+import {
+  buildImportPlan,
+  hasSmsPermission,
+  isSmsScanningAvailable,
+  requestSmsPermission,
+  scanInbox,
+} from '@/lib/auto-import';
+import type { ParsedSms } from '@/lib/sms-parser';
+import type { AppState, Transaction } from '@/lib/types';
 
-import SmsReader from '../../modules/sms-reader';
-import { toISODate } from '@/lib/format';
-import { parseSms, type ParsedSms } from '@/lib/sms-parser';
-import type { Transaction } from '@/lib/types';
-
-const MAX_MESSAGES = 500;
-
-/** True when running on Android with the native SMS module compiled in. */
-export function isSmsScanningAvailable(): boolean {
-  return Platform.OS === 'android' && SmsReader != null;
-}
-
-export async function hasSmsPermission(): Promise<boolean> {
-  if (!isSmsScanningAvailable()) return false;
-  return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
-}
-
-export async function requestSmsPermission(): Promise<boolean> {
-  if (!isSmsScanningAvailable()) return false;
-  const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_SMS, {
-    title: 'Read bank SMS',
-    message:
-      'Wafra scans your inbox for bank alert messages to log transactions automatically. ' +
-      'Messages are processed on this device only and never leave it.',
-    buttonPositive: 'Allow',
-    buttonNegative: 'Not now',
-  });
-  return result === PermissionsAndroid.RESULTS.GRANTED;
-}
-
-function dedupeKey(date: string, amountFils: number, title: string): string {
-  return `${date}|${amountFils}|${title.toLowerCase()}`;
-}
+export { hasSmsPermission, isSmsScanningAvailable, requestSmsPermission };
 
 /**
- * Reads the inbox for the last `days` days, parses bank-style messages, and
- * drops any that match an already-recorded transaction (same date + amount +
- * merchant), so repeated scans are idempotent.
+ * Scans the last `days` days and returns parseable messages not already
+ * recorded, for the manual review screen.
  */
 export async function scanInboxForBankMessages(
   existing: Transaction[],
   days = 90,
 ): Promise<ParsedSms[]> {
-  if (!isSmsScanningAvailable() || !SmsReader) return [];
-
   const sinceMs = Date.now() - days * 86400000;
-  const messages = await SmsReader.getInboxSms(sinceMs, MAX_MESSAGES);
-
-  const seen = new Set(existing.map((t) => dedupeKey(t.date, t.amountFils, t.title)));
-  const results: ParsedSms[] = [];
-
+  const { parsed, newestTs } = await scanInbox(sinceMs, {});
+  const pseudoState = { transactions: existing, accounts: [], accountHints: {} } as unknown as AppState;
+  const plan = buildImportPlan(parsed, pseudoState, newestTs);
+  // Reconstruct the review list: deduped transactions + named bill reminders.
+  const txKeys = new Set(
+    plan.batch.transactions.map((t) => `${t.date}|${t.amountFils}|${t.title.toLowerCase()}`),
+  );
+  const out: ParsedSms[] = [];
   const seenBills = new Set<string>();
-  for (const sms of messages) {
-    const parsed = parseSms(sms.body);
-    if (!parsed) continue;
-    // Prefer the date inside the message text; fall back to the SMS timestamp.
-    const date = parsed.date ?? toISODate(new Date(sms.date));
-    if (parsed.kind === 'billDue') {
-      // A reminder without a recognisable biller name is not worth surfacing.
-      if (parsed.merchant === 'Bill payment') continue;
-      // Keep only the newest reminder per biller.
-      const billKey = parsed.merchant.toLowerCase();
-      if (seenBills.has(billKey)) continue;
-      seenBills.add(billKey);
-      results.push({ ...parsed, date });
-      continue;
+  for (const p of parsed) {
+    if (p.kind === 'transaction') {
+      const key = `${p.date}|${p.amountFils}|${p.merchant.toLowerCase()}`;
+      if (txKeys.has(key)) {
+        txKeys.delete(key); // keep each deduped tx once
+        out.push(p);
+      }
+    } else if (p.kind === 'billDue' && p.merchant !== 'Bill payment') {
+      const k = p.merchant.toLowerCase();
+      if (!seenBills.has(k)) {
+        seenBills.add(k);
+        out.push(p);
+      }
     }
-    const key = dedupeKey(date, parsed.amountFils, parsed.merchant);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({ ...parsed, date });
   }
-
-  return results;
+  return out;
 }

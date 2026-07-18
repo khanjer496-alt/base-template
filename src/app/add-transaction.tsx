@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
@@ -50,6 +51,9 @@ export default function AddTransactionScreen() {
 
   const save = () => {
     if (!amountFils || !accountId) return;
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
     addTransaction({
       type,
       amountFils,
@@ -57,6 +61,7 @@ export default function AddTransactionScreen() {
       accountId,
       title: title.trim() || getCategory(category).label,
       date,
+      source: 'manual',
     });
     router.back();
   };

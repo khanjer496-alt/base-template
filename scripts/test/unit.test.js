@@ -92,5 +92,95 @@ ok('seed has salary each month', s1.filter(t => t.title === 'Salary').length ===
 ok('seed no future dates', s1.every(t => t.date <= '2026-07-18'));
 ok('seed reasonable volume', s1.length > 100 && s1.length < 400, `len=${s1.length}`);
 
+
+// ── subscriptions (v2) ──
+const subsLib = require('./build/subscriptions');
+const subTx = (title, date, fils, cat = 'entertainment') => ({
+  id: `${title}-${date}`, type: 'expense', amountFils: fils, category: cat,
+  accountId: 'a', title, date,
+});
+
+const netflix = subsLib.detectSubscriptions([
+  subTx('Netflix', '2026-04-03', 3900),
+  subTx('Netflix', '2026-05-03', 3900),
+  subTx('Netflix', '2026-06-03', 3900),
+  subTx('Netflix', '2026-07-03', 4500),
+]);
+ok('subscription: monthly cadence detected', netflix.length === 1 && netflix[0].cadence === 'monthly');
+ok('subscription: price increase flagged', netflix[0]?.priceIncreased === true);
+eq('subscription: next expected ~30d later', netflix[0]?.nextExpectedISO, '2026-08-02');
+
+const weekly = subsLib.detectSubscriptions([
+  subTx('Padel Court', '2026-06-05', 8000, 'health'),
+  subTx('Padel Court', '2026-06-12', 8000, 'health'),
+  subTx('Padel Court', '2026-06-19', 8000, 'health'),
+]);
+ok('subscription: weekly cadence detected', weekly.length === 1 && weekly[0].cadence === 'weekly');
+ok('subscription: weekly monthly-equivalent ~4.33x',
+  Math.abs(weekly[0].monthlyEquivalentFils - Math.round(8000 * 4.33)) <= 1);
+
+ok('subscription: known merchant needs only one interval',
+  subsLib.detectSubscriptions([
+    subTx('Spotify', '2026-06-10', 2100),
+    subTx('Spotify', '2026-07-10', 2100),
+  ]).length === 1);
+
+ok('subscription: irregular merchant rejected',
+  subsLib.detectSubscriptions([
+    subTx('Random Shop', '2026-06-01', 5000, 'shopping'),
+    subTx('Random Shop', '2026-06-11', 9000, 'shopping'),
+    subTx('Random Shop', '2026-07-29', 2000, 'shopping'),
+  ]).length === 0);
+
+// ── cards & dues (v2) ──
+const cardsLib = require('./build/cards');
+const dueState = {
+  accounts: [{ id: 'card1', name: 'Credit Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff' }],
+  transactions: [],
+  cardDues: [],
+};
+const due = { id: 'd1', accountId: 'card1', totalDueFils: 324000, minDueFils: 16200, dueDate: '2026-07-25', paidFils: 0 };
+
+const ds1 = cardsLib.dueWithStatus(dueState, due, new Date(2026, 6, 18));
+ok('due: upcoming 7d out', ds1.status === 'upcoming' && ds1.daysLeft === 7 && ds1.remainingFils === 324000);
+ok('due: below minimum flagged', ds1.belowMinimum === true);
+
+const ds2 = cardsLib.dueWithStatus(dueState, due, new Date(2026, 6, 23));
+ok('due: urgent within 3d', ds2.status === 'urgent');
+
+const ds3 = cardsLib.dueWithStatus(dueState, due, new Date(2026, 6, 28));
+ok('due: overdue after date', ds3.status === 'overdue' && ds3.daysLeft === -3);
+
+const paidState = {
+  ...dueState,
+  transactions: [{ id: 'p1', type: 'income', amountFils: 324000, category: 'other', accountId: 'card1', title: 'Card payment', date: '2026-07-20', isTransfer: true }],
+};
+const ds4 = cardsLib.dueWithStatus(paidState, due, new Date(2026, 6, 21));
+ok('due: transfer payment settles it', ds4.status === 'settled' && ds4.remainingFils === 0);
+
+const partialState = {
+  ...dueState,
+  transactions: [{ id: 'p2', type: 'income', amountFils: 100000, category: 'other', accountId: 'card1', title: 'Card payment', date: '2026-07-20', isTransfer: true }],
+};
+const ds5 = cardsLib.dueWithStatus(partialState, due, new Date(2026, 6, 21));
+ok('due: partial payment reduces remaining', ds5.remainingFils === 224000 && ds5.status !== 'settled');
+ok('due: partial above minimum clears flag', ds5.belowMinimum === false);
+
+// ── analytics (v2) ──
+const an = require('./build/analytics');
+const aTx = [
+  { id: '1', type: 'expense', amountFils: 50000, category: 'dining', accountId: 'a', title: 'Talabat', date: '2026-07-04' },
+  { id: '2', type: 'expense', amountFils: 30000, category: 'dining', accountId: 'a', title: 'Talabat', date: '2026-07-11' },
+  { id: '3', type: 'expense', amountFils: 20000, category: 'groceries', accountId: 'a', title: 'Carrefour', date: '2026-07-05' },
+  { id: '4', type: 'expense', amountFils: 90000, category: 'dining', accountId: 'a', title: 'Talabat', date: '2026-06-10' },
+  { id: '5', type: 'income', amountFils: 999, category: 'other', accountId: 'a', title: 'Pay', date: '2026-07-01', isTransfer: true },
+];
+const tm = an.topMerchants(aTx, '2026-07');
+ok('analytics: top merchant aggregated', tm[0].title === 'Talabat' && tm[0].totalFils === 80000 && tm[0].count === 2);
+const mv = an.categoryMovers(aTx, '2026-07');
+ok('analytics: dining moved down vs June', mv.some(m => m.category === 'dining' && m.deltaFils === -10000));
+const dw = an.dayOfWeekSpend(aTx, '2026-07');
+ok('analytics: transfers excluded from weekday spend', dw.reduce((a, b) => a + b, 0) === 100000);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

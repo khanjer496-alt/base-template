@@ -1,6 +1,6 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -39,8 +39,11 @@ export function LockGate({ children }: { children: React.ReactNode }) {
 
   if (!lockRequired) return <>{children}</>;
 
+  // Keep the router's Stack mounted; the lock paints over it.
   return (
-    <ThemedView style={styles.root}>
+    <View style={styles.container}>
+      <View style={styles.hidden}>{children}</View>
+      <ThemedView style={[StyleSheet.absoluteFillObject, styles.root]}>
       <ThemedText style={styles.logo}>وفرة</ThemedText>
       <ThemedText type="smallBold" style={styles.title}>
         Wafra is locked
@@ -55,11 +58,19 @@ export function LockGate({ children }: { children: React.ReactNode }) {
           🔓 Unlock
         </ThemedText>
       </Pressable>
-    </ThemedView>
+      </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  hidden: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0,
+  },
   root: {
     flex: 1,
     alignItems: 'center',
