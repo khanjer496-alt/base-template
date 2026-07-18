@@ -35,6 +35,7 @@ export default function RootLayout() {
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
           />
           <Stack.Screen name="transactions" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="import-sms" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </ThemeProvider>
     </StoreProvider>

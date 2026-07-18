@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -33,6 +34,7 @@ const ACCOUNT_COLORS = ['#2DD4A8', '#60A5FA', '#E9B949', '#F472B6', '#A78BFA', '
 
 export default function WalletScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { state, addAccount, deleteAccount, loadDemoData, clearAll } = useStore();
 
   const [adderVisible, setAdderVisible] = useState(false);
@@ -142,6 +144,11 @@ export default function WalletScreen() {
           <View style={styles.section}>
             <ThemedText type="smallBold">Data</ThemedText>
             <Card style={styles.settingsCard}>
+              <Pressable style={styles.settingRow} onPress={() => router.push('/import-sms')}>
+                <ThemedText type="small">✉️ Import from bank SMS</ThemedText>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={() => confirmReset(true)}>
                 <ThemedText type="small">🧪 Load demo data</ThemedText>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />

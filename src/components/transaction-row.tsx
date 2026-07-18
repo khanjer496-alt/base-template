@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { CategoryAvatar } from '@/components/ui/category-avatar';
+import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getCategory } from '@/lib/categories';
@@ -24,7 +24,7 @@ export function TransactionRow({ transaction, account, onPress }: TransactionRow
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
-      <CategoryAvatar category={transaction.category} />
+      <MerchantAvatar title={transaction.title} category={transaction.category} />
       <View style={styles.middle}>
         <ThemedText numberOfLines={1}>{transaction.title}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
