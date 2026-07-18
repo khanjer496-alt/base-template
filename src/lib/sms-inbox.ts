@@ -58,6 +58,8 @@ export async function scanInboxForBankMessages(
     // Prefer the date inside the message text; fall back to the SMS timestamp.
     const date = parsed.date ?? toISODate(new Date(sms.date));
     if (parsed.kind === 'billDue') {
+      // A reminder without a recognisable biller name is not worth surfacing.
+      if (parsed.merchant === 'Bill payment') continue;
       // Keep only the newest reminder per biller.
       const billKey = parsed.merchant.toLowerCase();
       if (seenBills.has(billKey)) continue;

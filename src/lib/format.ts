@@ -73,6 +73,13 @@ export function daysInMonth(key: string): number {
   return new Date(y, m, 0).getDate();
 }
 
+/** "17 Jul" from an ISO date. */
+export function shortDate(iso: string): string {
+  const d = Number(iso.slice(8, 10));
+  const m = Number(iso.slice(5, 7));
+  return `${d} ${MONTHS_SHORT[m - 1] ?? ''}`;
+}
+
 /** "Today", "Yesterday", or "Friday, 18 Jul". */
 export function friendlyDate(iso: string, todayISO: string): string {
   if (iso === todayISO) return 'Today';
