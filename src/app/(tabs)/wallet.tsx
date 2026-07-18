@@ -26,7 +26,7 @@ import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { openDues } from '@/lib/cards';
-import { formatAED, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
+import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import { accountBalanceFils, netWorthFils, useStore } from '@/lib/store';
 import type { AccountKind } from '@/lib/types';
 
@@ -79,6 +79,26 @@ export default function WalletScreen() {
 
   const total = netWorthFils(state);
   const dues = useMemo(() => openDues(state, now), [state, now]);
+
+  // Cards (auto-discovered from SMS or added manually) get their own section.
+  const cards = useMemo(
+    () => state.accounts.filter((a) => a.kind === 'card' || a.cardType),
+    [state.accounts],
+  );
+  const nonCardAccounts = useMemo(
+    () => state.accounts.filter((a) => a.kind !== 'card' && !a.cardType),
+    [state.accounts],
+  );
+  // This month's spend per account, for the per-card line.
+  const monthSpendByAccount = useMemo(() => {
+    const key = monthKey(now);
+    const map = new Map<string, number>();
+    for (const t of state.transactions) {
+      if (t.type !== 'expense' || t.isTransfer || monthKey(t.date) !== key) continue;
+      map.set(t.accountId, (map.get(t.accountId) ?? 0) + t.amountFils);
+    }
+    return map;
+  }, [state.transactions, now]);
 
   const saveAccount = () => {
     if (!name.trim()) return;
@@ -302,15 +322,69 @@ export default function WalletScreen() {
             </View>
           )}
 
+          {/* Cards */}
+          {cards.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText type="micro" themeColor="textSecondary">
+                Cards ({cards.length})
+              </ThemedText>
+              <View>
+                {cards.map((account, i) => {
+                  const balance = accountBalanceFils(state, account.id);
+                  const isCredit = account.cardType === 'credit';
+                  const display = isCredit ? Math.abs(Math.min(0, balance)) : balance;
+                  const spent = monthSpendByAccount.get(account.id) ?? 0;
+                  return (
+                    <Pressable
+                      key={account.id}
+                      onLongPress={() => confirmDeleteAccount(account.id, account.name)}
+                      style={[
+                        styles.accountRow,
+                        i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+                      ]}>
+                      <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
+                        <Icon name="wallet" size={20} color={account.color} strokeWidth={1.8} />
+                      </View>
+                      <View style={styles.accountInfo}>
+                        <ThemedText type="default" numberOfLines={1}>
+                          {account.name}
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {isCredit ? 'Credit card' : 'Debit card'}
+                          {account.last4 ? ` ••${account.last4}` : ''}
+                          {spent > 0 ? ` · ${formatAED(spent, { decimals: false })} this month` : ''}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.accountRight}>
+                        <ThemedText
+                          type="smallBold"
+                          tabular
+                          style={{
+                            color: isCredit && display > 0 ? theme.expense : theme.text,
+                            fontSize: 15,
+                          }}>
+                          {formatAED(display, { decimals: false })}
+                        </ThemedText>
+                        {isCredit && (
+                          <ThemedText type="micro" themeColor="textSecondary">
+                            outstanding
+                          </ThemedText>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           {/* Accounts */}
           <View style={styles.section}>
             <ThemedText type="micro" themeColor="textSecondary">Accounts</ThemedText>
             <View>
-              {state.accounts.map((account, i) => {
+              {nonCardAccounts.map((account, i) => {
                 const balance = accountBalanceFils(state, account.id);
                 const meta = KIND_META[account.kind];
-                const isCredit = account.cardType === 'credit';
-                const display = isCredit ? Math.abs(Math.min(0, balance)) : balance;
                 return (
                   <Pressable
                     key={account.id}
@@ -327,36 +401,26 @@ export default function WalletScreen() {
                         {account.name}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        {account.cardType === 'credit'
-                          ? 'Credit card'
-                          : account.cardType === 'debit'
-                            ? 'Debit card'
-                            : meta.label}
+                        {meta.label}
                         {account.last4 ? ` ••${account.last4}` : ''}
                       </ThemedText>
                     </View>
                     <View style={styles.accountRight}>
-                      <ThemedText
-                        type="smallBold"
-                        tabular
-                        style={{
-                          color: isCredit && display > 0 ? theme.expense : theme.text,
-                          fontSize: 15,
-                        }}>
-                        {formatAED(display, { decimals: false })}
+                      <ThemedText type="smallBold" tabular style={{ fontSize: 15 }}>
+                        {formatAED(balance, { decimals: false })}
                       </ThemedText>
-                      {isCredit && (
-                        <ThemedText type="micro" themeColor="textSecondary">
-                          outstanding
-                        </ThemedText>
-                      )}
                     </View>
                   </Pressable>
                 );
               })}
+              {nonCardAccounts.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  No bank or cash accounts yet.
+                </ThemedText>
+              )}
             </View>
             <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
-              Long-press an account to remove it
+              Long-press a card or account to remove it
             </ThemedText>
           </View>
 
