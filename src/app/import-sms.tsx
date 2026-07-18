@@ -39,7 +39,7 @@ export default function ImportSmsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { auto } = useLocalSearchParams<{ auto?: string }>();
-  const { state, addTransaction } = useStore();
+  const { state, addTransaction, addBill } = useStore();
 
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedSms[] | null>(null);
@@ -47,7 +47,15 @@ export default function ImportSmsScreen() {
   const [accountId, setAccountId] = useState(state.accounts[0]?.id ?? '');
   const [scanning, setScanning] = useState(false);
 
-  const selectedCount = parsed ? parsed.length - excluded.size : 0;
+  const txParsed = useMemo(() => (parsed ?? []).filter((p) => p.kind === 'transaction'), [parsed]);
+  const billParsed = useMemo(() => {
+    const existing = new Set(state.bills.map((b) => b.title.toLowerCase()));
+    return (parsed ?? []).filter(
+      (p) => p.kind === 'billDue' && !existing.has(p.merchant.toLowerCase()),
+    );
+  }, [parsed, state.bills]);
+
+  const selectedCount = txParsed.length - excluded.size;
 
   const runParse = (input: string) => {
     setParsed(parseSmsBatch(input));
@@ -97,8 +105,8 @@ export default function ImportSmsScreen() {
   const todayISO = useMemo(() => toISODate(new Date()), []);
 
   const importSelected = () => {
-    if (!parsed || !accountId) return;
-    parsed.forEach((p, i) => {
+    if (!accountId) return;
+    txParsed.forEach((p, i) => {
       if (excluded.has(i)) return;
       addTransaction({
         type: p.type,
@@ -202,7 +210,45 @@ export default function ImportSmsScreen() {
               </Card>
             )}
 
-            {parsed !== null && parsed.length > 0 && (
+            {billParsed.length > 0 && (
+              <View style={styles.fieldBlock}>
+                <ThemedText type="smallBold">📅 Bill reminders detected</ThemedText>
+                {billParsed.map((p, i) => {
+                  const meta = getCategory(p.categoryGuess);
+                  return (
+                    <Card key={`bill-${i}`} style={styles.previewCard}>
+                      <MerchantAvatar title={p.merchant} category={p.categoryGuess} size={40} />
+                      <View style={styles.previewInfo}>
+                        <ThemedText type="smallBold" numberOfLines={1}>
+                          {p.merchant}
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                          {meta.emoji} {meta.label} · {formatAED(p.amountFils, { decimals: false })}
+                          {p.dueDay ? ` · due day ${p.dueDay}` : ''}
+                        </ThemedText>
+                      </View>
+                      <Pressable
+                        onPress={() =>
+                          addBill({
+                            title: p.merchant,
+                            category: p.categoryGuess,
+                            amountFils: p.amountFils,
+                            dueDay: p.dueDay ?? 1,
+                            autoDetected: true,
+                          })
+                        }
+                        style={[styles.trackBtn, { backgroundColor: `${theme.gold}22` }]}>
+                        <ThemedText type="small" style={{ color: theme.gold, fontWeight: '700' }}>
+                          Track
+                        </ThemedText>
+                      </Pressable>
+                    </Card>
+                  );
+                })}
+              </View>
+            )}
+
+            {txParsed.length > 0 && (
               <>
                 <View style={styles.fieldBlock}>
                   <ThemedText type="small" themeColor="textSecondary">
@@ -234,7 +280,7 @@ export default function ImportSmsScreen() {
                 </View>
 
                 <View style={styles.previewList}>
-                  {parsed.map((p, i) => {
+                  {txParsed.map((p, i) => {
                     const meta = getCategory(p.categoryGuess);
                     const included = !excluded.has(i);
                     return (
@@ -277,7 +323,7 @@ export default function ImportSmsScreen() {
             )}
           </ScrollView>
 
-          {parsed !== null && parsed.length > 0 && (
+          {txParsed.length > 0 && (
             <View style={styles.footer}>
               <Pressable
                 onPress={importSelected}
@@ -417,6 +463,11 @@ const styles = StyleSheet.create({
   previewInfo: {
     flex: 1,
     gap: 1,
+  },
+  trackBtn: {
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one + 1,
+    borderRadius: Radius.full,
   },
   footer: {
     padding: Spacing.three,

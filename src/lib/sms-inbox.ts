@@ -51,11 +51,20 @@ export async function scanInboxForBankMessages(
   const seen = new Set(existing.map((t) => dedupeKey(t.date, t.amountFils, t.title)));
   const results: ParsedSms[] = [];
 
+  const seenBills = new Set<string>();
   for (const sms of messages) {
     const parsed = parseSms(sms.body);
     if (!parsed) continue;
     // Prefer the date inside the message text; fall back to the SMS timestamp.
     const date = parsed.date ?? toISODate(new Date(sms.date));
+    if (parsed.kind === 'billDue') {
+      // Keep only the newest reminder per biller.
+      const billKey = parsed.merchant.toLowerCase();
+      if (seenBills.has(billKey)) continue;
+      seenBills.add(billKey);
+      results.push({ ...parsed, date });
+      continue;
+    }
     const key = dedupeKey(date, parsed.amountFils, parsed.merchant);
     if (seen.has(key)) continue;
     seen.add(key);

@@ -47,10 +47,27 @@ export interface Budget {
   limitFils: number;
 }
 
+export interface Bill {
+  id: string;
+  title: string;
+  category: CategoryId;
+  /** Expected amount in fils. */
+  amountFils: number;
+  /** Day of month the bill is due (1–31). */
+  dueDay: number;
+  accountId?: string;
+  /** True when created from a detected SMS/recurring pattern. */
+  autoDetected?: boolean;
+  /** Month keys (YYYY-MM) already marked as paid. */
+  paidMonths: string[];
+}
+
 export interface AppState {
   hydrated: boolean;
   accounts: Account[];
   transactions: Transaction[];
   budgets: Budget[];
+  bills: Bill[];
   userName: string;
+  appLock: boolean;
 }

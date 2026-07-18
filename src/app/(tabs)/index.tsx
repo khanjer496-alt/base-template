@@ -16,6 +16,7 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getCategory } from '@/lib/categories';
 import { formatAED, greetingForHour, monthKey, monthLabel } from '@/lib/format';
+import { billsForMonth } from '@/lib/bills';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { hasSmsPermission, scanInboxForBankMessages } from '@/lib/sms-inbox';
 import { netWorthFils, useStore } from '@/lib/store';
@@ -59,6 +60,12 @@ export default function HomeScreen() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.hydrated]);
+
+  const upcomingBills = useMemo(
+    () => billsForMonth(state.bills, now).filter((b) => b.status !== 'paid').slice(0, 3),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.bills, key],
+  );
 
   const topBudgets = useMemo(() => {
     return state.budgets
@@ -184,6 +191,52 @@ export default function HomeScreen() {
                   <InsightCard key={insight.id} insight={insight} width={230} />
                 ))}
               </ScrollView>
+            </Animated.View>
+          )}
+
+          {/* Upcoming bills */}
+          {upcomingBills.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="smallBold">Upcoming bills</ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  onPress={() => router.push('/bills')}>
+                  Manage
+                </ThemedText>
+              </View>
+              <Card style={styles.billsCard}>
+                {upcomingBills.map(({ bill, status, daysLeft }, i) => (
+                  <Pressable
+                    key={bill.id}
+                    onPress={() => router.push('/bills')}
+                    style={[styles.billRow, i > 0 && { borderTopColor: theme.cardBorder, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                    <ThemedText type="small" style={styles.billTitle} numberOfLines={1}>
+                      {getCategory(bill.category).emoji}  {bill.title}
+                    </ThemedText>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color:
+                          status === 'overdue'
+                            ? theme.expense
+                            : status === 'due-soon'
+                              ? theme.warning
+                              : theme.textSecondary,
+                      }}>
+                      {status === 'overdue'
+                        ? `${-daysLeft}d overdue`
+                        : daysLeft === 0
+                          ? 'Due today'
+                          : `in ${daysLeft}d`}
+                    </ThemedText>
+                    <ThemedText type="smallBold" style={styles.billAmount}>
+                      {formatAED(bill.amountFils, { decimals: false })}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </Card>
             </Animated.View>
           )}
 
@@ -372,6 +425,22 @@ const styles = StyleSheet.create({
   insightScroll: {
     gap: Spacing.two,
     paddingRight: Spacing.three,
+  },
+  billsCard: {
+    paddingVertical: Spacing.one,
+  },
+  billRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two + 2,
+  },
+  billTitle: {
+    flex: 1,
+  },
+  billAmount: {
+    minWidth: 80,
+    textAlign: 'right',
   },
   budgetCard: {
     gap: Spacing.three,

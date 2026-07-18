@@ -1,11 +1,15 @@
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
+  Switch,
   TextInput,
   View,
 } from 'react-native';
@@ -35,7 +39,7 @@ const ACCOUNT_COLORS = ['#2DD4A8', '#60A5FA', '#E9B949', '#F472B6', '#A78BFA', '
 export default function WalletScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, addAccount, deleteAccount, loadDemoData, clearAll } = useStore();
+  const { state, addAccount, deleteAccount, setAppLock, loadDemoData, clearAll } = useStore();
 
   const [adderVisible, setAdderVisible] = useState(false);
   const [name, setName] = useState('');
@@ -68,6 +72,43 @@ export default function WalletScreen() {
         { text: 'Delete', style: 'destructive', onPress: () => deleteAccount(id) },
       ],
     );
+  };
+
+  const toggleAppLock = async (enabled: boolean) => {
+    if (!enabled) {
+      setAppLock(false);
+      return;
+    }
+    if (Platform.OS === 'web') {
+      Alert.alert('Not available', 'App lock works on the phone app only.');
+      return;
+    }
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    if (!hasHardware || !enrolled) {
+      Alert.alert(
+        'No screen lock set up',
+        'Set up a fingerprint, face unlock, or PIN in your phone settings first.',
+      );
+      return;
+    }
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Confirm to enable app lock',
+    });
+    if (result.success) setAppLock(true);
+  };
+
+  const exportCsv = () => {
+    const header = 'date,type,amount_aed,category,title,account';
+    const lines = state.transactions.map((t) => {
+      const account = state.accounts.find((a) => a.id === t.accountId)?.name ?? '';
+      const title = `"${t.title.replace(/"/g, '""')}"`;
+      return `${t.date},${t.type},${(t.amountFils / 100).toFixed(2)},${t.category},${title},"${account}"`;
+    });
+    Share.share({
+      title: 'wafra-export.csv',
+      message: [header, ...lines].join('\n'),
+    }).catch(() => {});
   };
 
   const confirmReset = (demo: boolean) => {
@@ -142,10 +183,35 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.section}>
-            <ThemedText type="smallBold">Data</ThemedText>
+            <ThemedText type="smallBold">Features</ThemedText>
             <Card style={styles.settingsCard}>
+              <Pressable style={styles.settingRow} onPress={() => router.push('/bills')}>
+                <ThemedText type="small">📅 Bills & subscriptions</ThemedText>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
               <Pressable style={styles.settingRow} onPress={() => router.push('/import-sms')}>
                 <ThemedText type="small">✉️ Import from bank SMS</ThemedText>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />
+              <View style={styles.settingRow}>
+                <ThemedText type="small">🔒 App lock (biometric)</ThemedText>
+                <Switch
+                  value={state.appLock}
+                  onValueChange={toggleAppLock}
+                  trackColor={{ true: theme.primary, false: theme.track }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </Card>
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold">Data</ThemedText>
+            <Card style={styles.settingsCard}>
+              <Pressable style={styles.settingRow} onPress={exportCsv}>
+                <ThemedText type="small">📤 Export transactions (CSV)</ThemedText>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
               <View style={[styles.divider, { backgroundColor: theme.cardBorder }]} />

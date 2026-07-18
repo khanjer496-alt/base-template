@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
-import type { Account, AppState, Budget, Transaction } from '@/lib/types';
+import type { Account, AppState, Bill, Budget, Transaction } from '@/lib/types';
 
 const STORAGE_KEY = 'wafra/state/v1';
 
@@ -19,26 +19,33 @@ const EMPTY_STATE: AppState = {
   accounts: [],
   transactions: [],
   budgets: [],
+  bills: [],
   userName: 'there',
+  appLock: false,
 };
 
 type Action =
-  | { type: 'hydrate'; state: Omit<AppState, 'hydrated'> }
+  | { type: 'hydrate'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'addTransaction'; transaction: Transaction }
   | { type: 'deleteTransaction'; id: string }
   | { type: 'upsertBudget'; budget: Budget }
   | { type: 'deleteBudget'; category: Budget['category'] }
   | { type: 'addAccount'; account: Account }
   | { type: 'deleteAccount'; id: string }
+  | { type: 'addBill'; bill: Bill }
+  | { type: 'deleteBill'; id: string }
+  | { type: 'markBillPaid'; id: string; month: string; transaction: Transaction }
+  | { type: 'setAppLock'; enabled: boolean }
   | { type: 'setUserName'; name: string }
-  | { type: 'loadDemo'; state: Omit<AppState, 'hydrated'> }
+  | { type: 'loadDemo'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'clearAll' };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'hydrate':
     case 'loadDemo':
-      return { ...action.state, hydrated: true };
+      // Merge over defaults so states saved by older app versions stay valid.
+      return { ...EMPTY_STATE, ...action.state, hydrated: true };
     case 'addTransaction': {
       const transactions = [action.transaction, ...state.transactions].sort((a, b) =>
         a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
@@ -61,6 +68,23 @@ function reducer(state: AppState, action: Action): AppState {
         accounts: state.accounts.filter((a) => a.id !== action.id),
         transactions: state.transactions.filter((t) => t.accountId !== action.id),
       };
+    case 'addBill':
+      return { ...state, bills: [...state.bills, action.bill] };
+    case 'deleteBill':
+      return { ...state, bills: state.bills.filter((b) => b.id !== action.id) };
+    case 'markBillPaid': {
+      const bills = state.bills.map((b) =>
+        b.id === action.id && !b.paidMonths.includes(action.month)
+          ? { ...b, paidMonths: [...b.paidMonths, action.month] }
+          : b,
+      );
+      const transactions = [action.transaction, ...state.transactions].sort((a, b) =>
+        a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+      );
+      return { ...state, bills, transactions };
+    }
+    case 'setAppLock':
+      return { ...state, appLock: action.enabled };
     case 'setUserName':
       return { ...state, userName: action.name };
     case 'clearAll':
@@ -78,17 +102,28 @@ interface StoreValue {
   deleteBudget: (category: Budget['category']) => void;
   addAccount: (a: Omit<Account, 'id'>) => void;
   deleteAccount: (id: string) => void;
+  addBill: (b: Omit<Bill, 'id' | 'paidMonths'>) => void;
+  deleteBill: (id: string) => void;
+  markBillPaid: (id: string, month: string, transaction: Omit<Transaction, 'id'>) => void;
+  setAppLock: (enabled: boolean) => void;
   loadDemoData: () => void;
   clearAll: () => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-function demoState(): Omit<AppState, 'hydrated'> {
+const SEED_BILLS: Bill[] = [
+  { id: 'bill-dewa', title: 'DEWA Bill', category: 'utilities', amountFils: 45_000, dueDay: 25, paidMonths: [] },
+  { id: 'bill-etisalat', title: 'Etisalat Postpaid', category: 'telecom', amountFils: 19_900, dueDay: 5, paidMonths: [] },
+  { id: 'bill-du', title: 'du Home Internet', category: 'telecom', amountFils: 38_900, dueDay: 10, paidMonths: [] },
+];
+
+function demoState(): Partial<Omit<AppState, 'hydrated'>> {
   return {
     accounts: SEED_ACCOUNTS,
     transactions: generateSeedTransactions(new Date()),
     budgets: SEED_BUDGETS,
+    bills: SEED_BILLS,
     userName: 'there',
   };
 }
@@ -157,6 +192,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'deleteAccount', id });
   }, []);
 
+  const addBill = useCallback((b: Omit<Bill, 'id' | 'paidMonths'>) => {
+    dispatch({
+      type: 'addBill',
+      bill: { ...b, id: `bill-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, paidMonths: [] },
+    });
+  }, []);
+
+  const deleteBill = useCallback((id: string) => {
+    dispatch({ type: 'deleteBill', id });
+  }, []);
+
+  const markBillPaid = useCallback(
+    (id: string, month: string, transaction: Omit<Transaction, 'id'>) => {
+      dispatch({
+        type: 'markBillPaid',
+        id,
+        month,
+        transaction: {
+          ...transaction,
+          id: `tx-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        },
+      });
+    },
+    [],
+  );
+
+  const setAppLock = useCallback((enabled: boolean) => {
+    dispatch({ type: 'setAppLock', enabled });
+  }, []);
+
   const loadDemoData = useCallback(() => {
     dispatch({ type: 'loadDemo', state: demoState() });
   }, []);
@@ -174,6 +239,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteBudget,
       addAccount,
       deleteAccount,
+      addBill,
+      deleteBill,
+      markBillPaid,
+      setAppLock,
       loadDemoData,
       clearAll,
     }),
@@ -185,6 +254,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteBudget,
       addAccount,
       deleteAccount,
+      addBill,
+      deleteBill,
+      markBillPaid,
+      setAppLock,
       loadDemoData,
       clearAll,
     ],

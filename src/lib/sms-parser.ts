@@ -1,17 +1,23 @@
 import type { CategoryId, TransactionType } from '@/lib/types';
 
 export interface ParsedSms {
+  /** 'transaction' = money already moved; 'billDue' = a payment reminder. */
+  kind: 'transaction' | 'billDue';
   type: TransactionType;
   amountFils: number;
   merchant: string;
   /** ISO date if the message contained one, otherwise null (caller defaults to today). */
   date: string | null;
+  /** For billDue messages: the due day of month, when present. */
+  dueDay: number | null;
   categoryGuess: CategoryId;
   raw: string;
 }
 
 const CREDIT_WORDS = /credit(?:ed)?|received|salary|refund(?:ed)?|deposit(?:ed)?|transferred to your/i;
-const DEBIT_WORDS = /purchase|debit(?:ed)?|spent|paid|payment|withdraw(?:n|al)?|was used|charged/i;
+const DEBIT_WORDS = /purchase|debit(?:ed)?|spent|paid|payment(?!\s+due)|withdraw(?:n|al)?|was used|charged/i;
+const BILL_DUE_WORDS = /\bdue\s+(?:on|by|date)\b|\bbill\b.*\b(?:due|generated|payable)\b|\bpayment\s+due\b|\bmin(?:imum)?\s+(?:amount\s+)?due\b/i;
+const BILL_MERCHANT_RE = /(?:your|the)\s+([A-Za-z0-9][A-Za-z0-9 &.'\-]{1,30}?)\s+bill\b/i;
 
 const AMOUNT_RE = /(?:AED|Dhs?\.?|د\.إ)\s*([\d,]+(?:\.\d{1,2})?)/i;
 const MERCHANT_RE = /(?:\bat|\bto|@)\s+([A-Za-z0-9][A-Za-z0-9 &.'`*\-]{1,40}?)(?=\s*(?:,|\.\s|\bon\b|\bdated\b|\bAvl\b|\bavailable\b|\bbal\b|$))/i;
@@ -58,13 +64,16 @@ export function parseSms(message: string): ParsedSms | null {
   const amountFils = Math.round(Number(amountMatch[1].replace(/,/g, '')) * 100);
   if (!Number.isFinite(amountFils) || amountFils <= 0) return null;
 
-  let type: TransactionType = 'expense';
-  if (CREDIT_WORDS.test(raw) && !DEBIT_WORDS.test(raw)) type = 'income';
+  const isBillDue = BILL_DUE_WORDS.test(raw) && !DEBIT_WORDS.test(raw) && !CREDIT_WORDS.test(raw);
 
-  const merchantMatch = raw.match(MERCHANT_RE);
+  let type: TransactionType = 'expense';
+  if (!isBillDue && CREDIT_WORDS.test(raw) && !DEBIT_WORDS.test(raw)) type = 'income';
+
+  const merchantMatch = isBillDue ? raw.match(BILL_MERCHANT_RE) ?? raw.match(MERCHANT_RE) : raw.match(MERCHANT_RE);
   let merchant = merchantMatch ? merchantMatch[1].trim().replace(/\s{2,}/g, ' ') : '';
   // "credited to your account ending 1234" is not a merchant name.
   if (/^your\b/i.test(merchant) || /^(the |an? )?account\b/i.test(merchant)) merchant = '';
+  if (isBillDue && !merchant) merchant = 'Bill payment';
   // Strip trailing city names banks often append ("CARREFOUR DUBAI ARE").
   merchant = merchant.replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|ARE|UAE)$/i, '').trim();
   if (!merchant) merchant = type === 'income' ? 'Incoming transfer' : 'Card payment';
@@ -83,10 +92,12 @@ export function parseSms(message: string): ParsedSms | null {
   }
 
   return {
+    kind: isBillDue ? 'billDue' : 'transaction',
     type,
     amountFils,
     merchant,
     date,
+    dueDay: isBillDue && date ? Number(date.slice(8)) : null,
     categoryGuess: guessCategory(raw, type),
     raw,
   };

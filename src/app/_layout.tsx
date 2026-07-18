@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { useColorScheme } from 'react-native';
 
+import { LockGate } from '@/components/lock-gate';
 import { Colors } from '@/constants/theme';
 import { StoreProvider } from '@/lib/store';
 
@@ -28,15 +29,18 @@ export default function RootLayout() {
     <StoreProvider>
       <ThemeProvider value={navTheme}>
         <StatusBar style={dark ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="add-transaction"
-            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen name="transactions" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="import-sms" options={{ animation: 'slide_from_right' }} />
-        </Stack>
+        <LockGate>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="add-transaction"
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen name="transactions" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="import-sms" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="bills" options={{ animation: 'slide_from_right' }} />
+          </Stack>
+        </LockGate>
       </ThemeProvider>
     </StoreProvider>
   );
