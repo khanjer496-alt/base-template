@@ -68,6 +68,8 @@ export interface Insight {
   icon: import('@/components/ui/icon').IconName;
   title: string;
   body: string;
+  /** Where tapping the insight takes you (the screen to act on it). */
+  href?: string;
 }
 
 /**
@@ -246,6 +248,17 @@ export function buildInsights(
       title: 'Daily average',
       body: `You spend about ${formatAED(Math.round(current.expenseFils / dayOfMonth), { decimals: false })} per day${isMonthMode ? ' this month' : ' in this period'}.`,
     });
+  }
+
+  // Every insight leads somewhere actionable.
+  for (const i of insights) {
+    i.href = i.id.startsWith('budget-')
+      ? '/budgets'
+      : i.id.startsWith('subs-') || i.id.startsWith('price-up')
+        ? '/bills'
+        : i.id === 'largest' || i.id === 'overspend'
+          ? '/transactions'
+          : '/stats';
   }
 
   const toneRank: Record<InsightTone, number> = { warning: 0, positive: 1, neutral: 2 };

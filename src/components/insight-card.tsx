@@ -1,5 +1,6 @@
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/card';
@@ -15,6 +16,7 @@ interface InsightCardProps {
 
 export function InsightCard({ insight, width }: InsightCardProps) {
   const theme = useTheme();
+  const router = useRouter();
   const accent =
     insight.tone === 'warning'
       ? theme.warning
@@ -22,13 +24,18 @@ export function InsightCard({ insight, width }: InsightCardProps) {
         ? theme.income
         : theme.primary;
 
-  return (
+  const content = (
     <Card style={[styles.card, width !== undefined && { width }]}>
       <View style={styles.header}>
         <View style={[styles.iconBubble, { backgroundColor: `${accent}1e` }]}>
           <Icon name={insight.icon} size={18} color={accent} strokeWidth={1.8} />
         </View>
-        <View style={[styles.dot, { backgroundColor: accent }]} />
+        <View style={styles.headerRight}>
+          <View style={[styles.dot, { backgroundColor: accent }]} />
+          {insight.href && (
+            <Icon name="chevron-right" size={13} color={theme.textSecondary} />
+          )}
+        </View>
       </View>
       <ThemedText type="smallBold" numberOfLines={2}>
         {insight.title}
@@ -38,6 +45,9 @@ export function InsightCard({ insight, width }: InsightCardProps) {
       </ThemedText>
     </Card>
   );
+
+  if (!insight.href) return content;
+  return <Pressable onPress={() => router.push(insight.href!)}>{content}</Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -48,6 +58,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one + 2,
   },
   iconBubble: {
     width: 36,

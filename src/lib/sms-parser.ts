@@ -41,6 +41,8 @@ const CARD_PAYMENT_RE = /payment\s+(?:of\s+(?:AED|Dhs?\.?)\s*[\d,.]+\s+)?(?:is\s
 
 /** OTP / verification messages describe an ATTEMPT, not a completed transaction. */
 const OTP_RE = /\botp\b|one[\s-]?time\s+(?:password|pin|code)|verification code|auth(?:oris|oriz)ation code|do not share|never share/i;
+/** Pre-auth holds are not postings; the real charge arrives as its own SMS. */
+const PREAUTH_RE = /pre-?auth|amount\s+(?:has been\s+)?blocked|hold\s+(?:of|amount|placed)|temporary\s+hold/i;
 const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:processed|completed)|has failed/i;
 const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
 
@@ -105,9 +107,12 @@ export function guessCategory(
     if (hit) return hit;
   }
   // Money coming IN is never dining/groceries/etc — a Talabat payout is
-  // business revenue, not food spending. Only salary keywords apply.
+  // business revenue, not food spending. Refunds, cashback, and bank
+  // interest/profit are offsets, not revenue, so they stay out of Business.
   if (type === 'income') {
-    return /salary|payroll|wages/i.test(text) ? 'salary' : 'business';
+    if (/salary|payroll|wages/i.test(text)) return 'salary';
+    if (/refund|reversal|cashback|\binterest\b|\bprofit\b/i.test(text)) return 'other';
+    return 'business';
   }
   for (const [re, cat] of CATEGORY_KEYWORDS) {
     if (re.test(text)) return cat;
@@ -218,6 +223,7 @@ export function parseSms(
 
   if (OTP_RE.test(raw)) return null;
   if (DECLINED_RE.test(raw)) return null;
+  if (PREAUTH_RE.test(raw)) return null;
 
   const card = extractCard(raw);
   const date = extractDate(raw);
@@ -301,9 +307,11 @@ export function parseSms(
           ? 'Card payment'
           : ATM_RE.test(raw)
             ? 'ATM withdrawal'
-            : FEE_RE.test(raw)
-              ? 'Bank fee'
-              : 'Card purchase';
+            : /cheque|\bchq\b/i.test(raw)
+              ? 'Cheque'
+              : FEE_RE.test(raw)
+                ? 'Bank fee'
+                : 'Card purchase';
   } else {
     merchant = titleCase(merchant);
   }

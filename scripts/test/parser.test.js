@@ -218,6 +218,23 @@ const insur = parseSms('Purchase of AED 2,400.00 at SUKOON INSURANCE with Credit
 if (insur && insur.categoryGuess === 'health') { pass++; console.log('✓ insurance categorized health'); }
 else { fail++; console.log('✗ insurance categorized health', JSON.stringify(insur && insur.categoryGuess)); }
 
+// ── accounting sweep: refund income is not revenue, pre-auth holds skip, cheques named ──
+const refundIncome = parseSms('Refund of AED 89.00 has been credited to your card from DELIVEROO');
+if (refundIncome && refundIncome.categoryGuess === 'other') { pass++; console.log('✓ refund income filed as other, not business revenue'); }
+else { fail++; console.log('✗ refund income filed as other', JSON.stringify(refundIncome && refundIncome.categoryGuess)); }
+
+const cashback = parseSms('Cashback of AED 25.00 has been credited to your Credit Card ending 4821');
+if (cashback && cashback.type === 'income' && cashback.categoryGuess === 'other') { pass++; console.log('✓ cashback income filed as other'); }
+else { fail++; console.log('✗ cashback income filed as other', JSON.stringify(cashback && { t: cashback.type, c: cashback.categoryGuess })); }
+
+t('pre-auth hold skipped',
+  'A pre-auth hold of AED 500.00 has been placed on your card ending 1234 at HOTEL ATLANTIS',
+  null);
+
+const chq = parseSms('Cheque no. 000123 for 5,000.00 AED has been debited from your account XX9012');
+if (chq && chq.merchant === 'Cheque' && chq.type === 'expense') { pass++; console.log('✓ cheque debit titled Cheque'); }
+else { fail++; console.log('✗ cheque debit titled Cheque', JSON.stringify(chq && chq.merchant)); }
+
 const remit = parseSms('Inward remittance of 5,000.00 AED has been credited to your account XX0002.');
 if (remit && remit.type === 'income' && remit.transferHint === true && remit.merchant === 'Inward remittance') {
   pass++; console.log('✓ inward remittance is a transfer, not income');
