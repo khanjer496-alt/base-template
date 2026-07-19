@@ -28,6 +28,8 @@ export interface Account {
   color: string;
   /** Last 4 digits of the card/account number, when known from SMS. */
   last4?: string;
+  /** Bank this card/account belongs to, learned from the SMS sender ID. */
+  bankName?: string;
   /** For kind 'card': whether it's a credit or debit card. */
   cardType?: 'credit' | 'debit';
   /** Latest balance/limit figure the bank itself quoted in an SMS. */

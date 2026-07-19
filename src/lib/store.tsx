@@ -62,6 +62,7 @@ type Action =
       newHints: Record<string, string>;
       newDues: CardDue[];
       snapshots: Record<string, { fils: number; kind: 'balance' | 'limit' | 'outstanding'; ts: number }>;
+      bankNames: Record<string, string>;
       lastScanTs: number;
     }
   | { type: 'undoBatch'; ids: string[] }
@@ -113,9 +114,13 @@ function reducer(state: AppState, action: Action): AppState {
       }
       const accounts = [...state.accounts, ...action.newAccounts].map((a) => {
         const snap = action.snapshots[a.id];
-        return snap && snap.ts > (a.snapshotTs ?? 0)
-          ? { ...a, snapshotFils: snap.fils, snapshotKind: snap.kind, snapshotTs: snap.ts }
-          : a;
+        const bank = !a.bankName ? action.bankNames[a.id] : undefined;
+        let next = a;
+        if (snap && snap.ts > (a.snapshotTs ?? 0)) {
+          next = { ...next, snapshotFils: snap.fils, snapshotKind: snap.kind, snapshotTs: snap.ts };
+        }
+        if (bank) next = { ...next, bankName: bank };
+        return next;
       });
       return {
         ...state,
@@ -242,6 +247,8 @@ export interface ImportBatchInput {
   newDues: Omit<CardDue, 'id'>[];
   /** accountRef → newest bank-quoted balance/limit figure from the scan. */
   snapshots: Record<string, { fils: number; kind: 'balance' | 'limit' | 'outstanding'; ts: number }>;
+  /** accountRef → bank name learned from the SMS sender (backfill only). */
+  bankNames: Record<string, string>;
   lastScanTs: number;
 }
 
@@ -416,6 +423,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         /^\d+$/.test(ref) && Number(ref) < newAccounts.length ? newAccounts[Number(ref)].id : ref;
       snapshots[id] = snap;
     }
+    const bankNames: Record<string, string> = {};
+    for (const [ref, bank] of Object.entries(input.bankNames ?? {})) {
+      const id =
+        /^\d+$/.test(ref) && Number(ref) < newAccounts.length ? newAccounts[Number(ref)].id : ref;
+      bankNames[id] = bank;
+    }
     dispatch({
       type: 'importBatch',
       transactions,
@@ -423,6 +436,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       newHints,
       newDues,
       snapshots,
+      bankNames,
       lastScanTs: input.lastScanTs,
     });
     return transactions.map((t) => t.id);

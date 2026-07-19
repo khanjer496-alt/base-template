@@ -13,6 +13,7 @@ export type IconName =
   | 'chevron-right'
   | 'chevron-left'
   | 'chevron-down'
+  | 'sliders'
   | 'arrow-up'
   | 'arrow-down'
   | 'arrow-up-right'
@@ -116,6 +117,12 @@ export function Icon({ name, size = 24, color = '#fff', strokeWidth = 2 }: IconP
       {name === 'chevron-right' && <Path {...p} d="M9 5 L16 12 L9 19" />}
       {name === 'chevron-left' && <Path {...p} d="M15 5 L8 12 L15 19" />}
       {name === 'chevron-down' && <Path {...p} d="M5 9 L12 16 L19 9" />}
+      {name === 'sliders' && (
+        <>
+          <Path {...p} d="M4 7 H20 M4 12 H20 M4 17 H20" />
+          <Path {...p} d="M9 5 V9 M15 10 V14 M7 15 V19" />
+        </>
+      )}
       {name === 'arrow-up' && (
         <>
           <Line {...p} x1={12} y1={19} x2={12} y2={6} />

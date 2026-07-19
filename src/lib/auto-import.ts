@@ -1,7 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import SmsReader, { type RawSms } from '../../modules/sms-reader';
-import { cardAccountName, colorForHint } from '@/lib/cards';
+import { bankFromSender, cardAccountName, colorForHint } from '@/lib/cards';
 import { toISODate } from '@/lib/format';
 import { parseSms, type ParsedSms } from '@/lib/sms-parser';
 import type { Account, AppState, CardDue, Transaction } from '@/lib/types';
@@ -32,7 +32,7 @@ export async function requestSmsPermission(): Promise<boolean> {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-export type ScannedSms = ParsedSms & { smsTs?: number };
+export type ScannedSms = ParsedSms & { smsTs?: number; sender?: string };
 
 export interface ScanResult {
   parsed: ScannedSms[];
@@ -54,7 +54,7 @@ export async function scanInbox(
     return { parsed: [], newestTs: sinceMs, scannedCount: 0 };
   }
 
-  const parsed: (ParsedSms & { smsTs: number })[] = [];
+  const parsed: (ParsedSms & { smsTs: number; sender: string })[] = [];
   let newestTs = sinceMs;
   let untilMs = Date.now() + 60_000;
   let scannedCount = 0;
@@ -67,7 +67,7 @@ export async function scanInbox(
       if (sms.date > newestTs) newestTs = sms.date;
       const p = parseSms(sms.body, overrides);
       if (!p) continue;
-      parsed.push({ ...p, date: p.date ?? toISODate(new Date(sms.date)), smsTs: sms.date });
+      parsed.push({ ...p, date: p.date ?? toISODate(new Date(sms.date)), smsTs: sms.date, sender: sms.address });
     }
     onProgress?.(scannedCount, parsed.length);
     untilMs = batch[batch.length - 1].date; // page ends exclusive, walk backwards
@@ -131,26 +131,35 @@ export function buildImportPlan(
   const billDues: ParsedSms[] = [];
   const fallbackAccountId = state.accounts[0]?.id ?? '';
 
-  const resolveAccount = (p: ParsedSms): string => {
+  // Bank identity per account, learned from SMS sender IDs (existing accounts
+  // that predate this get theirs backfilled).
+  const bankNames: Record<string, string> = {};
+  const resolveAccount = (p: ScannedSms): string => {
     if (!p.card) return fallbackAccountId;
     const { last4, kind } = p.card;
-    if (hints[last4]) return hints[last4];
+    const bank = bankFromSender(p.sender);
+    if (hints[last4]) {
+      if (bank) bankNames[hints[last4]] ??= bank.name;
+      return hints[last4];
+    }
     // An account the user created earlier with a matching last4 wins.
     const existing = state.accounts.find((a) => a.last4 === last4);
     if (existing) {
       hints[last4] = existing.id;
       newHints[last4] = existing.id;
+      if (bank && !existing.bankName) bankNames[existing.id] ??= bank.name;
       return existing.id;
     }
     // Auto-create; reference by index until the store assigns real ids.
     const idx = newAccounts.length;
     newAccounts.push({
-      name: cardAccountName(last4, kind),
+      name: bank ? `${bank.name} ${cardAccountName(last4, kind)}` : cardAccountName(last4, kind),
       kind: kind === 'credit' || kind === 'debit' ? 'card' : 'bank',
       cardType: kind === 'credit' ? 'credit' : kind === 'debit' ? 'debit' : undefined,
       last4,
+      bankName: bank?.name,
       openingFils: 0,
-      color: colorForHint(last4),
+      color: bank?.color ?? colorForHint(last4),
     });
     const ref = String(idx);
     hints[last4] = ref;
@@ -222,7 +231,7 @@ export function buildImportPlan(
   }
 
   return {
-    batch: { transactions, newAccounts, newHints, newDues, snapshots, lastScanTs: newestTs },
+    batch: { transactions, newAccounts, newHints, newDues, snapshots, bankNames, lastScanTs: newestTs },
     txCount: transactions.length,
     newAccountCount: newAccounts.length,
     dueCount: newDues.length,
