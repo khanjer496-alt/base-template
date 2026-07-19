@@ -181,5 +181,42 @@ if (spendStill && spendStill.type === 'expense' && spendStill.categoryGuess === 
   pass++; console.log('✓ Talabat spending still categorized dining');
 } else { fail++; console.log('✗ Talabat spending still categorized dining', JSON.stringify(spendStill && spendStill.categoryGuess)); }
 
+// ── comprehensive sweep: suffix amounts, ATM, fees, deposits, categories ──
+t('amount BEFORE currency parses',
+  'Your account XX9012 has been debited with 1,234.56 AED at CARREFOUR MALL OF EMIRATES on 15/07/2026',
+  { amountFils: 123456, merchant: 'Carrefour Mall Of Emirates', category: 'groceries' });
+
+const sfxBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 12,500.00 AED');
+if (sfxBal && sfxBal.amountFils === 25000) { pass++; console.log('✓ suffix amount skips suffix balance'); }
+else { fail++; console.log('✗ suffix amount skips suffix balance', JSON.stringify(sfxBal && sfxBal.amountFils)); }
+
+const atm = parseSms('AED 500.00 cash withdrawal from ATM at ENBD BRANCH DEIRA. Avl Bal AED 8,200.00');
+if (atm && atm.merchant === 'ATM withdrawal' && atm.type === 'expense') { pass++; console.log('✓ ATM withdrawal titled correctly'); }
+else { fail++; console.log('✗ ATM withdrawal titled correctly', JSON.stringify(atm && atm.merchant)); }
+
+const fee = parseSms('Your card ending 1234 has been charged AED 262.50 as annual fee.');
+if (fee && fee.merchant === 'Bank fee') { pass++; console.log('✓ bank fee titled correctly'); }
+else { fail++; console.log('✗ bank fee titled correctly', JSON.stringify(fee && fee.merchant)); }
+
+const dep = parseSms('AED 3,000.00 deposited into your account XX0002 via CDM.');
+if (dep && dep.type === 'income' && dep.merchant === 'Cash deposit') { pass++; console.log('✓ cash deposit titled correctly'); }
+else { fail++; console.log('✗ cash deposit titled correctly', JSON.stringify(dep && { m: dep.merchant, t: dep.type })); }
+
+t('Emarat fuel is transport',
+  'Purchase of AED 120.00 at EMARAT 1049 with Debit Card ending 1234',
+  { category: 'transport' });
+
+t('Empower is utilities',
+  'Payment of AED 890.00 to EMPOWER with Debit Card ending 1234',
+  { category: 'utilities' });
+
+const noonCom = parseSms('Purchase of AED 55.00 at NOON COM with Credit Card ending 4821');
+if (noonCom && noonCom.merchant === 'Noon') { pass++; console.log('✓ NOON COM normalizes to Noon'); }
+else { fail++; console.log('✗ NOON COM normalizes to Noon', JSON.stringify(noonCom && noonCom.merchant)); }
+
+const insur = parseSms('Purchase of AED 2,400.00 at SUKOON INSURANCE with Credit Card ending 4821');
+if (insur && insur.categoryGuess === 'health') { pass++; console.log('✓ insurance categorized health'); }
+else { fail++; console.log('✗ insurance categorized health', JSON.stringify(insur && insur.categoryGuess)); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

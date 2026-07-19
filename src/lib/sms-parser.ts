@@ -45,6 +45,8 @@ const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:p
 const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
 
 const AED_AMOUNT_RE = /(?:AED|Dhs?\.?|د\.إ)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+/** Amount BEFORE the currency: "1,234.56 AED debited" — common ENBD/FAB form. */
+const AED_SUFFIX_RE = /([\d,]+(?:\.\d{1,2})?)\s*(?:AED|Dhs?\.?)(?![A-Za-z])/gi;
 /**
  * A single SMS transaction above AED 1,000,000 is almost certainly a misread
  * balance, loan figure, or reference number — never spending.
@@ -68,22 +70,26 @@ const MERCHANT_RE = new RegExp(
 
 const DATE_RE = /\b(?:on|by|before)\s+(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i;
 
+const ATM_RE = /\batm\b|cash\s+withdrawal/i;
+const FEE_RE = /\bfees?\b|\bcharges?\s+(?:of|:)|service charge|\bvat\b|annual membership/i;
+const DEPOSIT_RE = /cash\s+deposit|\bcdm\b|deposit(?:ed)?\s+(?:in|into|to)\b/i;
+
 /** Debit messages that are actually transfers: paying a card bill, moving between own accounts. */
 const TRANSFER_HINT_RE =
   /(?:towards?|for)\s+(?:your\s+(?:credit\s+)?card|credit\s+card|card\s+(?:no\.?\s*)?[\dXx*•])|credit\s+card\s+(?:bill\s+)?payment|c\/?c\s+payment|card\s+settlement|own\s+account\s+transfer|transfer\s+to\s+(?:your\s+)?own\s+account|self\s+transfer/i;
 
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
-  [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|noon minutes|instashop|careem quik|hypermarket|supermarket|grocer/i, 'groceries'],
-  [/talabat|deliveroo|zomato|noon food|careem food|restaurant|cafe|coffee|starbucks|mcdonald|kfc|dining/i, 'dining'],
-  [/careem|uber|taxi|rta|nol|salik|enoc|eppco|adnoc|petrol|fuel|metro|parking/i, 'transport'],
-  [/dewa|sewa|fewa|addc|electricity|water|utility/i, 'utilities'],
-  [/etisalat|\bdu\b|virgin mobile|telecom|mobile recharge|internet/i, 'telecom'],
+  [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|nesto|al maya|west zone|viva supermarket|\bcoop\b|noon minutes|instashop|careem quik|talabat mart|hypermarket|supermarket|grocer|fresh market|baqala/i, 'groceries'],
+  [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery/i, 'dining'],
+  [/careem|uber|taxi|\brta\b|\bnol\b|salik|darb|enoc|eppco|adnoc|emarat|petrol|fuel|metro|parking|valet/i, 'transport'],
+  [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|electricity|water|cooling|utility/i, 'utilities'],
+  [/etisalat|\bdu\b|virgin mobile|telecom|mobile recharge|internet|five telecom/i, 'telecom'],
   [/rent|ejari|landlord/i, 'rent'],
-  [/tabby|tamara|postpay|amazon|noon(?!\s*(?:food|minutes))|shein|namshi|ikea|sharaf|mall|store|shop/i, 'shopping'],
-  [/pharmacy|clinic|hospital|aster|medcare|nmc|dental|medical/i, 'health'],
-  [/school|university|college|tuition|academy|nursery/i, 'education'],
-  [/emirates(?!\s*nbd)|flydubai|etihad|airline|hotel|booking|airbnb|wizz/i, 'travel'],
-  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox|reel|netflix|spotify|anghami|shahid|osn|starz|game|entertainment/i, 'entertainment'],
+  [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|ikea|home centre|sharaf|jumbo|emax|dubizzle|mall|store|shop/i, 'shopping'],
+  [/pharmacy|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|dental|medical|optic|sukoon|\bdaman\b|\baxa\b|insurance/i, 'health'],
+  [/school|university|college|tuition|academy|nursery|\bgems\b|taaleem|kumon/i, 'education'],
+  [/emirates(?!\s*nbd)|flydubai|etihad|air arabia|airline|hotel|booking|airbnb|agoda|wizz|visa fee/i, 'travel'],
+  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox|reel|novo|netflix|spotify|anghami|shahid|osn|starz|game|entertainment/i, 'entertainment'],
   [/donat|charity|zakat|sadaqah|dubai cares|red crescent/i, 'charity'],
   [/salary|payroll|wages/i, 'salary'],
 ];
@@ -126,16 +132,31 @@ function titleCase(s: string): string {
 }
 
 function extractAmountFils(raw: string, allowBalanceFallback: boolean): number | null {
+  // Gather candidates from both currency positions, in message order.
+  const candidates: { index: number; value: number }[] = [];
   AED_AMOUNT_RE.lastIndex = 0;
-  let first: number | null = null;
   let match: RegExpExecArray | null;
   while ((match = AED_AMOUNT_RE.exec(raw))) {
-    const value = Math.round(Number(match[1].replace(/,/g, '')) * 100);
-    if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_AMOUNT_FILS) continue;
-    if (first === null) first = value;
-    const prefix = raw.slice(Math.max(0, match.index - 24), match.index);
+    candidates.push({ index: match.index, value: Math.round(Number(match[1].replace(/,/g, '')) * 100) });
+  }
+  AED_SUFFIX_RE.lastIndex = 0;
+  while ((match = AED_SUFFIX_RE.exec(raw))) {
+    // Skip digits glued to identifiers ("a/c XX9012 AED..." must not read 9012).
+    const before = match.index > 0 ? raw[match.index - 1] : ' ';
+    if (/[A-Za-z0-9*•.]/.test(before)) continue;
+    // Skip if this is the number part of a prefix match ("AED 100" also ends before "AED"? no —
+    // but "AED 100.00 AED"-style doubles resolve identically, so duplicates are harmless).
+    candidates.push({ index: match.index, value: Math.round(Number(match[1].replace(/,/g, '')) * 100) });
+  }
+  candidates.sort((a, b) => a.index - b.index);
+
+  let first: number | null = null;
+  for (const c of candidates) {
+    if (!Number.isFinite(c.value) || c.value <= 0 || c.value > MAX_PLAUSIBLE_AMOUNT_FILS) continue;
+    if (first === null) first = c.value;
+    const prefix = raw.slice(Math.max(0, c.index - 24), c.index);
     if (BALANCE_PREFIX_RE.test(prefix)) continue;
-    return value;
+    return c.value;
   }
   return allowBalanceFallback ? first : null;
 }
@@ -262,17 +283,31 @@ export function parseSms(
     merchant = extractMerchant(raw, MERCHANT_RE);
   }
   const transferHint = !isBillDue && TRANSFER_HINT_RE.test(raw);
-  merchant = merchant.replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE)$/i, '').trim();
+  merchant = merchant
+    .replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE)$/i, '')
+    .replace(/(?:\s+COM|\.com)$/i, '') // "NOON COM" / "noon.com" → "NOON"
+    .trim();
   if (!merchant) {
+    // No merchant in the message: name the row by what actually happened.
     merchant = isBillDue
       ? 'Bill payment'
       : type === 'income'
-        ? 'Incoming transfer'
+        ? DEPOSIT_RE.test(raw)
+          ? 'Cash deposit'
+          : 'Incoming transfer'
         : transferHint
           ? 'Card payment'
-          : 'Card purchase';
+          : ATM_RE.test(raw)
+            ? 'ATM withdrawal'
+            : FEE_RE.test(raw)
+              ? 'Bank fee'
+              : 'Card purchase';
   } else {
     merchant = titleCase(merchant);
+  }
+  // ATM messages usually name a location; the row is still a cash withdrawal.
+  if (!isBillDue && type === 'expense' && !transferHint && ATM_RE.test(raw)) {
+    merchant = 'ATM withdrawal';
   }
 
   return {
