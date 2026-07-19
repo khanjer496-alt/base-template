@@ -33,6 +33,7 @@ export function TransactionEditSheet({ transaction, onClose }: TransactionEditSh
   const [category, setCategory] = useState<CategoryId>('other');
   const [accountId, setAccountId] = useState('');
   const [dateText, setDateText] = useState('');
+  const [isTransfer, setIsTransfer] = useState(false);
 
   useEffect(() => {
     if (!transaction) return;
@@ -41,6 +42,7 @@ export function TransactionEditSheet({ transaction, onClose }: TransactionEditSh
     setCategory(transaction.category);
     setAccountId(transaction.accountId);
     setDateText(transaction.date);
+    setIsTransfer(!!transaction.isTransfer);
   }, [transaction]);
 
   if (!transaction) return null;
@@ -59,6 +61,7 @@ export function TransactionEditSheet({ transaction, onClose }: TransactionEditSh
       category,
       accountId,
       date: dateText,
+      isTransfer: isTransfer || undefined,
     });
     const merchant = title.trim();
     if (categoryChanged && merchant && merchant.length > 2) {
@@ -194,6 +197,29 @@ export function TransactionEditSheet({ transaction, onClose }: TransactionEditSh
           </ScrollView>
 
           <Pressable
+            onPress={() => setIsTransfer(!isTransfer)}
+            style={[
+              styles.transferRow,
+              {
+                backgroundColor: isTransfer ? `${theme.primary}18` : theme.backgroundSelected,
+                borderColor: isTransfer ? theme.primary : 'transparent',
+              },
+            ]}>
+            <Icon
+              name={isTransfer ? 'check' : 'repeat'}
+              size={16}
+              color={isTransfer ? theme.primary : theme.textSecondary}
+              strokeWidth={2.2}
+            />
+            <View style={styles.transferText}>
+              <ThemedText type="smallBold">Transfer between my accounts</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Kept in balances, excluded from income and spending
+              </ThemedText>
+            </View>
+          </Pressable>
+
+          <Pressable
             onPress={save}
             disabled={!canSave}
             style={[styles.saveBtn, { backgroundColor: theme.primary, opacity: canSave ? 1 : 0.45 }]}>
@@ -271,6 +297,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: Radius.full,
     borderWidth: 1.5,
+  },
+  transferRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two + 2,
+  },
+  transferText: {
+    flex: 1,
+    gap: 1,
   },
   saveBtn: {
     flexDirection: 'row',
