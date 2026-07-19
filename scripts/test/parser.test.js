@@ -218,5 +218,10 @@ const insur = parseSms('Purchase of AED 2,400.00 at SUKOON INSURANCE with Credit
 if (insur && insur.categoryGuess === 'health') { pass++; console.log('✓ insurance categorized health'); }
 else { fail++; console.log('✗ insurance categorized health', JSON.stringify(insur && insur.categoryGuess)); }
 
+const remit = parseSms('Inward remittance of 5,000.00 AED has been credited to your account XX0002.');
+if (remit && remit.type === 'income' && remit.transferHint === true && remit.merchant === 'Inward remittance') {
+  pass++; console.log('✓ inward remittance is a transfer, not income');
+} else { fail++; console.log('✗ inward remittance is a transfer, not income', JSON.stringify(remit && { t: remit.type, h: remit.transferHint, m: remit.merchant })); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
