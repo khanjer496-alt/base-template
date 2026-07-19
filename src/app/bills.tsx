@@ -22,9 +22,11 @@ import { billsForMonth, type BillStatus } from '@/lib/bills';
 import { EXPENSE_CATEGORIES } from '@/lib/categories';
 import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import {
+  activeSubscriptions,
   detectSubscriptions,
   daysUntilNext,
   fixedCommitments,
+  stoppedSubscriptions,
   subscriptionsMonthlyTotal,
   trueSubscriptions,
   type Subscription,
@@ -58,8 +60,12 @@ export default function BillsScreen() {
     () => detectSubscriptions(state.transactions, state.notSubscriptions),
     [state.transactions, state.notSubscriptions],
   );
-  const subs = useMemo(() => trueSubscriptions(detected), [detected]);
-  const commitments = useMemo(() => fixedCommitments(detected), [detected]);
+  const subs = useMemo(() => activeSubscriptions(trueSubscriptions(detected)), [detected]);
+  const stopped = useMemo(() => stoppedSubscriptions(trueSubscriptions(detected)), [detected]);
+  const commitments = useMemo(
+    () => activeSubscriptions(fixedCommitments(detected)),
+    [detected],
+  );
   const subsTotal = subscriptionsMonthlyTotal(subs);
   const trackedTitles = useMemo(
     () => new Set(state.bills.map((b) => b.title.toLowerCase())),
@@ -161,17 +167,20 @@ export default function BillsScreen() {
               )}
             </View>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-              {sub.cadence} · last {shortDate(sub.lastChargedISO)} ·{' '}
-              {next >= 0
-                ? `next ${shortDate(sub.nextExpectedISO)} (${next}d)`
-                : `expected ${-next}d ago`}
+              {sub.status === 'stopped'
+                ? `stopped · last charged ${shortDate(sub.lastChargedISO)}`
+                : `${sub.cadence} · last ${shortDate(sub.lastChargedISO)} · ${
+                    next >= 0
+                      ? `next ${shortDate(sub.nextExpectedISO)} (${next}d)`
+                      : `expected ${-next}d ago`
+                  }`}
             </ThemedText>
           </View>
           <View style={styles.rowRight}>
             <ThemedText type="smallBold" tabular>
               {formatAED(sub.avgAmountFils, { decimals: false })}
             </ThemedText>
-            {!tracked && (
+            {!tracked && sub.status !== 'stopped' && (
               <Pressable
                 onPress={() =>
                   addBill({
@@ -239,6 +248,18 @@ export default function BillsScreen() {
                 </View>
               )}
               <View>{subs.map((sub, i) => renderRecurringRow(sub, i))}</View>
+
+              {stopped.length > 0 && (
+                <View style={styles.commitBlock}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    Stopped subscriptions
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    No charges for over two cycles — most likely cancelled.
+                  </ThemedText>
+                  <View>{stopped.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                </View>
+              )}
 
               {commitments.length > 0 && (
                 <View style={styles.commitBlock}>

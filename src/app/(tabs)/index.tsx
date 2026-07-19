@@ -33,6 +33,7 @@ import { usePeriod } from '@/lib/period-context';
 import { PeriodSheet } from '@/components/period-sheet';
 import { useStore } from '@/lib/store';
 import {
+  activeSubscriptions,
   detectSubscriptions,
   daysUntilNext,
   subscriptionsMonthlyTotal,
@@ -77,7 +78,10 @@ export default function HomeScreen() {
   );
   const dues = useMemo(() => openDues(state, now), [state, now]);
   const subs = useMemo(
-    () => trueSubscriptions(detectSubscriptions(state.transactions, state.notSubscriptions)),
+    () =>
+      activeSubscriptions(
+        trueSubscriptions(detectSubscriptions(state.transactions, state.notSubscriptions)),
+      ),
     [state.transactions, state.notSubscriptions],
   );
   const nextSub = useMemo(() => {

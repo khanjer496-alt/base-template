@@ -165,6 +165,28 @@ const dismissed = subsLib.detectSubscriptions(
 ok('dismiss: not-a-subscription merchant skipped',
   dismissed.length === 1 && dismissed[0].title === 'Spotify');
 
+// Lapse detection: silence past ~2 cycles marks a subscription stopped
+const lapsedRef = new Date(2026, 6, 19); // 19 Jul 2026
+const lapsed = subsLib.detectSubscriptions(
+  [
+    subTx('Netflix', '2026-02-03', 3900),
+    subTx('Netflix', '2026-03-03', 3900),
+    subTx('Netflix', '2026-04-03', 3900), // silent since April
+    subTx('Spotify', '2026-06-10', 2100),
+    subTx('Spotify', '2026-07-10', 2100), // still charging
+  ],
+  [],
+  lapsedRef,
+);
+ok('lapse: silent-for-months subscription marked stopped',
+  lapsed.find(s => s.title === 'Netflix')?.status === 'stopped');
+ok('lapse: recently charged subscription stays active',
+  lapsed.find(s => s.title === 'Spotify')?.status === 'active');
+ok('lapse: stopped subscriptions cost nothing in the monthly total',
+  subsLib.subscriptionsMonthlyTotal(lapsed) === 2100);
+ok('lapse: helper splits active and stopped',
+  subsLib.activeSubscriptions(lapsed).length === 1 && subsLib.stoppedSubscriptions(lapsed).length === 1);
+
 // Canonical names make variant descriptors group as ONE subscription
 const gpt = subsLib.detectSubscriptions([
   subTx('ChatGPT', '2026-05-03', 7341),

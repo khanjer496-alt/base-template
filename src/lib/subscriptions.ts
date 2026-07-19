@@ -15,6 +15,8 @@ export interface Subscription {
   title: string;
   category: CategoryId;
   group: RecurringGroup;
+  /** stopped = silent for well past its cadence (likely cancelled). */
+  status: 'active' | 'stopped';
   cadence: Cadence;
   avgAmountFils: number;
   lastAmountFils: number;
@@ -78,6 +80,7 @@ const SUBSCRIPTION_CATEGORIES = new Set<CategoryId>(['entertainment', 'shopping'
 export function detectSubscriptions(
   transactions: Transaction[],
   notSubscriptions: string[] = [],
+  today: Date = new Date(),
 ): Subscription[] {
   const dismissed = new Set(notSubscriptions.map((s) => s.trim().toLowerCase()));
   const groups = new Map<string, Transaction[]>();
@@ -158,10 +161,16 @@ export function detectSubscriptions(
             ? 'subscription'
             : 'commitment';
 
+    // Silence for ~2 cycles past the last charge means it was cancelled.
+    const silentDays = daysBetween(last.date, toISODate(today));
+    const status: Subscription['status'] =
+      silentDays > window.typicalDays * 2.2 + 5 ? 'stopped' : 'active';
+
     subs.push({
       title,
       category: last.category,
       group,
+      status,
       cadence: window.cadence,
       avgAmountFils: avg,
       lastAmountFils: last.amountFils,
@@ -177,13 +186,24 @@ export function detectSubscriptions(
   return subs;
 }
 
+/** Monthly-equivalent total of what is still charging (stopped ones cost nothing). */
 export function subscriptionsMonthlyTotal(subs: Subscription[]): number {
-  return subs.reduce((s, sub) => s + sub.monthlyEquivalentFils, 0);
+  return subs.reduce((s, sub) => (sub.status === 'active' ? s + sub.monthlyEquivalentFils : s), 0);
 }
 
 /** Only the cancellable online/lifestyle subscriptions. */
 export function trueSubscriptions(subs: Subscription[]): Subscription[] {
   return subs.filter((s) => s.group === 'subscription');
+}
+
+/** Still-charging subscriptions. */
+export function activeSubscriptions(subs: Subscription[]): Subscription[] {
+  return subs.filter((s) => s.status === 'active');
+}
+
+/** Likely-cancelled subscriptions (no charge for well past their cadence). */
+export function stoppedSubscriptions(subs: Subscription[]): Subscription[] {
+  return subs.filter((s) => s.status === 'stopped');
 }
 
 /** Rent + utilities/telecom recurring commitments. */

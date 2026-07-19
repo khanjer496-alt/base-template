@@ -9,7 +9,12 @@ import {
   toPeriod,
   type PeriodLike,
 } from '@/lib/period';
-import { detectSubscriptions, subscriptionsMonthlyTotal, trueSubscriptions } from '@/lib/subscriptions';
+import {
+  activeSubscriptions,
+  detectSubscriptions,
+  subscriptionsMonthlyTotal,
+  trueSubscriptions,
+} from '@/lib/subscriptions';
 import type { Budget, CategoryId, Transaction } from '@/lib/types';
 
 export interface MonthSummary {
@@ -207,7 +212,9 @@ export function buildInsights(
 
   // Subscription load + price increases (true subscriptions only — rent and
   // utilities are fixed commitments, not cancellable services)
-  const subs = trueSubscriptions(detectSubscriptions(transactions, notSubscriptions));
+  const subs = activeSubscriptions(
+    trueSubscriptions(detectSubscriptions(transactions, notSubscriptions, today)),
+  );
   if (subs.length >= 2) {
     const monthly = subscriptionsMonthlyTotal(subs);
     if (isMonthMode && current.incomeFils > 0 && monthly / current.incomeFils >= 0.08) {
