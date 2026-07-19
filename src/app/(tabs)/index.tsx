@@ -28,10 +28,10 @@ import { getCategory } from '@/lib/categories';
 import { formatAED, formatCompactAED, greetingForHour, shortDate } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
-import { inPeriod, isCurrentMonth, periodEndISO, periodLabel } from '@/lib/period';
+import { inPeriod, isCurrentMonth, periodLabel } from '@/lib/period';
 import { usePeriod } from '@/lib/period-context';
 import { PeriodSheet } from '@/components/period-sheet';
-import { netWorthAtDate, netWorthFils, useStore } from '@/lib/store';
+import { useStore } from '@/lib/store';
 import {
   detectSubscriptions,
   daysUntilNext,
@@ -66,14 +66,11 @@ export default function HomeScreen() {
     () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions).slice(0, 5),
     [state.transactions, state.budgets, period, now, state.notSubscriptions],
   );
-  // Balance is point-in-time: today's for live views, end-of-period otherwise.
-  const netWorth = useMemo(
-    () =>
-      live || period.mode === 'all'
-        ? netWorthFils(state)
-        : netWorthAtDate(state, periodEndISO(period, now)),
-    [state, live, period, now],
-  );
+  // The hero shows NET FOR THE PERIOD (in minus out). SMS history is
+  // one-sided — credits get alerts more reliably than every debit — so an
+  // all-time "balance" derived from it reads as nonsense. Period cashflow is
+  // always true to the data; real account balances live in Wallet.
+  const netFils = summary.incomeFils - summary.expenseFils;
   const recent = useMemo(
     () => state.transactions.filter((t) => !t.isTransfer && inPeriod(t.date, period)).slice(0, 5),
     [state.transactions, period],
@@ -198,19 +195,23 @@ export default function HomeScreen() {
                 </ThemedText>
               </Pressable>
             </View>
-            {Math.abs(netWorth) >= 1_000_000_000 ? (
+            {Math.abs(netFils) >= 1_000_000_000 ? (
               // Ten million AED and beyond: compact form instead of a wall of digits.
               <ThemedText type="display" tabular>
-                {netWorth < 0 ? '−' : ''}AED {formatCompactAED(netWorth)}
+                {netFils < 0 ? '−' : ''}AED {formatCompactAED(netFils)}
               </ThemedText>
             ) : (
-              <CountUpAmount fils={netWorth} type="display" />
+              <CountUpAmount fils={netFils} type="display" />
             )}
-            {!live && period.mode !== 'all' && (
-              <ThemedText type="micro" themeColor="textSecondary">
-                Balance at end of {periodLabel(period)}
-              </ThemedText>
-            )}
+            <ThemedText type="micro" themeColor="textSecondary">
+              {netFils >= 0 ? 'Saved' : 'Overspent'}
+              {live
+                ? ' so far this month'
+                : period.mode === 'all'
+                  ? ' all time'
+                  : ` in ${periodLabel(period)}`}
+              {' · in minus out'}
+            </ThemedText>
             <View style={styles.heroStats}>
               <Pressable
                 onPress={() => router.push('/transactions?type=income')}

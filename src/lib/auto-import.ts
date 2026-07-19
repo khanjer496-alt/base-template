@@ -32,8 +32,10 @@ export async function requestSmsPermission(): Promise<boolean> {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+export type ScannedSms = ParsedSms & { smsTs?: number };
+
 export interface ScanResult {
-  parsed: ParsedSms[];
+  parsed: ScannedSms[];
   /** Timestamp of the newest message seen, for incremental scans. */
   newestTs: number;
   scannedCount: number;
@@ -95,7 +97,7 @@ function dedupeKey(date: string, amountFils: number, title: string): string {
  * converts card payments to transfers, and statements to card dues.
  */
 export function buildImportPlan(
-  parsed: ParsedSms[],
+  parsed: ScannedSms[],
   state: AppState,
   newestTs: number,
   today: Date = new Date(),
@@ -106,6 +108,11 @@ export function buildImportPlan(
   const seen = new Set(
     state.transactions.map((t) => dedupeKey(t.date, t.amountFils, t.title)),
   );
+  // Message fingerprints survive parser updates (titles/accounts may change,
+  // the source SMS does not). This is the primary duplicate guard on rescans.
+  const seenSms = new Set(state.transactions.map((t) => t.smsKey).filter(Boolean));
+  const smsKeyOf = (p: ScannedSms): string | undefined =>
+    p.smsTs !== undefined ? `s${p.smsTs}-${p.amountFils}` : undefined;
   const hints: Record<string, string> = { ...state.accountHints };
   const newAccounts: Omit<Account, 'id'>[] = [];
   const newHints: Record<string, string> = {};
@@ -163,8 +170,10 @@ export function buildImportPlan(
     if (p.kind === 'cardPayment') {
       const accountId = resolveAccount(p);
       const key = dedupeKey(date, p.amountFils, p.merchant);
-      if (seen.has(key)) continue;
+      const smsKey = smsKeyOf(p);
+      if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
       seen.add(key);
+      if (smsKey) seenSms.add(smsKey);
       transactions.push({
         type: 'income', // money arriving INTO the card account
         amountFils: p.amountFils,
@@ -173,6 +182,7 @@ export function buildImportPlan(
         title: p.merchant,
         date,
         source: 'sms',
+        smsKey,
         isTransfer: true,
       });
       continue;
@@ -180,8 +190,10 @@ export function buildImportPlan(
     // Plain transaction. transferHint = the bank-side leg of a card payment /
     // own-account transfer: keep it for balances, exclude it from spending.
     const key = dedupeKey(date, p.amountFils, p.merchant);
-    if (seen.has(key)) continue;
+    const smsKey = smsKeyOf(p);
+    if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
     seen.add(key);
+    if (smsKey) seenSms.add(smsKey);
     transactions.push({
       type: p.type,
       amountFils: p.amountFils,
@@ -190,6 +202,7 @@ export function buildImportPlan(
       title: p.merchant,
       date,
       source: 'sms',
+      smsKey,
       isTransfer: p.transferHint || undefined,
     });
   }

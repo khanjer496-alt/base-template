@@ -45,6 +45,11 @@ export interface Transaction {
   date: string;
   /** Where this entry came from. Undefined = manual (pre-v2 data). */
   source?: 'sms' | 'manual';
+  /**
+   * Fingerprint of the source SMS (timestamp + amount). Parser updates change
+   * titles/accounts, so re-scans dedupe on this instead of parsed fields.
+   */
+  smsKey?: string;
   /** Credit-card payments etc — excluded from spending/income analytics. */
   isTransfer?: boolean;
 }

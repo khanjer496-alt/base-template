@@ -312,6 +312,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               )
               // Amounts above AED 1M in a single SMS are misread balances/refs.
               .filter((t) => t.source !== 'sms' || t.amountFils <= 100_000_000);
+            // Collapse exact SMS duplicates left by rescans across parser
+            // versions (same day/amount/type/title). Keep the newest import —
+            // it carries the best parsing and the right card account.
+            const importTs = (id: string) => Number(id.split('-')[1]) || 0;
+            const best = new Map<string, (typeof parsed.transactions)[number]>();
+            for (const t of parsed.transactions) {
+              if (t.source !== 'sms') continue;
+              const k = `${t.date}|${t.amountFils}|${t.type}|${t.title.trim().toLowerCase()}`;
+              const cur = best.get(k);
+              if (!cur || importTs(t.id) > importTs(cur.id)) best.set(k, t);
+            }
+            parsed.transactions = parsed.transactions.filter((t) => {
+              if (t.source !== 'sms') return true;
+              const k = `${t.date}|${t.amountFils}|${t.type}|${t.title.trim().toLowerCase()}`;
+              return best.get(k)?.id === t.id;
+            });
           }
           // Drop stale unsettled card dues imported from years-old statements.
           if (parsed.cardDues) {
