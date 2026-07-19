@@ -62,7 +62,7 @@ const MASKED_PAN_RE = /\b\d{4,6}[Xx*•]{2,}(\d{4})\b/;
 const MERCHANT_STOP =
   String.raw`(?=\s*(?:,|\.|;|\bon\b|\bwith\b|\busing\b|\bvia\b|\bending\b|\bcard\b|\ba\/c\b|\bacc(?:ount)?\b|\bref\b|\btxn\b|\bdated\b|\bavl\b|\bavail(?:able)?\b|\bbal(?:ance)?\b|\botp\b|\bfor\b|\bis\b|\bhas\b|\bhave\b|\bwas\b|\bwill\b|$))`;
 const MERCHANT_RE = new RegExp(
-  String.raw`(?:\bat|\bto|@)\s+([A-Za-z0-9][A-Za-z0-9 &'\-*]{1,40}?)` + MERCHANT_STOP,
+  String.raw`(?:\bat|\bto|\bfrom|@)\s+([A-Za-z0-9][A-Za-z0-9 &'\-*]{1,40}?)` + MERCHANT_STOP,
   'gi',
 );
 
@@ -98,10 +98,15 @@ export function guessCategory(
     const hit = overrides[merchant.trim().toLowerCase()];
     if (hit) return hit;
   }
+  // Money coming IN is never dining/groceries/etc — a Talabat payout is
+  // business revenue, not food spending. Only salary keywords apply.
+  if (type === 'income') {
+    return /salary|payroll|wages/i.test(text) ? 'salary' : 'business';
+  }
   for (const [re, cat] of CATEGORY_KEYWORDS) {
     if (re.test(text)) return cat;
   }
-  return type === 'income' ? 'business' : 'other';
+  return 'other';
 }
 
 const ACRONYMS = new Set([

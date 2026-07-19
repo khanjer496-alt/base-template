@@ -311,7 +311,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   : t,
               )
               // Amounts above AED 1M in a single SMS are misread balances/refs.
-              .filter((t) => t.source !== 'sms' || t.amountFils <= 100_000_000);
+              .filter((t) => t.source !== 'sms' || t.amountFils <= 100_000_000)
+              // Income mis-filed into spending categories (a Talabat payout is
+              // revenue, not dining): re-file as business/salary.
+              .map((t) =>
+                t.source === 'sms' &&
+                t.type === 'income' &&
+                !['salary', 'business', 'other'].includes(t.category)
+                  ? { ...t, category: 'business' as const }
+                  : t,
+              );
             // Collapse exact SMS duplicates left by rescans across parser
             // versions (same day/amount/type/title). Keep the newest import —
             // it carries the best parsing and the right card account.

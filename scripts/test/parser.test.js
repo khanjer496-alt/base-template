@@ -166,5 +166,20 @@ if (stmtKind && stmtKind.kind === 'cardStatement' && stmtKind.card && stmtKind.c
   pass++; console.log('✓ statement forces credit-card identity');
 } else { fail++; console.log('✗ statement forces credit-card identity', JSON.stringify(stmtKind && stmtKind.card)); }
 
+// ── income is never a spending category; senders extracted after "from" ──
+const payout = parseSms('AED 776.00 has been credited to your account XX0004 from TALABAT MIDDLE EAST');
+if (payout && payout.type === 'income' && payout.merchant === 'Talabat Middle East' && payout.categoryGuess === 'business') {
+  pass++; console.log('✓ Talabat payout is business income with sender name');
+} else { fail++; console.log('✗ Talabat payout is business income with sender name', JSON.stringify(payout && { m: payout.merchant, c: payout.categoryGuess, t: payout.type })); }
+
+const salaryStill = parseSms('Salary of AED 18,500.00 has been credited to your account ending 5678');
+if (salaryStill && salaryStill.categoryGuess === 'salary') { pass++; console.log('✓ salary keyword still wins for income'); }
+else { fail++; console.log('✗ salary keyword still wins for income', JSON.stringify(salaryStill && salaryStill.categoryGuess)); }
+
+const spendStill = parseSms('Purchase of AED 55.00 at TALABAT with Debit Card ending 1234');
+if (spendStill && spendStill.type === 'expense' && spendStill.categoryGuess === 'dining') {
+  pass++; console.log('✓ Talabat spending still categorized dining');
+} else { fail++; console.log('✗ Talabat spending still categorized dining', JSON.stringify(spendStill && spendStill.categoryGuess)); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
