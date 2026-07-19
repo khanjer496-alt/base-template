@@ -260,5 +260,22 @@ const snapNone = parseSms('Purchase of AED 55.00 at MYSTERY VENDOR with card end
 if (snapNone && snapNone.snapshotFils === null) { pass++; console.log('✓ no snapshot when message has none'); }
 else { fail++; console.log('✗ no snapshot when message has none', JSON.stringify(snapNone && snapNone.snapshotFils)); }
 
+// ── online-service descriptor normalization ──
+t('OPENAI descriptor becomes ChatGPT',
+  'Purchase of AED 73.41 at OPENAI *CHATGPT SUBSCR with Credit Card ending 4821',
+  { merchant: 'ChatGPT' });
+
+t('PayPal RealDebrid descriptor becomes Real-Debrid',
+  'Purchase of AED 16.50 at PAYPAL *REALDEBRID with Credit Card ending 4821',
+  { merchant: 'Real-Debrid' });
+
+t('Anthropic descriptor becomes Claude',
+  'Purchase of AED 73.41 at ANTHROPIC CLAUDE.AI with Credit Card ending 4821',
+  { merchant: 'Claude' });
+
+t('Apple billing descriptor becomes Apple',
+  'Purchase of AED 19.99 at APPLE.COM/BILL ITUNES with Credit Card ending 4821',
+  { merchant: 'Apple' });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

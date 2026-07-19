@@ -125,6 +125,51 @@ export function guessCategory(
   return 'other';
 }
 
+/**
+ * Canonical names for online services whose card descriptors vary
+ * ("OPENAI *CHATGPT", "PAYPAL *REALDEBRID", "APPLE.COM/BILL"...). One clean
+ * name per service also makes subscription detection group them correctly.
+ */
+const SERVICE_NAMES: [RegExp, string][] = [
+  [/openai|chat\s*gpt/i, 'ChatGPT'],
+  [/anthropic|claude/i, 'Claude'],
+  [/real-?debrid/i, 'Real-Debrid'],
+  [/netflix/i, 'Netflix'],
+  [/spotify/i, 'Spotify'],
+  [/you\s*tube|yt\s*premium/i, 'YouTube Premium'],
+  [/google\s*one|google\s*storage/i, 'Google One'],
+  [/apple\.com|apple\s*services|itunes/i, 'Apple'],
+  [/icloud/i, 'iCloud'],
+  [/amazon\s*prime|prime\s*video/i, 'Amazon Prime'],
+  [/disney/i, 'Disney+'],
+  [/anghami/i, 'Anghami'],
+  [/shahid/i, 'Shahid'],
+  [/\bosn\b/i, 'OSN+'],
+  [/starz/i, 'StarzPlay'],
+  [/deezer/i, 'Deezer'],
+  [/audible/i, 'Audible'],
+  [/dropbox/i, 'Dropbox'],
+  [/linkedin/i, 'LinkedIn'],
+  [/adobe/i, 'Adobe'],
+  [/canva/i, 'Canva'],
+  [/microsoft\s*365|office\s*365/i, 'Microsoft 365'],
+  [/discord/i, 'Discord'],
+  [/notion/i, 'Notion'],
+  [/github/i, 'GitHub'],
+  [/telegram/i, 'Telegram Premium'],
+  [/xbox\s*game\s*pass/i, 'Xbox Game Pass'],
+  [/playstation\s*plus|psn\s*plus/i, 'PlayStation Plus'],
+];
+
+/** Clean descriptor noise and map to a canonical service name when known. */
+export function normalizeServiceName(merchant: string): string | null {
+  const stripped = merchant.replace(/^(?:paypal|google|gpay|apl|amzn|pos)\s*\*?\s*/i, '');
+  for (const [re, name] of SERVICE_NAMES) {
+    if (re.test(stripped) || re.test(merchant)) return name;
+  }
+  return null;
+}
+
 const ACRONYMS = new Set([
   'RTA', 'KFC', 'FAB', 'DEWA', 'SEWA', 'FEWA', 'ADCB', 'ENBD', 'ENOC', 'ADNOC',
   'VOX', 'PSN', 'NMC', 'DXB', 'AUH', 'HSBC', 'CBD', 'RAK', 'DIB', 'ATM', 'NOL', 'OSN',
@@ -354,7 +399,7 @@ export function parseSms(
                 ? 'Bank fee'
                 : 'Card purchase';
   } else {
-    merchant = titleCase(merchant);
+    merchant = normalizeServiceName(merchant) ?? titleCase(merchant);
   }
   // ATM messages usually name a location; the row is still a cash withdrawal.
   if (!isBillDue && type === 'expense' && !transferHint && ATM_RE.test(raw)) {

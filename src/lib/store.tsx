@@ -10,6 +10,7 @@ import React, {
 
 import { toISODate } from '@/lib/format';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
+import { normalizeServiceName } from '@/lib/sms-parser';
 import type {
   Account,
   AppState,
@@ -336,7 +337,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 !['salary', 'business', 'other'].includes(t.category)
                   ? { ...t, category: 'business' as const }
                   : t,
-              );
+              )
+              // Unify service descriptors so ChatGPT/Claude/Real-Debrid etc.
+              // read clearly and group as one subscription.
+              .map((t) => {
+                if (t.source !== 'sms') return t;
+                const canonical = normalizeServiceName(t.title);
+                return canonical && canonical !== t.title ? { ...t, title: canonical } : t;
+              });
             // Collapse exact SMS duplicates left by rescans across parser
             // versions (same day/amount/type/title). Keep the newest import —
             // it carries the best parsing and the right card account.
@@ -354,10 +362,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               return best.get(k)?.id === t.id;
             });
           }
-          // Drop stale unsettled card dues imported from years-old statements.
+          // Drop stale unsettled card dues, and dues attached to anything that
+          // is not a credit card (statement dues only exist for credit cards).
           if (parsed.cardDues) {
             const cutoff = toISODate(new Date(Date.now() - 60 * 86400000));
-            parsed.cardDues = parsed.cardDues.filter((d) => d.settledAt || d.dueDate >= cutoff);
+            const creditIds = new Set(
+              (parsed.accounts ?? []).filter((a) => a.cardType === 'credit').map((a) => a.id),
+            );
+            parsed.cardDues = parsed.cardDues.filter(
+              (d) => (d.settledAt || d.dueDate >= cutoff) && creditIds.has(d.accountId),
+            );
           }
           dispatch({ type: 'hydrate', state: parsed });
         } else {

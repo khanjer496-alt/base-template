@@ -164,6 +164,22 @@ const dismissed = subsLib.detectSubscriptions(
 );
 ok('dismiss: not-a-subscription merchant skipped',
   dismissed.length === 1 && dismissed[0].title === 'Spotify');
+
+// Canonical names make variant descriptors group as ONE subscription
+const gpt = subsLib.detectSubscriptions([
+  subTx('ChatGPT', '2026-05-03', 7341),
+  subTx('ChatGPT', '2026-06-03', 7341),
+  subTx('ChatGPT', '2026-07-03', 7341),
+  subTx('Real-Debrid', '2026-06-14', 1650),
+  subTx('Real-Debrid', '2026-07-14', 1650),
+  subTx('Claude', '2026-06-20', 7341),
+  subTx('Claude', '2026-07-20', 7341),
+]);
+ok('online services detected as subscriptions',
+  gpt.length === 3 && gpt.every(s => s.group === 'subscription'));
+ok('ChatGPT cadence and next date known',
+  gpt.find(s => s.title === 'ChatGPT')?.cadence === 'monthly' &&
+  gpt.find(s => s.title === 'ChatGPT')?.nextExpectedISO === '2026-08-02');
 ok('groups: fixedCommitments has rent + DEWA', subsLib.fixedCommitments(rentSubs).length === 2);
 
 // ── bill auto-reconciliation ──

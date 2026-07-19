@@ -20,7 +20,7 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { billsForMonth, type BillStatus } from '@/lib/bills';
 import { EXPENSE_CATEGORIES } from '@/lib/categories';
-import { formatAED, monthKey, parseAmountToFils, toISODate } from '@/lib/format';
+import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import {
   detectSubscriptions,
   daysUntilNext,
@@ -161,8 +161,10 @@ export default function BillsScreen() {
               )}
             </View>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-              {sub.cadence} · {sub.chargeCount}x charged ·{' '}
-              {next >= 0 ? `next in ${next}d` : `expected ${-next}d ago`}
+              {sub.cadence} · last {shortDate(sub.lastChargedISO)} ·{' '}
+              {next >= 0
+                ? `next ${shortDate(sub.nextExpectedISO)} (${next}d)`
+                : `expected ${-next}d ago`}
             </ThemedText>
           </View>
           <View style={styles.rowRight}>
