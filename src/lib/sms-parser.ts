@@ -5,6 +5,8 @@ export interface ParsedCard {
   kind: 'credit' | 'debit' | 'account';
 }
 
+export type SnapshotKind = 'balance' | 'limit' | 'outstanding';
+
 export interface ParsedSms {
   /**
    * transaction — money moved; billDue — a payment reminder;
@@ -25,6 +27,9 @@ export interface ParsedSms {
   card: ParsedCard | null;
   /** Bank-side leg of a card payment / own-account transfer: money moved, not spent. */
   transferHint: boolean;
+  /** Balance / available-limit / outstanding figure the bank quoted, if any. */
+  snapshotFils: number | null;
+  snapshotKind: SnapshotKind | null;
   categoryGuess: CategoryId;
   raw: string;
 }
@@ -180,6 +185,35 @@ function extractMerchant(raw: string, re: RegExp): string {
   return '';
 }
 
+const SNAPSHOT_RE =
+  /(?:avl|avail(?:able)?|remaining|total)\s*(?:credit\s+)?(limit|bal(?:ance)?|outstanding)[^0-9-]{0,12}([\d,]+(?:\.\d{1,2})?)/i;
+const OUTSTANDING_RE =
+  /\boutstanding(?:\s+(?:amount|balance))?\s*(?:is|:|of)?\s*(?:AED|Dhs?\.?)?\s*([\d,]+(?:\.\d{1,2})?)/i;
+const MAX_SNAPSHOT_FILS = 1_000_000_000; // AED 10M
+
+/** The balance / available-limit figure banks append to most alerts. */
+function extractSnapshot(raw: string): { fils: number; kind: SnapshotKind } | null {
+  const m = raw.match(SNAPSHOT_RE);
+  if (m) {
+    const fils = Math.round(Number(m[2].replace(/,/g, '')) * 100);
+    if (Number.isFinite(fils) && fils >= 0 && fils <= MAX_SNAPSHOT_FILS) {
+      const word = m[1].toLowerCase();
+      return {
+        fils,
+        kind: word.startsWith('limit') ? 'limit' : word === 'outstanding' ? 'outstanding' : 'balance',
+      };
+    }
+  }
+  const o = raw.match(OUTSTANDING_RE);
+  if (o) {
+    const fils = Math.round(Number(o[1].replace(/,/g, '')) * 100);
+    if (Number.isFinite(fils) && fils >= 0 && fils <= MAX_SNAPSHOT_FILS) {
+      return { fils, kind: 'outstanding' };
+    }
+  }
+  return null;
+}
+
 function extractCard(raw: string): ParsedCard | null {
   // Masked PANs first: CARD_RE would otherwise grab the FIRST four digits of
   // "Credit Card 4782********4499" as the identity.
@@ -227,6 +261,9 @@ export function parseSms(
 
   const card = extractCard(raw);
   const date = extractDate(raw);
+  const snapshot = extractSnapshot(raw);
+  const snapshotFils = snapshot?.fils ?? null;
+  const snapshotKind = snapshot?.kind ?? null;
 
   // Card payment received (transfer into the card) — before debit detection,
   // since these messages also contain the word "payment". Only credit cards
@@ -244,6 +281,8 @@ export function parseSms(
       minDueFils: null,
       card: { ...card, kind: 'credit' },
       transferHint: true,
+      snapshotFils,
+      snapshotKind,
       categoryGuess: 'other',
       raw,
     };
@@ -264,6 +303,8 @@ export function parseSms(
       minDueFils: minMatch ? Math.round(Number(minMatch[1].replace(/,/g, '')) * 100) : null,
       card: { ...card, kind: 'credit' },
       transferHint: false,
+      snapshotFils,
+      snapshotKind,
       categoryGuess: 'other',
       raw,
     };
@@ -330,6 +371,8 @@ export function parseSms(
     minDueFils: null,
     card,
     transferHint,
+    snapshotFils,
+    snapshotKind,
     categoryGuess: guessCategory(raw, type, overrides, merchant),
     raw,
   };

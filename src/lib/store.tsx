@@ -61,6 +61,7 @@ type Action =
       newAccounts: Account[];
       newHints: Record<string, string>;
       newDues: CardDue[];
+      snapshots: Record<string, { fils: number; kind: 'balance' | 'limit' | 'outstanding'; ts: number }>;
       lastScanTs: number;
     }
   | { type: 'undoBatch'; ids: string[] }
@@ -110,10 +111,16 @@ function reducer(state: AppState, action: Action): AppState {
         if (i >= 0) dues[i] = { ...due, id: dues[i].id };
         else dues.push(due);
       }
+      const accounts = [...state.accounts, ...action.newAccounts].map((a) => {
+        const snap = action.snapshots[a.id];
+        return snap && snap.ts > (a.snapshotTs ?? 0)
+          ? { ...a, snapshotFils: snap.fils, snapshotKind: snap.kind, snapshotTs: snap.ts }
+          : a;
+      });
       return {
         ...state,
         transactions: sortTxs([...action.transactions, ...state.transactions]),
-        accounts: [...state.accounts, ...action.newAccounts],
+        accounts,
         accountHints: { ...state.accountHints, ...action.newHints },
         cardDues: dues,
         lastScanTs: Math.max(state.lastScanTs, action.lastScanTs),
@@ -233,6 +240,8 @@ export interface ImportBatchInput {
   /** last4 → index into newAccounts OR existing accountId. */
   newHints: Record<string, string>;
   newDues: Omit<CardDue, 'id'>[];
+  /** accountRef → newest bank-quoted balance/limit figure from the scan. */
+  snapshots: Record<string, { fils: number; kind: 'balance' | 'limit' | 'outstanding'; ts: number }>;
   lastScanTs: number;
 }
 
@@ -401,12 +410,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           : d.accountId,
       id: makeId('due'),
     }));
+    const snapshots: ImportBatchInput['snapshots'] = {};
+    for (const [ref, snap] of Object.entries(input.snapshots ?? {})) {
+      const id =
+        /^\d+$/.test(ref) && Number(ref) < newAccounts.length ? newAccounts[Number(ref)].id : ref;
+      snapshots[id] = snap;
+    }
     dispatch({
       type: 'importBatch',
       transactions,
       newAccounts,
       newHints,
       newDues,
+      snapshots,
       lastScanTs: input.lastScanTs,
     });
     return transactions.map((t) => t.id);

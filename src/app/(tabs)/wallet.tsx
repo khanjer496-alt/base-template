@@ -332,7 +332,18 @@ export default function WalletScreen() {
                 {cards.map((account, i) => {
                   const balance = accountBalanceFils(state, account.id);
                   const isCredit = account.cardType === 'credit';
-                  const display = isCredit ? Math.abs(Math.min(0, balance)) : balance;
+                  // The bank's own quoted figure beats our derived one.
+                  const snap = account.snapshotFils;
+                  const display =
+                    snap !== undefined && isCredit && account.snapshotKind === 'outstanding'
+                      ? snap
+                      : snap !== undefined && !isCredit && account.snapshotKind === 'balance'
+                        ? snap
+                        : isCredit
+                          ? Math.abs(Math.min(0, balance))
+                          : balance;
+                  const availableLimit =
+                    isCredit && account.snapshotKind === 'limit' ? (account.snapshotFils ?? null) : null;
                   const spent = monthSpendByAccount.get(account.id) ?? 0;
                   return (
                     <Pressable
@@ -352,6 +363,9 @@ export default function WalletScreen() {
                         <ThemedText type="small" themeColor="textSecondary">
                           {isCredit ? 'Credit card' : 'Debit card'}
                           {account.last4 ? ` ••${account.last4}` : ''}
+                          {availableLimit !== null
+                            ? ` · ${formatAED(availableLimit, { decimals: false })} limit left`
+                            : ''}
                           {spent > 0 ? ` · ${formatAED(spent, { decimals: false })} this month` : ''}
                         </ThemedText>
                       </View>
@@ -383,7 +397,9 @@ export default function WalletScreen() {
             <ThemedText type="micro" themeColor="textSecondary">Accounts</ThemedText>
             <View>
               {nonCardAccounts.map((account, i) => {
-                const balance = accountBalanceFils(state, account.id);
+                const derived = accountBalanceFils(state, account.id);
+                const fromBank = account.snapshotKind === 'balance' && account.snapshotFils !== undefined;
+                const balance = fromBank ? account.snapshotFils! : derived;
                 const meta = KIND_META[account.kind];
                 return (
                   <Pressable
@@ -409,6 +425,11 @@ export default function WalletScreen() {
                       <ThemedText type="smallBold" tabular style={{ fontSize: 15 }}>
                         {formatAED(balance, { decimals: false })}
                       </ThemedText>
+                      {fromBank && (
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          per bank SMS
+                        </ThemedText>
+                      )}
                     </View>
                   </Pressable>
                 );

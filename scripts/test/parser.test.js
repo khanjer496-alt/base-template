@@ -240,5 +240,25 @@ if (remit && remit.type === 'income' && remit.transferHint === true && remit.mer
   pass++; console.log('✓ inward remittance is a transfer, not income');
 } else { fail++; console.log('✗ inward remittance is a transfer, not income', JSON.stringify(remit && { t: remit.type, h: remit.transferHint, m: remit.merchant })); }
 
+// ── balance/limit snapshots captured from alerts ──
+const snapLimit = parseSms('Purchase of AED 250.00 with Credit Card ending 4821 at IKEA. Avl Limit AED 5,939.00');
+if (snapLimit && snapLimit.snapshotKind === 'limit' && snapLimit.snapshotFils === 593900 && snapLimit.amountFils === 25000) {
+  pass++; console.log('✓ available-limit snapshot captured (amount untouched)');
+} else { fail++; console.log('✗ available-limit snapshot captured', JSON.stringify(snapLimit && { k: snapLimit.snapshotKind, f: snapLimit.snapshotFils, a: snapLimit.amountFils })); }
+
+const snapBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 12,500.00 AED');
+if (snapBal && snapBal.snapshotKind === 'balance' && snapBal.snapshotFils === 1250000) {
+  pass++; console.log('✓ balance snapshot captured in suffix form');
+} else { fail++; console.log('✗ balance snapshot captured in suffix form', JSON.stringify(snapBal && { k: snapBal.snapshotKind, f: snapBal.snapshotFils })); }
+
+const snapOut = parseSms('Payment of AED 3,240.00 received towards your Credit Card ending 4821. Total outstanding AED 4,061.00');
+if (snapOut && snapOut.snapshotKind === 'outstanding' && snapOut.snapshotFils === 406100) {
+  pass++; console.log('✓ outstanding snapshot captured on card payment');
+} else { fail++; console.log('✗ outstanding snapshot captured on card payment', JSON.stringify(snapOut && { k: snapOut.snapshotKind, f: snapOut.snapshotFils })); }
+
+const snapNone = parseSms('Purchase of AED 55.00 at MYSTERY VENDOR with card ending 11');
+if (snapNone && snapNone.snapshotFils === null) { pass++; console.log('✓ no snapshot when message has none'); }
+else { fail++; console.log('✗ no snapshot when message has none', JSON.stringify(snapNone && snapNone.snapshotFils)); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

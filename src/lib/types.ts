@@ -30,6 +30,11 @@ export interface Account {
   last4?: string;
   /** For kind 'card': whether it's a credit or debit card. */
   cardType?: 'credit' | 'debit';
+  /** Latest balance/limit figure the bank itself quoted in an SMS. */
+  snapshotFils?: number;
+  snapshotKind?: 'balance' | 'limit' | 'outstanding';
+  /** Timestamp (ms) of the SMS the snapshot came from — newest wins. */
+  snapshotTs?: number;
 }
 
 export interface Transaction {

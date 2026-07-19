@@ -113,6 +113,16 @@ export function buildImportPlan(
   const seenSms = new Set(state.transactions.map((t) => t.smsKey).filter(Boolean));
   const smsKeyOf = (p: ScannedSms): string | undefined =>
     p.smsTs !== undefined ? `s${p.smsTs}-${p.amountFils}` : undefined;
+  // Newest bank-quoted balance/limit per account — even from messages whose
+  // transaction is already imported (rescans refresh the figures).
+  const snapshots: ImportBatchInput['snapshots'] = {};
+  const noteSnapshot = (accountRef: string, p: ScannedSms) => {
+    if (p.snapshotFils === null || !p.snapshotKind || p.smsTs === undefined || !accountRef) return;
+    const cur = snapshots[accountRef];
+    if (!cur || p.smsTs > cur.ts) {
+      snapshots[accountRef] = { fils: p.snapshotFils, kind: p.snapshotKind, ts: p.smsTs };
+    }
+  };
   const hints: Record<string, string> = { ...state.accountHints };
   const newAccounts: Omit<Account, 'id'>[] = [];
   const newHints: Record<string, string> = {};
@@ -158,6 +168,7 @@ export function buildImportPlan(
       if (!p.card || !p.date) continue;
       if (p.date < staleDueCutoff) continue;
       const accountId = resolveAccount(p);
+      noteSnapshot(accountId, p);
       newDues.push({
         accountId,
         totalDueFils: p.amountFils,
@@ -169,6 +180,7 @@ export function buildImportPlan(
     }
     if (p.kind === 'cardPayment') {
       const accountId = resolveAccount(p);
+      noteSnapshot(accountId, p);
       const key = dedupeKey(date, p.amountFils, p.merchant);
       const smsKey = smsKeyOf(p);
       if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
@@ -189,6 +201,8 @@ export function buildImportPlan(
     }
     // Plain transaction. transferHint = the bank-side leg of a card payment /
     // own-account transfer: keep it for balances, exclude it from spending.
+    const accountId = resolveAccount(p);
+    noteSnapshot(accountId, p);
     const key = dedupeKey(date, p.amountFils, p.merchant);
     const smsKey = smsKeyOf(p);
     if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
@@ -198,7 +212,7 @@ export function buildImportPlan(
       type: p.type,
       amountFils: p.amountFils,
       category: p.categoryGuess,
-      accountId: resolveAccount(p),
+      accountId,
       title: p.merchant,
       date,
       source: 'sms',
@@ -208,7 +222,7 @@ export function buildImportPlan(
   }
 
   return {
-    batch: { transactions, newAccounts, newHints, newDues, lastScanTs: newestTs },
+    batch: { transactions, newAccounts, newHints, newDues, snapshots, lastScanTs: newestTs },
     txCount: transactions.length,
     newAccountCount: newAccounts.length,
     dueCount: newDues.length,
