@@ -42,6 +42,7 @@ const EMPTY_STATE: AppState = {
   appLock: false,
   monthStartDay: 1,
   pro: false,
+  trialStartTs: 0,
 };
 
 let idCounter = 0;
@@ -104,6 +105,8 @@ function reducer(state: AppState, action: Action): AppState {
       // Month grouping is computed all over the app; sync the global before
       // anything renders against the hydrated state.
       applyMonthStartDay(next.monthStartDay || 1);
+      // The free Pro trial clock starts the first time the app ever opens.
+      if (!next.trialStartTs) next.trialStartTs = Date.now();
       return next;
     }
     case 'setPro':

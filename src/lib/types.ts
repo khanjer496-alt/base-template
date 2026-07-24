@@ -130,4 +130,6 @@ export interface AppState {
   monthStartDay: number;
   /** Wafra Pro entitlement (Play Billing purchase, or founder unlock on side-loads). */
   pro: boolean;
+  /** Epoch ms when the free Pro trial started (first launch). */
+  trialStartTs: number;
 }

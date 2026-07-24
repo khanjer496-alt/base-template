@@ -26,6 +26,29 @@ export const PRO_PRICES: Record<ProPlan, { fils: number; caption: string }> = {
   yearly: { fils: 7499, caption: 'per year · 2 months free' },
 };
 
+/** Every Pro feature is free for this long after first launch. When Play
+ *  Billing is wired, also configure a 3-day free trial on the SKUs so store
+ *  users see "3 days free" natively. */
+export const TRIAL_DAYS = 3;
+
+/** Whole days of trial remaining (0 when over). */
+export function trialDaysLeft(
+  state: { trialStartTs: number },
+  nowMs: number = Date.now(),
+): number {
+  const start = state.trialStartTs || nowMs;
+  const elapsedDays = (nowMs - start) / 86400000;
+  return Math.max(0, Math.ceil(TRIAL_DAYS - elapsedDays));
+}
+
+/** Pro features unlocked: purchased/founder Pro, or still inside the trial. */
+export function isProActive(
+  state: { pro: boolean; trialStartTs: number },
+  nowMs: number = Date.now(),
+): boolean {
+  return state.pro || trialDaysLeft(state, nowMs) > 0;
+}
+
 /** True once the Play Billing SDK is wired and the app came from the Play Store. */
 export function isBillingAvailable(): boolean {
   return false;

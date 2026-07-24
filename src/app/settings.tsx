@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { isProActive, trialDaysLeft } from '@/lib/purchases';
 import { useStore } from '@/lib/store';
 import NotificationReader from '../../modules/notification-reader';
 
@@ -22,8 +23,9 @@ export default function SettingsScreen() {
     useStore();
 
   // Pro gating: locked features route to the paywall instead of running.
+  // Everything is unlocked during the free trial.
   const gated = (fn: () => void) => () => {
-    if (state.pro) fn();
+    if (isProActive(state)) fn();
     else router.push('/pro');
   };
 
@@ -188,7 +190,11 @@ export default function SettingsScreen() {
                   <View>
                     <ThemedText type="small">Wafra Pro</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      {state.pro ? 'Active' : 'Notifications, salary months, backup'}
+                      {state.pro
+                        ? 'Active'
+                        : trialDaysLeft(state) > 0
+                          ? `Free trial · ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left`
+                          : 'Notifications, salary months, backup'}
                     </ThemedText>
                   </View>
                 </View>

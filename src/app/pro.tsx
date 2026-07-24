@@ -10,7 +10,15 @@ import { Icon, type IconName } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAED } from '@/lib/format';
-import { isBillingAvailable, PRO_PRICES, purchasePro, restorePro, type ProPlan } from '@/lib/purchases';
+import {
+  isBillingAvailable,
+  PRO_PRICES,
+  purchasePro,
+  restorePro,
+  TRIAL_DAYS,
+  trialDaysLeft,
+  type ProPlan,
+} from '@/lib/purchases';
 import { useStore } from '@/lib/store';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
@@ -87,8 +95,17 @@ export default function ProScreen() {
             <ThemedText type="small" themeColor="textSecondary" style={styles.heroText}>
               {state.pro
                 ? 'Active on this device. Thank you for supporting Wafra.'
-                : 'A few power features fund the app — everything core stays free.'}
+                : trialDaysLeft(state) > 0
+                  ? `Everything is unlocked for your first ${TRIAL_DAYS} days — ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left. Keep it going:`
+                  : 'Your free trial has ended. A few power features fund the app — everything core stays free.'}
             </ThemedText>
+            {!state.pro && trialDaysLeft(state) > 0 && (
+              <View style={[styles.trialChip, { backgroundColor: `${theme.primary}1c` }]}>
+                <ThemedText type="micro" style={{ color: theme.primary, fontWeight: '700' }}>
+                  FREE TRIAL ACTIVE
+                </ThemedText>
+              </View>
+            )}
           </Animated.View>
 
           <View style={styles.features}>
@@ -201,6 +218,11 @@ const styles = StyleSheet.create({
   heroText: {
     textAlign: 'center',
     maxWidth: 300,
+  },
+  trialChip: {
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.full,
   },
   features: {
     gap: Spacing.three,

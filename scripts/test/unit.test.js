@@ -401,5 +401,18 @@ ok('salary month: period end for a past month',
 fmt.setMonthStartDay(1);
 ok('calendar months restore cleanly', fmt.monthKey('2026-07-24') === '2026-07');
 
+// ── Pro trial: 3 free days, then the paywall ──
+const purch = require('./build/purchases');
+const T0 = new Date(2026, 6, 1).getTime();
+const DAY = 86400000;
+ok('trial: fresh install has full trial days',
+  purch.trialDaysLeft({ trialStartTs: T0 }, T0) === 3);
+ok('trial: pro active during trial',
+  purch.isProActive({ pro: false, trialStartTs: T0 }, T0 + 2 * DAY + DAY / 2));
+ok('trial: expires after day 3',
+  !purch.isProActive({ pro: false, trialStartTs: T0 }, T0 + 3 * DAY + 1));
+ok('trial: purchase beats an expired trial',
+  purch.isProActive({ pro: true, trialStartTs: T0 }, T0 + 30 * DAY));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
