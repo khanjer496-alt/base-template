@@ -1,3 +1,13 @@
+/**
+ * Home v3 — rebuilt from scratch as composed sections.
+ *
+ * Layout contract:
+ *   Hero (period net) → dues → insights rail → subscriptions line →
+ *   upcoming bills (live month only) → budgets (month mode only) → recent.
+ * Money semantics: the hero is IN minus OUT for the selected period; real
+ * account balances live in Wallet. Dues/subscriptions describe NOW and stay
+ * visible in every period.
+ */
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,6 +16,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InsightCard } from '@/components/insight-card';
+import { PeriodSheet } from '@/components/period-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { TransactionRow } from '@/components/transaction-row';
@@ -28,9 +39,8 @@ import { getCategory } from '@/lib/categories';
 import { formatAED, formatCompactAED, greetingForHour, shortDate } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
-import { inPeriod, isCurrentMonth, periodLabel } from '@/lib/period';
+import { inPeriod, isCurrentMonth, periodLabel, type Period } from '@/lib/period';
 import { usePeriod } from '@/lib/period-context';
-import { PeriodSheet } from '@/components/period-sheet';
 import { useStore } from '@/lib/store';
 import {
   activeSubscriptions,
@@ -38,12 +48,294 @@ import {
   daysUntilNext,
   subscriptionsMonthlyTotal,
   trueSubscriptions,
+  type Subscription,
 } from '@/lib/subscriptions';
+import type { AppState } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
 
 // Once per app session: auto-import + notification sync.
 let autoImportRan = false;
+
+/* ── Section scaffolding ─────────────────────────────────────────────── */
+
+function Section({
+  title,
+  action,
+  onAction,
+  icon,
+  delay,
+  children,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+  icon?: React.ComponentProps<typeof Icon>['name'];
+  delay: number;
+  children: React.ReactNode;
+}) {
+  const theme = useTheme();
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).duration(350)} style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          {icon && <Icon name={icon} size={16} color={theme.gold} />}
+          <ThemedText type="micro" themeColor="textSecondary">
+            {title}
+          </ThemedText>
+        </View>
+        {action && (
+          <ThemedText type="small" themeColor="textSecondary" onPress={onAction}>
+            {action}
+          </ThemedText>
+        )}
+      </View>
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+
+function Hero({
+  period,
+  live,
+  netFils,
+  incomeFils,
+  expenseFils,
+  onOpenPeriod,
+}: {
+  period: Period;
+  live: boolean;
+  netFils: number;
+  incomeFils: number;
+  expenseFils: number;
+  onOpenPeriod: () => void;
+}) {
+  const theme = useTheme();
+  const router = useRouter();
+  const caption =
+    (netFils >= 0 ? 'Saved' : 'Overspent') +
+    (live ? ' so far this month' : period.mode === 'all' ? ' all time' : ` in ${periodLabel(period)}`) +
+    ' · in minus out';
+
+  return (
+    <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
+      <View style={styles.heroTopRow}>
+        <Pressable onPress={onOpenPeriod} hitSlop={8} style={styles.periodChipWrap}>
+          <ThemedText type="small" themeColor="textSecondary">
+            {greetingForHour(new Date().getHours())} ·{' '}
+          </ThemedText>
+          <ThemedText
+            type="small"
+            style={{ color: live ? theme.textSecondary : theme.primary, fontWeight: '700' }}>
+            {periodLabel(period)}
+          </ThemedText>
+          <Icon name="chevron-right" size={12} color={theme.textSecondary} />
+        </Pressable>
+        <Pressable onPress={() => router.push('/stats')} hitSlop={8}>
+          <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+            Report
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      {Math.abs(netFils) >= 1_000_000_000 ? (
+        <ThemedText type="display" tabular>
+          {netFils < 0 ? '−' : ''}AED {formatCompactAED(netFils)}
+        </ThemedText>
+      ) : (
+        <CountUpAmount fils={netFils} type="display" />
+      )}
+      <ThemedText type="micro" themeColor="textSecondary">
+        {caption}
+      </ThemedText>
+
+      <View style={styles.heroStats}>
+        {(
+          [
+            ['In', incomeFils, theme.income, '/transactions?type=income'],
+            ['Out', expenseFils, theme.expense, '/transactions?type=expense'],
+          ] as const
+        ).map(([label, fils, color, href]) => (
+          <Pressable key={label} onPress={() => router.push(href)} hitSlop={6} style={styles.heroStat}>
+            <View style={[styles.heroDot, { backgroundColor: color }]} />
+            <ThemedText type="small" themeColor="textSecondary">
+              {label}{' '}
+              <ThemedText type="smallBold" tabular style={{ color }}>
+                {formatAED(fils, { decimals: false })}
+              </ThemedText>
+            </ThemedText>
+            <Icon name="chevron-right" size={11} color={theme.textSecondary} />
+          </Pressable>
+        ))}
+      </View>
+    </Animated.View>
+  );
+}
+
+/* ── Dues ─────────────────────────────────────────────────────────────── */
+
+function DuesSection({ state, now }: { state: AppState; now: Date }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const dues = useMemo(() => openDues(state, now), [state, now]);
+  if (dues.length === 0) return null;
+  return (
+    <Section title="Card payments" action="Wallet" onAction={() => router.push('/wallet')} delay={60}>
+      {dues.slice(0, 2).map(({ due, status, daysLeft, remainingFils }) => {
+        const account = state.accounts.find((a) => a.id === due.accountId);
+        const urgent = status === 'urgent' || status === 'overdue';
+        return (
+          <Pressable key={due.id} onPress={() => router.push('/wallet')} style={styles.lineRow}>
+            <View style={styles.lineTitle}>
+              <Icon name="wallet" size={14} color={theme.textSecondary} />
+              <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+                {account?.name ?? 'Card'}
+              </ThemedText>
+            </View>
+            <ThemedText type="small" style={{ color: urgent ? theme.expense : theme.textSecondary }}>
+              {status === 'overdue' ? `${-daysLeft}d overdue` : `pay by ${shortDate(due.dueDate)}`}
+            </ThemedText>
+            <ThemedText
+              type="smallBold"
+              tabular
+              style={[styles.lineAmount, urgent && { color: theme.expense }]}>
+              {formatAED(remainingFils, { decimals: false })}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </Section>
+  );
+}
+
+/* ── Subscriptions line ──────────────────────────────────────────────── */
+
+function SubscriptionsLine({ subs, now }: { subs: Subscription[]; now: Date }) {
+  const router = useRouter();
+  const theme = useTheme();
+  const next = useMemo(() => {
+    const upcoming = subs
+      .map((s) => ({ s, d: daysUntilNext(s, now) }))
+      .filter((x) => x.d >= 0)
+      .sort((a, b) => a.d - b.d);
+    return upcoming[0] ?? null;
+  }, [subs, now]);
+  if (subs.length === 0) return null;
+  return (
+    <Animated.View entering={FadeInDown.delay(140).duration(350)}>
+      <Pressable onPress={() => router.push('/bills')} style={styles.subsRow}>
+        <Icon name="repeat" size={14} color={theme.textSecondary} />
+        <ThemedText type="small">
+          {subs.length} subscription{subs.length === 1 ? '' : 's'}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.subsNext}>
+          {next ? `${next.s.title} in ${next.d}d` : ''}
+        </ThemedText>
+        <ThemedText type="smallBold" tabular>
+          {formatAED(subscriptionsMonthlyTotal(subs), { decimals: false })}/mo
+        </ThemedText>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+/* ── Upcoming bills (live month only) ─────────────────────────────────── */
+
+function BillsSection({ state, now }: { state: AppState; now: Date }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const upcoming = useMemo(
+    () =>
+      billsForMonth(state.bills, state.transactions, now)
+        .filter((b) => b.status !== 'paid')
+        .slice(0, 3),
+    [state.bills, state.transactions, now],
+  );
+  if (upcoming.length === 0) return null;
+  return (
+    <Section title="Upcoming bills" action="Manage" onAction={() => router.push('/bills')} delay={180}>
+      {upcoming.map(({ bill, status, daysLeft }) => (
+        <Pressable key={bill.id} onPress={() => router.push('/bills')} style={styles.lineRow}>
+          <View style={styles.lineTitle}>
+            <Icon
+              name={getCategory(bill.category).icon}
+              size={14}
+              color={getCategory(bill.category).color}
+            />
+            <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
+              {bill.title}
+            </ThemedText>
+          </View>
+          <ThemedText
+            type="small"
+            style={{
+              color:
+                status === 'overdue'
+                  ? theme.expense
+                  : status === 'due-soon'
+                    ? theme.warning
+                    : theme.textSecondary,
+            }}>
+            {status === 'overdue' ? `${-daysLeft}d overdue` : daysLeft === 0 ? 'today' : `in ${daysLeft}d`}
+          </ThemedText>
+          <ThemedText type="smallBold" tabular style={styles.lineAmount}>
+            {formatAED(bill.amountFils, { decimals: false })}
+          </ThemedText>
+        </Pressable>
+      ))}
+    </Section>
+  );
+}
+
+/* ── Budgets snapshot (month mode only) ──────────────────────────────── */
+
+function BudgetsSection({ state, period }: { state: AppState; period: Period }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const top = useMemo(
+    () =>
+      state.budgets
+        .map((b) => ({
+          budget: b,
+          spent: spentInMonthForCategory(state.transactions, period, b.category),
+        }))
+        .sort((a, b) => b.spent / b.budget.limitFils - a.spent / a.budget.limitFils)
+        .slice(0, 3),
+    [state.budgets, state.transactions, period],
+  );
+  if (top.length === 0) return null;
+  return (
+    <Section title="Budgets" action="Manage" onAction={() => router.push('/budgets')} delay={220}>
+      {top.map(({ budget, spent }) => {
+        const meta = getCategory(budget.category);
+        const ratio = spent / budget.limitFils;
+        return (
+          <View key={budget.category} style={styles.budgetRow}>
+            <View style={styles.budgetTop}>
+              <View style={styles.lineTitle}>
+                <Icon name={meta.icon} size={14} color={meta.color} />
+                <ThemedText type="small">{meta.label}</ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary" tabular>
+                {formatAED(spent, { decimals: false })} /{' '}
+                {formatAED(budget.limitFils, { decimals: false })}
+              </ThemedText>
+            </View>
+            <ProgressBar
+              ratio={ratio}
+              color={ratio >= 1 ? theme.expense : ratio >= 0.85 ? theme.warning : meta.color}
+              height={5}
+            />
+          </View>
+        );
+      })}
+    </Section>
+  );
+}
+
+/* ── Screen ───────────────────────────────────────────────────────────── */
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -54,7 +346,6 @@ export default function HomeScreen() {
 
   const now = useMemo(() => new Date(), []);
   const live = isCurrentMonth(period, now);
-  const monthMode = period.mode === 'month';
   const [refreshing, setRefreshing] = useState(false);
   const [needsPermission, setNeedsPermission] = useState(false);
   const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
@@ -64,19 +355,14 @@ export default function HomeScreen() {
     [state.transactions, period],
   );
   const insights = useMemo(
-    () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions).slice(0, 5),
+    () =>
+      buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions).slice(0, 5),
     [state.transactions, state.budgets, period, now, state.notSubscriptions],
   );
-  // The hero shows NET FOR THE PERIOD (in minus out). SMS history is
-  // one-sided — credits get alerts more reliably than every debit — so an
-  // all-time "balance" derived from it reads as nonsense. Period cashflow is
-  // always true to the data; real account balances live in Wallet.
-  const netFils = summary.incomeFils - summary.expenseFils;
   const recent = useMemo(
     () => state.transactions.filter((t) => !t.isTransfer && inPeriod(t.date, period)).slice(0, 5),
     [state.transactions, period],
   );
-  const dues = useMemo(() => openDues(state, now), [state, now]);
   const subs = useMemo(
     () =>
       activeSubscriptions(
@@ -84,33 +370,6 @@ export default function HomeScreen() {
       ),
     [state.transactions, state.notSubscriptions],
   );
-  const nextSub = useMemo(() => {
-    const upcoming = subs
-      .map((s) => ({ s, d: daysUntilNext(s, now) }))
-      .filter((x) => x.d >= 0)
-      .sort((a, b) => a.d - b.d);
-    return upcoming[0] ?? null;
-  }, [subs, now]);
-
-  const upcomingBills = useMemo(
-    () =>
-      billsForMonth(state.bills, state.transactions, now)
-        .filter((b) => b.status !== 'paid')
-        .slice(0, 3),
-    [state.bills, state.transactions, now],
-  );
-
-  // Budgets are monthly: valid for any selected month, hidden for year/range/all.
-  const topBudgets = useMemo(() => {
-    if (!monthMode) return [];
-    return state.budgets
-      .map((b) => ({
-        budget: b,
-        spent: spentInMonthForCategory(state.transactions, period, b.category),
-      }))
-      .sort((a, b) => b.spent / b.budget.limitFils - a.spent / a.budget.limitFils)
-      .slice(0, 3);
-  }, [state.budgets, state.transactions, period, monthMode]);
 
   const runAutoImport = useCallback(
     async (interactive: boolean) => {
@@ -179,74 +438,15 @@ export default function HomeScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
           }>
-          {/* Typographic hero: no card, no gradient */}
-          <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
-            <View style={styles.heroTopRow}>
-              <Pressable onPress={() => setPeriodSheetOpen(true)} hitSlop={8} style={styles.periodChipWrap}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {greetingForHour(now.getHours())} ·{' '}
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  style={{ color: live ? theme.textSecondary : theme.primary, fontWeight: '700' }}>
-                  {periodLabel(period)}
-                </ThemedText>
-                <Icon name="chevron-right" size={12} color={theme.textSecondary} />
-              </Pressable>
-              <Pressable onPress={() => router.push('/stats')} hitSlop={8}>
-                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-                  Report
-                </ThemedText>
-              </Pressable>
-            </View>
-            {Math.abs(netFils) >= 1_000_000_000 ? (
-              // Ten million AED and beyond: compact form instead of a wall of digits.
-              <ThemedText type="display" tabular>
-                {netFils < 0 ? '−' : ''}AED {formatCompactAED(netFils)}
-              </ThemedText>
-            ) : (
-              <CountUpAmount fils={netFils} type="display" />
-            )}
-            <ThemedText type="micro" themeColor="textSecondary">
-              {netFils >= 0 ? 'Saved' : 'Overspent'}
-              {live
-                ? ' so far this month'
-                : period.mode === 'all'
-                  ? ' all time'
-                  : ` in ${periodLabel(period)}`}
-              {' · in minus out'}
-            </ThemedText>
-            <View style={styles.heroStats}>
-              <Pressable
-                onPress={() => router.push('/transactions?type=income')}
-                hitSlop={6}
-                style={styles.heroStat}>
-                <View style={[styles.heroDot, { backgroundColor: theme.income }]} />
-                <ThemedText type="small" themeColor="textSecondary">
-                  In{' '}
-                  <ThemedText type="smallBold" tabular style={{ color: theme.income }}>
-                    {formatAED(summary.incomeFils, { decimals: false })}
-                  </ThemedText>
-                </ThemedText>
-                <Icon name="chevron-right" size={11} color={theme.textSecondary} />
-              </Pressable>
-              <Pressable
-                onPress={() => router.push('/transactions?type=expense')}
-                hitSlop={6}
-                style={styles.heroStat}>
-                <View style={[styles.heroDot, { backgroundColor: theme.expense }]} />
-                <ThemedText type="small" themeColor="textSecondary">
-                  Out{' '}
-                  <ThemedText type="smallBold" tabular style={{ color: theme.expense }}>
-                    {formatAED(summary.expenseFils, { decimals: false })}
-                  </ThemedText>
-                </ThemedText>
-                <Icon name="chevron-right" size={11} color={theme.textSecondary} />
-              </Pressable>
-            </View>
-          </Animated.View>
+          <Hero
+            period={period}
+            live={live}
+            netFils={summary.incomeFils - summary.expenseFils}
+            incomeFils={summary.incomeFils}
+            expenseFils={summary.expenseFils}
+            onOpenPeriod={() => setPeriodSheetOpen(true)}
+          />
 
-          {/* Enable-scanning nudge (first run without permission only) */}
           {needsPermission && (
             <Animated.View entering={FadeInDown.duration(350)}>
               <Pressable
@@ -264,66 +464,15 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
-          {/* Card dues: current obligations, shown regardless of period */}
-          {dues.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <ThemedText type="micro" themeColor="textSecondary">Card payments</ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  onPress={() => router.push('/wallet')}>
-                  Wallet
-                </ThemedText>
-              </View>
-              {dues.slice(0, 2).map(({ due, status, daysLeft, remainingFils }) => {
-                const account = state.accounts.find((a) => a.id === due.accountId);
-                const urgent = status === 'urgent' || status === 'overdue';
-                return (
-                  <Pressable
-                    key={due.id}
-                    onPress={() => router.push('/wallet')}
-                    style={styles.dueRow}>
-                    <View style={[styles.dueName, { flexDirection: 'row', alignItems: 'center', gap: 7 }]}>
-                      <Icon name="wallet" size={14} color={theme.textSecondary} />
-                      <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
-                        {account?.name ?? 'Card'}
-                      </ThemedText>
-                    </View>
-                    <ThemedText
-                      type="small"
-                      style={{ color: urgent ? theme.expense : theme.textSecondary }}>
-                      {status === 'overdue'
-                        ? `${-daysLeft}d overdue`
-                        : `pay by ${shortDate(due.dueDate)}`}
-                    </ThemedText>
-                    <ThemedText
-                      type="smallBold"
-                      tabular
-                      style={[styles.dueAmount, urgent && { color: theme.expense }]}>
-                      {formatAED(remainingFils, { decimals: false })}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </Animated.View>
-          )}
+          <DuesSection state={state} now={now} />
 
-          {/* Insights carousel */}
           {insights.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleRow}>
-                  <Icon name="spark" size={16} color={theme.gold} />
-                  <ThemedText type="micro" themeColor="textSecondary">Insights</ThemedText>
-                </View>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  onPress={() => router.push('/stats')}>
-                  All
-                </ThemedText>
-              </View>
+            <Section
+              title="Insights"
+              icon="spark"
+              action="All"
+              onAction={() => router.push('/stats')}
+              delay={100}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -332,123 +481,19 @@ export default function HomeScreen() {
                   <InsightCard key={insight.id} insight={insight} width={230} />
                 ))}
               </ScrollView>
-            </Animated.View>
+            </Section>
           )}
 
-          {/* Subscriptions line */}
-          {subs.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(140).duration(350)}>
-              <Pressable onPress={() => router.push('/bills')} style={styles.subsRow}>
-                <Icon name="repeat" size={14} color={theme.textSecondary} />
-                <ThemedText type="small">
-                  {subs.length} subscription{subs.length === 1 ? '' : 's'}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.subsNext}>
-                  {nextSub ? `${nextSub.s.title} in ${nextSub.d}d` : ''}
-                </ThemedText>
-                <ThemedText type="smallBold" tabular>
-                  {formatAED(subscriptionsMonthlyTotal(subs), { decimals: false })}/mo
-                </ThemedText>
-              </Pressable>
-            </Animated.View>
-          )}
+          <SubscriptionsLine subs={subs} now={now} />
 
-          {/* Upcoming bills: about NOW — hidden when viewing other periods */}
-          {live && upcomingBills.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <ThemedText type="micro" themeColor="textSecondary">Upcoming bills</ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  onPress={() => router.push('/bills')}>
-                  Manage
-                </ThemedText>
-              </View>
-              {upcomingBills.map(({ bill, status, daysLeft }) => (
-                <Pressable
-                  key={bill.id}
-                  onPress={() => router.push('/bills')}
-                  style={styles.billRow}>
-                  <View style={[styles.billTitle, { flexDirection: 'row', alignItems: 'center', gap: 7 }]}>
-                    <Icon name={getCategory(bill.category).icon} size={14} color={getCategory(bill.category).color} />
-                    <ThemedText type="small" numberOfLines={1} style={{ flexShrink: 1 }}>
-                      {bill.title}
-                    </ThemedText>
-                  </View>
-                  <ThemedText
-                    type="small"
-                    style={{
-                      color:
-                        status === 'overdue'
-                          ? theme.expense
-                          : status === 'due-soon'
-                            ? theme.warning
-                            : theme.textSecondary,
-                    }}>
-                    {status === 'overdue'
-                      ? `${-daysLeft}d overdue`
-                      : daysLeft === 0
-                        ? 'today'
-                        : `in ${daysLeft}d`}
-                  </ThemedText>
-                  <ThemedText type="smallBold" tabular style={styles.billAmount}>
-                    {formatAED(bill.amountFils, { decimals: false })}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </Animated.View>
-          )}
+          {live && <BillsSection state={state} now={now} />}
+          {period.mode === 'month' && <BudgetsSection state={state} period={period} />}
 
-          {/* Budgets */}
-          {topBudgets.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(220).duration(350)} style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <ThemedText type="micro" themeColor="textSecondary">Budgets</ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  onPress={() => router.push('/budgets')}>
-                  Manage
-                </ThemedText>
-              </View>
-              {topBudgets.map(({ budget, spent }) => {
-                const meta = getCategory(budget.category);
-                const ratio = spent / budget.limitFils;
-                const over = ratio >= 1;
-                return (
-                  <View key={budget.category} style={styles.budgetRow}>
-                    <View style={styles.budgetTop}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                        <Icon name={meta.icon} size={14} color={meta.color} />
-                        <ThemedText type="small">{meta.label}</ThemedText>
-                      </View>
-                      <ThemedText type="small" themeColor="textSecondary" tabular>
-                        {formatAED(spent, { decimals: false })} / {formatAED(budget.limitFils, { decimals: false })}
-                      </ThemedText>
-                    </View>
-                    <ProgressBar
-                      ratio={ratio}
-                      color={over ? theme.expense : ratio >= 0.85 ? theme.warning : meta.color}
-                      height={5}
-                    />
-                  </View>
-                );
-              })}
-            </Animated.View>
-          )}
-
-          {/* Recent activity */}
-          <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText type="micro" themeColor="textSecondary">Recent activity</ThemedText>
-              <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                onPress={() => router.push('/transactions')}>
-                See all
-              </ThemedText>
-            </View>
+          <Section
+            title="Recent activity"
+            action="See all"
+            onAction={() => router.push('/transactions')}
+            delay={260}>
             <View>
               {recent.map((t, i) => (
                 <View
@@ -473,7 +518,7 @@ export default function HomeScreen() {
                 </View>
               )}
             </View>
-          </Animated.View>
+          </Section>
         </ScrollView>
       </SafeAreaView>
       <PeriodSheet visible={periodSheetOpen} onClose={() => setPeriodSheetOpen(false)} />
@@ -551,16 +596,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one + 2,
   },
-  dueRow: {
+  lineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
     paddingVertical: Spacing.one + 2,
   },
-  dueName: {
+  lineTitle: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
-  dueAmount: {
+  lineAmount: {
     minWidth: 84,
     textAlign: 'right',
   },
@@ -575,19 +623,6 @@ const styles = StyleSheet.create({
   },
   subsNext: {
     flex: 1,
-  },
-  billRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.one + 2,
-  },
-  billTitle: {
-    flex: 1,
-  },
-  billAmount: {
-    minWidth: 84,
-    textAlign: 'right',
   },
   budgetRow: {
     gap: Spacing.one + 1,

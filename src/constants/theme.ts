@@ -1,51 +1,51 @@
 /**
- * Wafra design tokens — dark-first premium fintech palette with light mode support.
+ * Wafra design tokens v3 — rebuilt from scratch.
+ *
+ * Principles: one brand hue (emerald) tints every neutral; three elevation
+ * tiers (background → element → selected) with visible but quiet borders;
+ * accent stays under ~10% of any surface; a strict 4pt spatial ladder.
  */
 
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
-/**
- * Every neutral is tinted toward the emerald brand hue — no pure black or
- * white anywhere. Accent (primary) stays under ~10% of any surface.
- */
 export const Colors = {
   light: {
-    text: '#13201B',
-    background: '#F3F6F4',
-    backgroundElement: '#FBFDFC',
-    backgroundSelected: '#E7EDEA',
-    textSecondary: '#5C6B63',
-    card: '#FBFDFC',
-    cardBorder: '#E1E8E4',
-    primary: '#0E9F7F',
-    primarySoft: '#DBF2EA',
-    onPrimary: '#F2FBF7',
-    gold: '#A98A2E',
-    goldSoft: '#F5EEDA',
-    income: '#0A8F63',
-    expense: '#D9365B',
-    warning: '#C27B12',
-    track: '#E4EAE6',
+    text: '#101D17',
+    background: '#F2F6F3',
+    backgroundElement: '#FCFEFC',
+    backgroundSelected: '#E4ECE7',
+    textSecondary: '#57685F',
+    card: '#FCFEFC',
+    cardBorder: '#DDE6E0',
+    primary: '#0C9E7C',
+    primarySoft: '#D7F1E7',
+    onPrimary: '#F3FCF8',
+    gold: '#A5872B',
+    goldSoft: '#F4EDD6',
+    income: '#088A5E',
+    expense: '#D63258',
+    warning: '#BE7810',
+    track: '#E1E9E3',
   },
   dark: {
-    text: '#EDF4F0',
-    background: '#0B1210',
-    backgroundElement: '#131B17',
-    backgroundSelected: '#1C2721',
-    textSecondary: '#8CA096',
-    card: '#131B17',
-    cardBorder: '#1F2A24',
-    primary: '#2DD4A8',
-    primarySoft: '#123129',
-    onPrimary: '#07231B',
-    gold: '#E3B54A',
-    goldSoft: '#31290F',
-    income: '#3DD68C',
-    expense: '#F26D7E',
-    warning: '#F0A62E',
-    track: '#1E2923',
+    text: '#F0F7F3',
+    background: '#070D0B',
+    backgroundElement: '#101915',
+    backgroundSelected: '#1A2620',
+    textSecondary: '#93A79C',
+    card: '#101915',
+    cardBorder: '#22302A',
+    primary: '#31DBAE',
+    primarySoft: '#10352B',
+    onPrimary: '#052019',
+    gold: '#E8BC55',
+    goldSoft: '#362D12',
+    income: '#45DB94',
+    expense: '#F76F81',
+    warning: '#F4AC35',
+    track: '#202C26',
   },
 } as const;
 
@@ -76,6 +76,7 @@ export const Fonts = Platform.select({
   },
 });
 
+/** 4pt ladder. Name the step, not the pixel. */
 export const Spacing = {
   half: 2,
   one: 4,
@@ -87,10 +88,10 @@ export const Spacing = {
 } as const;
 
 export const Radius = {
-  sm: 10,
-  md: 16,
-  lg: 22,
-  xl: 28,
+  sm: 12,
+  md: 18,
+  lg: 24,
+  xl: 30,
   full: 999,
 } as const;
 

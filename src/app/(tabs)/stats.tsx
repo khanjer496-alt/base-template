@@ -1,3 +1,11 @@
+/**
+ * Insights (stats) v3 — rebuilt from scratch as composed sections.
+ *
+ * Order: period navigator → donut + drill → stat band → movers → merchants →
+ * weekday pattern → net-worth trend → cashflow trend → insight feed.
+ * Every figure follows the app-wide reporting period; the 6-month trends stay
+ * anchored to the selected month (or the current month in year/range/all).
+ */
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -45,6 +53,33 @@ const TAB_BAR_CLEARANCE = 110;
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
 
+function MerchantLine({
+  title,
+  category,
+  count,
+  totalFils,
+}: {
+  title: string;
+  category: CategoryId;
+  count: number;
+  totalFils: number;
+}) {
+  return (
+    <View style={styles.merchantRow}>
+      <MerchantAvatar title={title} category={category} size={34} />
+      <ThemedText type="small" style={styles.merchantName} numberOfLines={1}>
+        {title}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {count}x
+      </ThemedText>
+      <ThemedText type="smallBold" tabular style={styles.merchantAmount}>
+        {formatAED(totalFils, { decimals: false })}
+      </ThemedText>
+    </View>
+  );
+}
+
 export default function StatsScreen() {
   const theme = useTheme();
   const { state } = useStore();
@@ -53,11 +88,14 @@ export default function StatsScreen() {
   const { period, setPeriod } = usePeriod();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [drillCategory, setDrillCategory] = useState<CategoryId | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const monthMode = period.mode === 'month';
   const key = monthMode ? period.key : currentKey; // anchors the 6-month trend window
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const live = isCurrentMonth(period, now);
+  const prev = previousPeriod(period);
 
+  /* ── Derived data ── */
   const summary = useMemo(() => summarizeMonth(state.transactions, period), [state.transactions, period]);
   const insights = useMemo(
     () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions),
@@ -71,7 +109,6 @@ export default function StatsScreen() {
     () => (drillCategory ? categoryTrend(state.transactions, drillCategory) : []),
     [state.transactions, drillCategory],
   );
-
   const trend = useMemo(() => {
     const months: { label: string; income: number; expense: number; key: string }[] = [];
     for (let i = 5; i >= 0; i--) {
@@ -88,20 +125,17 @@ export default function StatsScreen() {
   }, [state.transactions, currentKey]);
 
   const highlightIndex = monthMode ? trend.findIndex((m) => m.key === key) : -1;
-  const live = isCurrentMonth(period, now);
   const coveredDays = Math.max(1, periodElapsedDays(period, now, state.transactions));
   const dailyAvg = Math.round(summary.expenseFils / coveredDays);
   const projected = live ? dailyAvg * daysInMonth(key) : summary.expenseFils;
-  const prev = previousPeriod(period);
   const savings = summary.incomeFils - summary.expenseFils;
   const weekMax = Math.max(1, ...weekSpend);
-
   const segments = summary.byCategory.map((c) => ({
     value: c.totalFils,
     color: getCategory(c.category).color,
   }));
 
-  // Net worth sparkline geometry
+  // Net-worth sparkline geometry
   const nwWidth = 320;
   const nwHeight = 56;
   const nwMin = Math.min(...netWorth.map((p) => p.fils));
@@ -217,9 +251,15 @@ export default function StatsScreen() {
           {drillCategory && (
             <Animated.View entering={FadeInDown.duration(300)} style={styles.drill}>
               <View style={styles.sectionTitleRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Icon name={getCategory(drillCategory).icon} size={15} color={getCategory(drillCategory).color} />
-                  <ThemedText type="smallBold">{getCategory(drillCategory).label} · 6 months</ThemedText>
+                <View style={styles.titleWithIcon}>
+                  <Icon
+                    name={getCategory(drillCategory).icon}
+                    size={15}
+                    color={getCategory(drillCategory).color}
+                  />
+                  <ThemedText type="smallBold">
+                    {getCategory(drillCategory).label} · 6 months
+                  </ThemedText>
                 </View>
                 <Pressable onPress={() => setDrillCategory(null)}>
                   <Icon name="close" size={16} color={theme.textSecondary} />
@@ -241,18 +281,7 @@ export default function StatsScreen() {
                 period,
                 3,
               ).map((m) => (
-                <View key={m.title} style={styles.merchantRow}>
-                  <MerchantAvatar title={m.title} category={drillCategory} size={34} />
-                  <ThemedText type="small" style={styles.merchantName} numberOfLines={1}>
-                    {m.title}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {m.count}x
-                  </ThemedText>
-                  <ThemedText type="smallBold" tabular style={styles.merchantAmount}>
-                    {formatAED(m.totalFils, { decimals: false })}
-                  </ThemedText>
-                </View>
+                <MerchantLine key={m.title} {...m} category={drillCategory} />
               ))}
             </Animated.View>
           )}
@@ -263,14 +292,18 @@ export default function StatsScreen() {
             style={[styles.statBand, { borderColor: theme.cardBorder }]}>
             <View style={styles.statItem}>
               <ThemedText type="micro" themeColor="textSecondary">Daily avg</ThemedText>
-              <ThemedText type="smallBold" tabular>{formatAED(dailyAvg, { decimals: false })}</ThemedText>
+              <ThemedText type="smallBold" tabular>
+                {formatAED(dailyAvg, { decimals: false })}
+              </ThemedText>
             </View>
             <View style={[styles.statDivider, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.statItem}>
               <ThemedText type="micro" themeColor="textSecondary">
                 {live ? 'Projected' : 'Spent'}
               </ThemedText>
-              <ThemedText type="smallBold" tabular>{formatAED(projected, { decimals: false })}</ThemedText>
+              <ThemedText type="smallBold" tabular>
+                {formatAED(projected, { decimals: false })}
+              </ThemedText>
             </View>
             <View style={[styles.statDivider, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.statItem}>
@@ -286,7 +319,7 @@ export default function StatsScreen() {
 
           {/* Biggest movers */}
           {movers.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.sectionBlock}>
               <ThemedText type="smallBold">
                 Biggest changes vs {prev ? periodLabel(prev) : 'before'}
               </ThemedText>
@@ -295,7 +328,7 @@ export default function StatsScreen() {
                 const up = m.deltaFils > 0;
                 return (
                   <View key={m.category} style={styles.moverRow}>
-                    <View style={[styles.moverLabel, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                    <View style={styles.titleWithIcon}>
                       <Icon name={meta.icon} size={14} color={meta.color} />
                       <ThemedText type="small">{meta.label}</ThemedText>
                     </View>
@@ -313,27 +346,16 @@ export default function StatsScreen() {
 
           {/* Top merchants */}
           {merchants.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(140).duration(350)} style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(140).duration(350)} style={styles.sectionBlock}>
               <ThemedText type="smallBold">Where the money went</ThemedText>
               {merchants.map((m) => (
-                <View key={m.title} style={styles.merchantRow}>
-                  <MerchantAvatar title={m.title} category={m.category} size={34} />
-                  <ThemedText type="small" style={styles.merchantName} numberOfLines={1}>
-                    {m.title}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {m.count}x
-                  </ThemedText>
-                  <ThemedText type="smallBold" tabular style={styles.merchantAmount}>
-                    {formatAED(m.totalFils, { decimals: false })}
-                  </ThemedText>
-                </View>
+                <MerchantLine key={m.title} {...m} />
               ))}
             </Animated.View>
           )}
 
           {/* Day-of-week pattern (tap a bar for the exact amount) */}
-          <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
               <ThemedText type="smallBold">Spending by weekday</ThemedText>
               {selectedDay !== null && (
@@ -360,9 +382,7 @@ export default function StatsScreen() {
                       ]}
                     />
                   </View>
-                  <ThemedText
-                    type="micro"
-                    themeColor={selectedDay === i ? 'text' : 'textSecondary'}>
+                  <ThemedText type="micro" themeColor={selectedDay === i ? 'text' : 'textSecondary'}>
                     {DAY_LABELS[i]}
                   </ThemedText>
                 </Pressable>
@@ -371,7 +391,7 @@ export default function StatsScreen() {
           </Animated.View>
 
           {/* Net worth trend */}
-          <Animated.View entering={FadeInDown.delay(220).duration(350)} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(220).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
               <ThemedText type="smallBold">Net worth · 6 months</ThemedText>
               <ThemedText type="smallBold" tabular style={{ color: theme.primary }}>
@@ -401,7 +421,7 @@ export default function StatsScreen() {
           </Animated.View>
 
           {/* Income vs expense trend */}
-          <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
               <ThemedText type="smallBold">Cashflow · 6 months</ThemedText>
               <View style={styles.trendLegend}>
@@ -432,7 +452,7 @@ export default function StatsScreen() {
           </Animated.View>
 
           {/* Insight feed */}
-          <Animated.View entering={FadeInDown.delay(300).duration(350)} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(300).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
               <View style={styles.titleWithIcon}>
                 <Icon name="spark" size={17} color={theme.gold} />
@@ -539,7 +559,7 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 28,
   },
-  section: {
+  sectionBlock: {
     gap: Spacing.two,
   },
   sectionTitleRow: {
@@ -557,9 +577,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.one + 1,
-  },
-  moverLabel: {
-    flex: 1,
   },
   merchantRow: {
     flexDirection: 'row',
