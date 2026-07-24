@@ -414,5 +414,32 @@ ok('trial: expires after day 3',
 ok('trial: purchase beats an expired trial',
   purch.isProActive({ pro: true, trialStartTs: T0 }, T0 + 30 * DAY));
 
+// ── market packs: automatic localization (runs last: mutates globals) ──
+const markets = require('./build/markets');
+const mparser = require('./build/sms-parser');
+
+markets.setActiveMarket('SA');
+ok('market: SAR renders in amounts', fmt.formatAED(123400) === 'SAR 1,234');
+const saTx = mparser.parseSms(
+  'Purchase of SAR 187.50 with Debit Card ending 1234 at PANDA RIYADH');
+ok('market: Saudi SMS parses under the SA pack',
+  saTx && saTx.amountFils === 18750 && saTx.categoryGuess === 'groceries');
+const saBank = markets.bankFromSender('AlRajhi');
+ok('market: Saudi bank recognized with logo domain',
+  saBank && saBank.name === 'Al Rajhi' && saBank.domain === 'alrajhibank.com.sa');
+const saUsd = mparser.parseSms(
+  'USD 20.00 charged on Credit Card ending 4499 - OPENAI CHATGPT SUBSCRIPTION');
+ok('market: USD converts into SAR under the SA pack',
+  saUsd && saUsd.amountFils === 7500); // 20 * 3.75 * 100
+ok('market: STC categorized as telecom in SA',
+  mparser.guessCategory('Payment to STC bill', 'expense') === 'telecom');
+
+markets.setActiveMarket('AE');
+ok('market: AED restores cleanly', fmt.formatAED(123400) === 'AED 1,234');
+const aeAgain = mparser.parseSms(
+  'Purchase of AED 187.50 with Debit Card ending 1234 at CARREFOUR');
+ok('market: UAE parsing unchanged after switching back',
+  aeAgain && aeAgain.amountFils === 18750);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

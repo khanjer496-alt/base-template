@@ -56,6 +56,9 @@ class BankNotificationListenerService : NotificationListenerService() {
     const val PREFS = "wafra_notification_capture"
     const val KEY = "captured"
     const val MAX = 500
-    val MONEY_RE = Regex("(?:AED|Dhs?|USD|EUR|GBP|د\\.إ)\\s*[0-9]", RegexOption.IGNORE_CASE)
+    val MONEY_RE = Regex(
+      "(?:AED|Dhs?|SAR|SR|QAR|KWD|BHD|OMR|EGP|INR|PKR|USD|EUR|GBP|د\\.إ|ر\\.س)\\s*[0-9]",
+      RegexOption.IGNORE_CASE
+    )
   }
 }

@@ -131,31 +131,5 @@ export function colorForHint(last4: string): string {
   return HINT_COLORS[n % HINT_COLORS.length];
 }
 
-/** UAE bank identities recognized from SMS sender IDs. */
-const BANKS: { re: RegExp; name: string; color: string }[] = [
-  { re: /enbd|emirates\s*nbd/i, name: 'Emirates NBD', color: '#2B4C9B' },
-  { re: /\bfab\b|first\s*abu\s*dhabi/i, name: 'FAB', color: '#00A3E0' },
-  { re: /adcb/i, name: 'ADCB', color: '#E4032E' },
-  { re: /adib/i, name: 'ADIB', color: '#0E5AA7' },
-  { re: /\bdib\b|dubai\s*islamic/i, name: 'DIB', color: '#00704A' },
-  { re: /mashreq/i, name: 'Mashreq', color: '#FF5E00' },
-  { re: /rak\s*bank/i, name: 'RAKBANK', color: '#D71920' },
-  { re: /\bcbd\b/i, name: 'CBD', color: '#00857D' },
-  { re: /hsbc/i, name: 'HSBC', color: '#DB0011' },
-  { re: /emirates\s*islamic|\bei\b/i, name: 'Emirates Islamic', color: '#00843D' },
-  { re: /\bsib\b|sharjah\s*islamic/i, name: 'Sharjah Islamic', color: '#006B54' },
-  { re: /\bnbf\b/i, name: 'NBF', color: '#5C6670' },
-  { re: /\bwio\b/i, name: 'Wio', color: '#C4F04A' },
-  { re: /\bliv\b/i, name: 'Liv', color: '#00D3B9' },
-  { re: /\bajman\s*bank/i, name: 'Ajman Bank', color: '#00747A' },
-  { re: /\bcbi\b/i, name: 'CBI', color: '#7A2048' },
-];
-
-/** Resolve a bank identity from an SMS sender ID (e.g. "AD-ADCB", "ENBD"). */
-export function bankFromSender(sender: string | undefined): { name: string; color: string } | null {
-  if (!sender) return null;
-  for (const b of BANKS) {
-    if (b.re.test(sender)) return { name: b.name, color: b.color };
-  }
-  return null;
-}
+/** Bank identity from an SMS sender ID, per the active market pack. */
+export { bankFromSender } from '@/lib/markets';

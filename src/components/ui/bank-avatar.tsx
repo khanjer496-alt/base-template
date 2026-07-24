@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/icon';
 import { useTheme } from '@/hooks/use-theme';
+import { bankDomainForName } from '@/lib/markets';
 import { merchantLogoUrl } from '@/lib/merchant-logos';
 
 interface BankAvatarProps {
@@ -24,7 +25,11 @@ export function BankAvatar({ name, color, icon = 'wallet', size = 42 }: BankAvat
   const theme = useTheme();
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const url = merchantLogoUrl(name);
+  // Any market's bank registry first, then the merchant map.
+  const bankDomain = bankDomainForName(name);
+  const url = bankDomain
+    ? `https://www.google.com/s2/favicons?domain=${bankDomain}&sz=128`
+    : merchantLogoUrl(name);
   const radius = Math.round(size * 0.31);
 
   const fallback = (

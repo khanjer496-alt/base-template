@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 
 import { setMonthStartDay as applyMonthStartDay, toISODate } from '@/lib/format';
+import { detectMarketId, setActiveMarket } from '@/lib/markets';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
 import { normalizeServiceName } from '@/lib/sms-parser';
 import type {
@@ -43,6 +44,7 @@ const EMPTY_STATE: AppState = {
   monthStartDay: 1,
   pro: false,
   trialStartTs: 0,
+  marketId: '',
 };
 
 let idCounter = 0;
@@ -90,6 +92,7 @@ type Action =
   | { type: 'setAppLock'; enabled: boolean }
   | { type: 'setMonthStartDay'; day: number }
   | { type: 'setPro'; pro: boolean }
+  | { type: 'setMarket'; id: string }
   | { type: 'setOnboarded' }
   | { type: 'restore'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'loadDemo'; state: Partial<Omit<AppState, 'hydrated'>> }
@@ -107,10 +110,16 @@ function reducer(state: AppState, action: Action): AppState {
       applyMonthStartDay(next.monthStartDay || 1);
       // The free Pro trial clock starts the first time the app ever opens.
       if (!next.trialStartTs) next.trialStartTs = Date.now();
+      // Localize automatically: country pack from the device locale, once.
+      if (!next.marketId) next.marketId = detectMarketId();
+      setActiveMarket(next.marketId);
       return next;
     }
     case 'setPro':
       return { ...state, pro: action.pro };
+    case 'setMarket':
+      setActiveMarket(action.id);
+      return { ...state, marketId: action.id };
     case 'setMonthStartDay': {
       const day = Math.min(28, Math.max(1, Math.round(action.day) || 1));
       applyMonthStartDay(day);
@@ -300,6 +309,7 @@ interface StoreValue {
   setAppLock: (enabled: boolean) => void;
   setMonthStartDay: (day: number) => void;
   setPro: (pro: boolean) => void;
+  setMarket: (id: string) => void;
   setOnboarded: () => void;
   exportBackup: () => string;
   restoreBackup: (json: string) => boolean;
@@ -635,6 +645,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'setPro', pro });
   }, []);
 
+  const setMarket = useCallback((id: string) => {
+    dispatch({ type: 'setMarket', id });
+  }, []);
+
   const exportBackup = useCallback(() => {
     const { hydrated: _h, ...data } = state;
     return JSON.stringify({ app: 'wafra', version: 1, exportedAt: new Date().toISOString(), data });
@@ -688,6 +702,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAppLock,
       setMonthStartDay,
       setPro,
+      setMarket,
       setOnboarded,
       exportBackup,
       restoreBackup,
@@ -720,6 +735,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAppLock,
       setMonthStartDay,
       setPro,
+      setMarket,
       setOnboarded,
       exportBackup,
       restoreBackup,

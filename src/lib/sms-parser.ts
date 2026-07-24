@@ -1,3 +1,4 @@
+import { getActiveMarket } from '@/lib/markets';
 import type { CategoryId, TransactionType } from '@/lib/types';
 
 export interface ParsedCard {
@@ -35,14 +36,14 @@ export interface ParsedSms {
 }
 
 const CREDIT_WORDS = /credit(?:ed)?|received|salary|refund(?:ed)?|deposit(?:ed)?|transferred to your/i;
-const DEBIT_WORDS = /purchase|debit(?:ed)?|spent|paid|payment(?!\s+(?:due|of\s+AED[\d,. ]+(?:is\s+)?received))|withdraw(?:n|al)?|was used|charged/i;
+// DEBIT_WORDS is market-compiled below (its payment guard embeds the currency).
 const BILL_DUE_WORDS = /\bdue\s+(?:on|by|date)\b|\bbill\b.*\b(?:due|generated|payable)\b|\bpayment\s+due\b|\bmin(?:imum)?\s+(?:amount\s+)?due\b/i;
 const BILL_MERCHANT_RE = /(?:your|the)\s+([A-Za-z0-9][A-Za-z0-9 &.'\-]{1,30}?)\s+bill\b/i;
 
 /** Credit-card statement: has "statement"/"total due" language plus a card reference. */
 const STATEMENT_RE = /statement|total\s+(?:amount\s+)?due|outstanding\s+(?:amount|balance)\s+of/i;
 /** Payment INTO a card: settles dues rather than spending. */
-const CARD_PAYMENT_RE = /payment\s+(?:of\s+(?:AED|Dhs?\.?)\s*[\d,.]+\s+)?(?:is\s+|was\s+|has\s+been\s+)?(?:received|credited|processed)\s+(?:towards?|to|on|for)\s+(?:your\s+)?(?:credit\s+)?card|received\s+payment\s+for\s+your\s+(?:credit\s+)?card|thank you for (?:your )?payment.*card|card\s+(?:no\.?\s*)?[\dXx*•]*\s*has\s+been\s+paid/i;
+// CARD_PAYMENT_RE is market-compiled below.
 
 /** OTP / verification messages describe an ATTEMPT, not a completed transaction. */
 const OTP_RE = /\botp\b|one[\s-]?time\s+(?:password|pin|code)|verification code|auth(?:oris|oriz)ation code|do not share|never share/i;
@@ -51,57 +52,77 @@ const PREAUTH_RE = /pre-?auth|amount\s+(?:has been\s+)?blocked|hold\s+(?:of|amou
 const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:processed|completed)|has failed/i;
 const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
 
-const AED_AMOUNT_RE = /(?:AED|Dhs?\.?|د\.إ)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+/**
+ * Currency-bound patterns compile from the ACTIVE MARKET's currency aliases
+ * (AED/Dhs for the UAE, SAR/SR for Saudi...) and are lazily recompiled when
+ * the market changes. Everything else in the grammar is market-agnostic.
+ */
+let AED_AMOUNT_RE = /x^/g;
+let AED_SUFFIX_RE = /x^/g;
+let MIN_DUE_RE = /x^/;
+let OUTSTANDING_RE = /x^/;
+let CARD_PAYMENT_RE = /x^/;
+let DEBIT_WORDS = /x^/;
+let FX_PREFIX_RE = /x^/;
+let FX_SUFFIX_RE = /x^/;
+let compiledForMarket = '';
+
+/** Units of each currency per 1 USD — cross rates derive from this table. */
+const UNITS_PER_USD: Record<string, number> = {
+  USD: 1, AED: 3.6725, SAR: 3.75, EUR: 0.85, GBP: 0.74, QAR: 3.64,
+  KWD: 0.307, BHD: 0.377, OMR: 0.385, INR: 83.5, PKR: 283, PHP: 56,
+  EGP: 48, CAD: 1.37, AUD: 1.52, JPY: 150, CNY: 7.2, CHF: 0.8, TRY: 41,
+};
+
+function ensureCurrencyPatterns(): void {
+  const m = getActiveMarket();
+  if (compiledForMarket === m.id) return;
+  compiledForMarket = m.id;
+  const CUR = m.currency.aliases.join('|');
+  AED_AMOUNT_RE = new RegExp(`(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'gi');
+  AED_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)\\s*(?:${CUR})(?![A-Za-z])`, 'gi');
+  MIN_DUE_RE = new RegExp(
+    `min(?:imum)?\\s+(?:amount\\s+)?due\\s*(?:of|:|is)?\\s*(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+  OUTSTANDING_RE = new RegExp(
+    `\\boutstanding(?:\\s+(?:amount|balance))?\\s*(?:is|:|of)?\\s*(?:${CUR})?\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+  CARD_PAYMENT_RE = new RegExp(
+    `payment\\s+(?:of\\s+(?:${CUR})\\s*[\\d,.]+\\s+)?(?:is\\s+|was\\s+|has\\s+been\\s+)?(?:received|credited|processed)\\s+(?:towards?|to|on|for)\\s+(?:your\\s+)?(?:credit\\s+)?card|received\\s+payment\\s+for\\s+your\\s+(?:credit\\s+)?card|thank you for (?:your )?payment.*card|card\\s+(?:no\\.?\\s*)?[\\dXx*•]*\\s*has\\s+been\\s+paid`, 'i');
+  DEBIT_WORDS = new RegExp(
+    `purchase|debit(?:ed)?|spent|paid|payment(?!\\s+(?:due|of\\s+(?:${CUR})[\\d,. ]+(?:is\\s+)?received))|withdraw(?:n|al)?|was used|charged`, 'i');
+  const codes = Object.keys(UNITS_PER_USD).filter((c) => c !== m.currency.code).join('|');
+  FX_PREFIX_RE = new RegExp(`\\b(${codes})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+  FX_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)\\s*(${codes})\\b`, 'i');
+}
+
+/** Minor units of the ACTIVE currency per 1 unit of `code`. */
+function fxMinorPerUnit(code: string): number {
+  const mine = UNITS_PER_USD[getActiveMarket().currency.code] ?? 1;
+  const theirs = UNITS_PER_USD[code];
+  return (mine / theirs) * 100;
+}
 /**
  * Foreign-currency fallback: online subscriptions (ChatGPT, Claude, PayPal
- * charges...) often arrive as "USD 20.00" with no AED figure at all. Rather
- * than dropping the transaction, convert with an approximate rate — USD is
- * pegged; the rest are refreshed per app release. An AED amount anywhere in
+ * charges...) often arrive as "USD 20.00" with no local-currency figure at
+ * all. Rather than dropping the transaction, convert with an approximate
+ * cross rate into the active market's currency. A local amount anywhere in
  * the message always wins over conversion.
  */
-const FX_RATE_FILS: Record<string, number> = {
-  USD: 367.25, // pegged
-  EUR: 430,
-  GBP: 497,
-  SAR: 97.9,
-  QAR: 100.9,
-  KWD: 1197,
-  BHD: 974,
-  OMR: 954,
-  INR: 4.4,
-  PKR: 1.3,
-  PHP: 6.5,
-  EGP: 7.6,
-  CAD: 268,
-  AUD: 242,
-  JPY: 2.45,
-  CNY: 51,
-  CHF: 460,
-  TRY: 9,
-};
-const FX_CODES = Object.keys(FX_RATE_FILS).join('|');
-const FX_PREFIX_RE = new RegExp(`\\b(${FX_CODES})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
-const FX_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)\\s*(${FX_CODES})\\b`, 'i');
-
 function extractForeignAmountFils(raw: string): number | null {
   const pre = raw.match(FX_PREFIX_RE);
   const suf = raw.match(FX_SUFFIX_RE);
   const code = (pre?.[1] ?? suf?.[2])?.toUpperCase();
   const num = pre?.[2] ?? suf?.[1];
-  if (!code || !num) return null;
-  const fils = Math.round(Number(num.replace(/,/g, '')) * FX_RATE_FILS[code]);
+  if (!code || !num || !(code in UNITS_PER_USD)) return null;
+  const fils = Math.round(Number(num.replace(/,/g, '')) * fxMinorPerUnit(code));
   if (!Number.isFinite(fils) || fils <= 0 || fils > MAX_PLAUSIBLE_AMOUNT_FILS) return null;
   return fils;
 }
-/** Amount BEFORE the currency: "1,234.56 AED debited" — common ENBD/FAB form. */
-const AED_SUFFIX_RE = /([\d,]+(?:\.\d{1,2})?)\s*(?:AED|Dhs?\.?)(?![A-Za-z])/gi;
 /**
  * A single SMS transaction above AED 1,000,000 is almost certainly a misread
  * balance, loan figure, or reference number — never spending.
  */
 const MAX_PLAUSIBLE_AMOUNT_FILS = 100_000_000;
 const BALANCE_PREFIX_RE = /(?:bal(?:ance)?|avl|avail(?:able)?|limit|outstanding|total)\s*(?:is|:|\.|-)?\s*$/i;
-const MIN_DUE_RE = /min(?:imum)?\s+(?:amount\s+)?due\s*(?:of|:|is)?\s*(?:AED|Dhs?\.?)\s*([\d,]+(?:\.\d{1,2})?)/i;
 
 /** Card identity: "Credit Card ending 1234", "Debit Card ..5678", "a/c XX9012", "card no. *1234". */
 const CARD_RE = /(credit|debit)?\s*card(?:\s*(?:no\.?|number))?\s*(?:ending(?:\s+in)?|\.\.+|x+|\*+)?\s*(\d{4})\b/i;
@@ -160,7 +181,8 @@ export function guessCategory(
     if (/refund|reversal|cashback|\binterest\b|\bprofit\b/i.test(text)) return 'other';
     return 'business';
   }
-  for (const [re, cat] of CATEGORY_KEYWORDS) {
+  // Market-local vocabulary wins over the global baseline.
+  for (const [re, cat] of [...getActiveMarket().keywords, ...CATEGORY_KEYWORDS]) {
     if (re.test(text)) return cat;
   }
   return 'other';
@@ -277,9 +299,7 @@ function extractMerchant(raw: string, re: RegExp): string {
 
 const SNAPSHOT_RE =
   /(?:avl|avail(?:able)?|remaining|total)\s*(?:credit\s+)?(limit|bal(?:ance)?|outstanding)[^0-9-]{0,12}([\d,]+(?:\.\d{1,2})?)/i;
-const OUTSTANDING_RE =
-  /\boutstanding(?:\s+(?:amount|balance))?\s*(?:is|:|of)?\s*(?:AED|Dhs?\.?)?\s*([\d,]+(?:\.\d{1,2})?)/i;
-const MAX_SNAPSHOT_FILS = 1_000_000_000; // AED 10M
+const MAX_SNAPSHOT_FILS = 1_000_000_000; // 10M in the local currency
 
 /** The balance / available-limit figure banks append to most alerts. */
 function extractSnapshot(raw: string): { fils: number; kind: SnapshotKind } | null {
@@ -344,6 +364,7 @@ export function parseSms(
 ): ParsedSms | null {
   const raw = message.trim();
   if (!raw) return null;
+  ensureCurrencyPatterns();
 
   if (OTP_RE.test(raw)) return null;
   if (DECLINED_RE.test(raw)) return null;

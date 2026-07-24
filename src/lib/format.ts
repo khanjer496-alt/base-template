@@ -1,3 +1,5 @@
+import { getActiveMarket } from '@/lib/markets';
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -20,9 +22,9 @@ export function formatAmount(fils: number, opts?: { decimals?: boolean }): strin
   return showDecimals ? `${base}.${String(cents).padStart(2, '0')}` : base;
 }
 
-/** "AED 1,234.56" */
+/** "AED 1,234.56" — currency symbol follows the active market. */
 export function formatAED(fils: number, opts?: { decimals?: boolean }): string {
-  return `AED ${formatAmount(fils, opts)}`;
+  return `${getActiveMarket().currency.display} ${formatAmount(fils, opts)}`;
 }
 
 /** Compact form for chart labels: "1.2k", "18k". */

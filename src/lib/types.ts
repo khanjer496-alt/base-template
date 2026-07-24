@@ -132,4 +132,6 @@ export interface AppState {
   pro: boolean;
   /** Epoch ms when the free Pro trial started (first launch). */
   trialStartTs: number;
+  /** Market pack id (country). Auto-detected on first launch; user-changeable. */
+  marketId: string;
 }

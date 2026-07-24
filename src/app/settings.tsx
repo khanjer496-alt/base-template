@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { MARKETS } from '@/lib/markets';
 import { isProActive, trialDaysLeft } from '@/lib/purchases';
 import { useStore } from '@/lib/store';
 import NotificationReader from '../../modules/notification-reader';
@@ -19,8 +20,15 @@ import NotificationReader from '../../modules/notification-reader';
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, setAppLock, setMonthStartDay, setPro, exportBackup, restoreBackup, loadDemoData, clearAll } =
+  const { state, setAppLock, setMonthStartDay, setPro, setMarket, exportBackup, restoreBackup, loadDemoData, clearAll } =
     useStore();
+
+  const market = MARKETS.find((m) => m.id === state.marketId) ?? MARKETS[0];
+  const cycleMarket = () => {
+    const i = MARKETS.findIndex((m) => m.id === market.id);
+    const next = MARKETS[(i + 1) % MARKETS.length];
+    setMarket(next.id);
+  };
 
   // Pro gating: locked features route to the paywall instead of running.
   // Everything is unlocked during the free trial.
@@ -232,6 +240,20 @@ export default function SettingsScreen() {
                   thumbColor={theme.background}
                 />
               </View>
+              {divider}
+              {/* Country pack: currency, banks, and merchant vocabulary. */}
+              <Pressable onPress={cycleMarket} style={styles.settingRow}>
+                <View style={styles.rowLeft}>
+                  <Icon name="bank" size={15} color={theme.textSecondary} />
+                  <View>
+                    <ThemedText type="small">Country</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {market.flag} {market.name} · {market.currency.code} · tap to change
+                    </ThemedText>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={15} color={theme.textSecondary} />
+              </Pressable>
               {divider}
               {/* Salary-day month start: "my month" begins when the salary lands. */}
               <View style={styles.settingRow}>
