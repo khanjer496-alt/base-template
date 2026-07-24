@@ -201,9 +201,13 @@ export function activeSubscriptions(subs: Subscription[]): Subscription[] {
   return subs.filter((s) => s.status === 'active');
 }
 
-/** Likely-cancelled subscriptions (no charge for well past their cadence). */
+/**
+ * Likely-cancelled subscriptions (no charge for well past their cadence).
+ * Restricted to KNOWN services: a shop you simply stopped visiting is not a
+ * cancelled subscription, and listing it as one reads as a bug.
+ */
 export function stoppedSubscriptions(subs: Subscription[]): Subscription[] {
-  return subs.filter((s) => s.status === 'stopped');
+  return subs.filter((s) => s.status === 'stopped' && KNOWN_SUBSCRIPTION_MERCHANTS.test(s.title));
 }
 
 /** Rent + utilities/telecom recurring commitments. */

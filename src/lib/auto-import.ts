@@ -178,6 +178,11 @@ export function buildImportPlan(
       if (p.date < staleDueCutoff) continue;
       const accountId = resolveAccount(p);
       noteSnapshot(accountId, p);
+      // Statement dues only exist for credit cards. If this last4 already
+      // resolved to a debit card or bank account, the "statement" is a
+      // misread — never attach a due to it.
+      const existing = state.accounts.find((a) => a.id === accountId);
+      if (existing && existing.cardType !== 'credit') continue;
       newDues.push({
         accountId,
         totalDueFils: p.amountFils,

@@ -187,6 +187,44 @@ ok('lapse: stopped subscriptions cost nothing in the monthly total',
 ok('lapse: helper splits active and stopped',
   subsLib.activeSubscriptions(lapsed).length === 1 && subsLib.stoppedSubscriptions(lapsed).length === 1);
 
+// Stopped list only shows KNOWN services — a shop you stopped visiting is not
+// a cancelled subscription.
+const lapsedShop = subsLib.detectSubscriptions(
+  [
+    subTx('Homebox Tomorrow', '2026-03-18', 31200, 'shopping'),
+    subTx('Homebox Tomorrow', '2026-04-18', 31200, 'shopping'),
+    subTx('Netflix', '2026-03-25', 5000),
+    subTx('Netflix', '2026-04-25', 5000),
+  ],
+  [],
+  new Date(2026, 6, 24),
+);
+const stoppedKnown = subsLib.stoppedSubscriptions(lapsedShop);
+ok('stopped list hides unknown merchants, keeps known services',
+  stoppedKnown.length === 1 && stoppedKnown[0].title === 'Netflix');
+
+// ── openDues guardrails: credit cards only, stale overdues decay ──
+const guardState = {
+  accounts: [
+    { id: 'cc', name: 'ENBD Credit Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff' },
+    { id: 'dc', name: 'FAB Debit Card', kind: 'card', cardType: 'debit', openingFils: 0, color: '#fff' },
+  ],
+  transactions: [],
+  cardDues: [
+    { id: 'g1', accountId: 'cc', totalDueFils: 406100, minDueFils: 20300, dueDate: '2026-07-10', paidFils: 0 },
+    { id: 'g2', accountId: 'dc', totalDueFils: 2000, minDueFils: 100, dueDate: '2026-07-06', paidFils: 0 },
+    { id: 'g3', accountId: 'cc', totalDueFils: 50000, minDueFils: 2500, dueDate: '2026-05-01', paidFils: 0 },
+  ],
+};
+const cardsGuardLib = require('./build/cards');
+const guardOpen = cardsGuardLib.openDues(guardState, new Date(2026, 6, 24));
+ok('openDues: debit-card dues never surface',
+  !guardOpen.some(d => d.due.id === 'g2'));
+ok('openDues: dues stale past 30d overdue decay away',
+  !guardOpen.some(d => d.due.id === 'g3'));
+ok('openDues: recent overdue credit due still shows',
+  guardOpen.some(d => d.due.id === 'g1' && d.status === 'overdue'));
+
 // Canonical names make variant descriptors group as ONE subscription
 const gpt = subsLib.detectSubscriptions([
   subTx('ChatGPT', '2026-05-03', 7341),

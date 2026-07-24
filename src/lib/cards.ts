@@ -62,11 +62,20 @@ export function dueWithStatus(state: AppState, due: CardDue, today: Date): DueWi
   };
 }
 
-/** Open dues (not settled, not fully paid), most urgent first. */
+/** How long an unpaid due stays actionable. Past this it is stale history —
+ *  the bank has issued a new statement (which replaces it) or it was paid
+ *  through a channel that never texted us. Nagging forever helps nobody. */
+const STALE_OVERDUE_DAYS = 30;
+
+/** Open dues (not settled, on credit cards, not stale), most urgent first. */
 export function openDues(state: AppState, today: Date): DueWithStatus[] {
+  const creditIds = new Set(
+    state.accounts.filter((a) => a.cardType === 'credit').map((a) => a.id),
+  );
   return state.cardDues
+    .filter((d) => creditIds.has(d.accountId))
     .map((d) => dueWithStatus(state, d, today))
-    .filter((d) => d.status !== 'settled')
+    .filter((d) => d.status !== 'settled' && d.daysLeft >= -STALE_OVERDUE_DAYS)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 }
 
