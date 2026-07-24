@@ -1,12 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -20,14 +19,17 @@ import { Icon } from '@/components/ui/icon';
 import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getCategory } from '@/lib/categories';
-import { formatAED, shortDate, toISODate } from '@/lib/format';
 import {
+  buildImportPlan,
   isSmsScanningAvailable,
   requestSmsPermission,
-  scanInboxForBankMessages,
-} from '@/lib/sms-inbox';
-import { parseSmsBatch, type ParsedSms } from '@/lib/sms-parser';
+  scanInbox,
+  type ImportPlan,
+  type ScannedSms,
+} from '@/lib/auto-import';
+import { getCategory } from '@/lib/categories';
+import { formatAED, shortDate } from '@/lib/format';
+import { parseSmsBatch } from '@/lib/sms-parser';
 import { useStore } from '@/lib/store';
 
 const SAMPLE = `Purchase of AED 187.50 with Debit Card ending 1234 at CARREFOUR MALL OF EMIRATES, DUBAI on 17/07/2026. Avl balance AED 12,345.67
@@ -36,48 +38,30 @@ AED 55.00 was debited from your account for payment to SALIK RECHARGE on 16/07/2
 
 Salary of AED 18,500.00 has been credited to your account ending 5678`;
 
+const PREVIEW_LIMIT = 60;
+
+/**
+ * Manual import runs the SAME pipeline as the automatic one on Home:
+ * scanInbox → buildImportPlan → importBatch. Cards are attributed by their
+ * last4, duplicates are skipped by message fingerprint, statements become
+ * dues. This screen just makes the plan visible before applying it.
+ */
 export default function ImportSmsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { auto } = useLocalSearchParams<{ auto?: string }>();
-  const { state, addTransaction, addBill } = useStore();
+  const { state, importBatch, addBill } = useStore();
 
   const [text, setText] = useState('');
-  const [parsed, setParsed] = useState<ParsedSms[] | null>(null);
-  const [excluded, setExcluded] = useState<Set<number>>(new Set());
-  const [accountId, setAccountId] = useState(state.accounts[0]?.id ?? '');
+  const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState<{ scanned: number; found: number } | null>(null);
   const [trackedBills, setTrackedBills] = useState<Set<number>>(new Set());
+  const [skippedCount, setSkippedCount] = useState(0);
 
-  // Accounts may hydrate (or change) after mount — keep a valid selection.
-  useEffect(() => {
-    if (!state.accounts.some((a) => a.id === accountId)) {
-      setAccountId(state.accounts[0]?.id ?? '');
-    }
-  }, [state.accounts, accountId]);
-
-  const txParsed = useMemo(() => (parsed ?? []).filter((p) => p.kind === 'transaction'), [parsed]);
-  const billParsed = useMemo(() => {
-    const existing = new Set(state.bills.map((b) => b.title.toLowerCase()));
-    return (parsed ?? []).filter(
-      (p) =>
-        p.kind === 'billDue' &&
-        p.merchant !== 'Bill payment' &&
-        !existing.has(p.merchant.toLowerCase()),
-    );
-  }, [parsed, state.bills]);
-
-  const selectedCount = txParsed.length - excluded.size;
-  const allSelected = excluded.size === 0;
-
-  const runParse = (input: string) => {
-    setParsed(parseSmsBatch(input));
-    setExcluded(new Set());
-    setTrackedBills(new Set());
-  };
-
-  const scanInbox = useCallback(async () => {
+  const runScan = async () => {
     setScanning(true);
+    setProgress(null);
     try {
       const granted = await requestSmsPermission();
       if (!granted) {
@@ -87,73 +71,80 @@ export default function ImportSmsScreen() {
         );
         return;
       }
-      const found = await scanInboxForBankMessages(state.transactions);
-      setParsed(found);
-      setExcluded(new Set());
+      // Full history: fingerprints make rescans safe (no duplicates).
+      const { parsed, newestTs } = await scanInbox(0, state.merchantOverrides, (scanned, found) =>
+        setProgress({ scanned, found }),
+      );
+      const p = buildImportPlan(parsed, state, newestTs);
+      const txLike = parsed.filter((x) => x.kind === 'transaction' || x.kind === 'cardPayment');
+      setSkippedCount(Math.max(0, txLike.length - p.txCount));
+      setPlan(p);
       setTrackedBills(new Set());
-      if (found.length === 0) {
-        Alert.alert(
-          'Nothing new found',
-          'No unrecorded bank messages in the last 90 days. Transactions you already imported are skipped automatically.',
-        );
+      if (p.txCount === 0 && p.dueCount === 0 && p.billDues.length === 0) {
+        Alert.alert('Up to date', 'Everything in your inbox is already imported.');
       }
     } finally {
       setScanning(false);
     }
-  }, [state.transactions]);
-
-  const toggle = (i: number) => {
-    const next = new Set(excluded);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    setExcluded(next);
   };
 
-  const toggleAll = () => {
-    setExcluded(allSelected ? new Set(txParsed.map((_, i) => i)) : new Set());
+  const runParse = (input: string) => {
+    const parsed: ScannedSms[] = parseSmsBatch(input, state.merchantOverrides);
+    const p = buildImportPlan(parsed, state, state.lastScanTs);
+    const txLike = parsed.filter((x) => x.kind === 'transaction' || x.kind === 'cardPayment');
+    setSkippedCount(Math.max(0, txLike.length - p.txCount));
+    setPlan(p);
+    setTrackedBills(new Set());
   };
 
-  const todayISO = useMemo(() => toISODate(new Date()), []);
-
-  const importSelected = () => {
-    if (!accountId) return;
-    txParsed.forEach((p, i) => {
-      if (excluded.has(i)) return;
-      addTransaction({
-        type: p.type,
-        amountFils: p.amountFils,
-        category: p.categoryGuess,
-        accountId,
-        title: p.merchant,
-        date: p.date ?? todayISO,
-      });
-    });
+  const applyPlan = () => {
+    if (!plan) return;
+    importBatch(plan.batch);
     router.back();
   };
 
   useEffect(() => {
     if (auto === '1' && isSmsScanningAvailable()) {
-      scanInbox();
+      runScan();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Preview account name: index refs point into the plan's new accounts.
+  const accountName = (ref: string): string => {
+    if (/^\d+$/.test(ref)) return plan?.batch.newAccounts[Number(ref)]?.name ?? 'New card';
+    return state.accounts.find((a) => a.id === ref)?.name ?? '';
+  };
+
+  const previewRows = useMemo(
+    () => (plan?.batch.transactions ?? []).slice(0, PREVIEW_LIMIT),
+    [plan],
+  );
+  const newBills = useMemo(() => {
+    const existing = new Set(state.bills.map((b) => b.title.toLowerCase()));
+    return (plan?.billDues ?? []).filter((p) => !existing.has(p.merchant.toLowerCase()));
+  }, [plan, state.bills]);
 
   const header = (
     <View style={styles.headerContent}>
       <ThemedText type="small" themeColor="textSecondary">
         {isSmsScanningAvailable()
-          ? 'Scan your inbox for bank alerts, or paste messages below (separate multiple messages with a blank line). Everything is processed on this device.'
-          : 'Paste one or more bank alert messages below (separate multiple messages with a blank line). Everything is processed on this device.'}
+          ? 'Rescans your whole inbox and shows what would be added. Cards are matched automatically and nothing imports twice. You can also paste messages below.'
+          : 'Paste one or more bank alert messages below (separate messages with a blank line). Everything is processed on this device.'}
       </ThemedText>
 
       {isSmsScanningAvailable() && (
         <Pressable
-          onPress={scanInbox}
+          onPress={runScan}
           disabled={scanning}
           style={[styles.scanBtn, { backgroundColor: theme.primary, opacity: scanning ? 0.6 : 1 }]}>
           <Icon name="search" size={19} color={theme.onPrimary} strokeWidth={2.4} />
           <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 15 }}>
-            {scanning ? 'Scanning inbox…' : 'Scan phone inbox (90 days)'}
+            {scanning
+              ? progress
+                ? `Scanning… ${progress.scanned} messages · ${progress.found} found`
+                : 'Scanning inbox…'
+              : 'Scan full inbox'}
           </ThemedText>
         </Pressable>
       )}
@@ -196,22 +187,61 @@ export default function ImportSmsScreen() {
         </Pressable>
       </View>
 
-      {parsed !== null && parsed.length === 0 && (
-        <Card style={styles.emptyCard}>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-            No bank transactions found. Make sure you pasted the full message, including the AED
-            amount.
-          </ThemedText>
+      {plan !== null && (
+        <Card style={styles.summaryCard}>
+          <View style={styles.summaryLine}>
+            <ThemedText type="smallBold" tabular>
+              {plan.txCount}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              new transaction{plan.txCount === 1 ? '' : 's'}
+            </ThemedText>
+          </View>
+          {plan.newAccountCount > 0 && (
+            <View style={styles.summaryLine}>
+              <ThemedText type="smallBold" tabular>
+                {plan.newAccountCount}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                new card{plan.newAccountCount === 1 ? '' : 's'} discovered
+              </ThemedText>
+            </View>
+          )}
+          {plan.dueCount > 0 && (
+            <View style={styles.summaryLine}>
+              <ThemedText type="smallBold" tabular>
+                {plan.dueCount}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                credit-card due{plan.dueCount === 1 ? '' : 's'}
+              </ThemedText>
+            </View>
+          )}
+          {skippedCount > 0 && (
+            <View style={styles.summaryLine}>
+              <ThemedText type="smallBold" tabular>
+                {skippedCount}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                already imported · skipped
+              </ThemedText>
+            </View>
+          )}
+          {plan.txCount === 0 && plan.dueCount === 0 && (
+            <ThemedText type="small" themeColor="textSecondary">
+              Nothing new to add.
+            </ThemedText>
+          )}
         </Card>
       )}
 
-      {billParsed.length > 0 && (
+      {newBills.length > 0 && (
         <View style={styles.fieldBlock}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
             <Icon name="calendar" size={15} color={theme.gold} />
             <ThemedText type="smallBold">Bill reminders detected</ThemedText>
           </View>
-          {billParsed.map((p, i) => {
+          {newBills.map((p, i) => {
             const meta = getCategory(p.categoryGuess);
             const tracked = trackedBills.has(i);
             return (
@@ -254,85 +284,46 @@ export default function ImportSmsScreen() {
         </View>
       )}
 
-      {txParsed.length > 0 && (
-        <>
-          <View style={styles.fieldBlock}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Import into account
-            </ThemedText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.accountRow}>
-              {state.accounts.map((a) => {
-                const active = accountId === a.id;
-                return (
-                  <Pressable
-                    key={a.id}
-                    onPress={() => setAccountId(a.id)}
-                    style={[
-                      styles.accountChip,
-                      {
-                        backgroundColor: active ? `${a.color}26` : theme.backgroundElement,
-                        borderColor: active ? a.color : theme.cardBorder,
-                      },
-                    ]}>
-                    <View style={[styles.accountDot, { backgroundColor: a.color }]} />
-                    <ThemedText type="small">{a.name}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          <View style={styles.selectRow}>
-            <ThemedText type="smallBold">
-              {selectedCount} of {txParsed.length} selected
-            </ThemedText>
-            <Pressable onPress={toggleAll}>
-              <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-                {allSelected ? 'Deselect all' : 'Select all'}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </>
+      {previewRows.length > 0 && (
+        <ThemedText type="micro" themeColor="textSecondary">
+          {plan && plan.txCount > PREVIEW_LIMIT
+            ? `Preview of the first ${PREVIEW_LIMIT} of ${plan.txCount}`
+            : 'What will be added'}
+        </ThemedText>
       )}
     </View>
   );
 
-  const renderRow = ({ item: p, index: i }: { item: ParsedSms; index: number }) => {
-    const meta = getCategory(p.categoryGuess);
-    const included = !excluded.has(i);
+  const renderRow = ({
+    item: t,
+    index: i,
+  }: {
+    item: NonNullable<typeof plan>['batch']['transactions'][number];
+    index: number;
+  }) => {
+    const meta = getCategory(t.category);
     return (
-      <Pressable onPress={() => toggle(i)} style={styles.rowWrap}>
-        <Card style={[styles.previewCard, !included && { opacity: 0.45 }]}>
-          <View
-            style={[
-              styles.checkbox,
-              {
-                backgroundColor: included ? theme.primary : 'transparent',
-                borderColor: included ? theme.primary : theme.textSecondary,
-              },
-            ]}>
-            {included && <Icon name="check" size={13} color={theme.onPrimary} strokeWidth={3} />}
-          </View>
-          <MerchantAvatar title={p.merchant} category={p.categoryGuess} size={40} />
+      <View style={styles.rowWrap}>
+        <Card style={styles.previewCard}>
+          <MerchantAvatar title={t.title} category={t.category} size={40} />
           <View style={styles.previewInfo}>
             <ThemedText type="smallBold" numberOfLines={1}>
-              {p.merchant}
+              {t.title}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-              {meta.label} · {p.date ? shortDate(p.date) : 'today'}
+              {meta.label} · {shortDate(t.date)}
+              {accountName(t.accountId) ? ` · ${accountName(t.accountId)}` : ''}
             </ThemedText>
           </View>
           <ThemedText
             type="smallBold"
-            style={{ color: p.type === 'income' ? theme.income : theme.text }}>
-            {p.type === 'income' ? '+' : '−'}
-            {formatAED(p.amountFils, { decimals: false })}
+            tabular
+            style={{ color: t.type === 'income' ? theme.income : theme.text }}>
+            {t.type === 'income' ? '+' : '−'}
+            {formatAED(t.amountFils, { decimals: false })}
           </ThemedText>
         </Card>
-      </Pressable>
+      </View>
     );
   };
 
@@ -355,10 +346,9 @@ export default function ImportSmsScreen() {
           </View>
 
           <FlatList
-            data={txParsed}
+            data={previewRows}
             keyExtractor={(_, i) => String(i)}
             renderItem={renderRow}
-            extraData={excluded}
             ListHeaderComponent={header}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
@@ -368,21 +358,15 @@ export default function ImportSmsScreen() {
             windowSize={7}
           />
 
-          {txParsed.length > 0 && (
+          {plan !== null && (plan.txCount > 0 || plan.dueCount > 0) && (
             <View style={styles.footer}>
               <Pressable
-                onPress={importSelected}
-                disabled={selectedCount === 0 || !accountId}
-                style={[
-                  styles.importBtn,
-                  {
-                    backgroundColor: theme.primary,
-                    opacity: selectedCount === 0 || !accountId ? 0.4 : 1,
-                  },
-                ]}>
+                onPress={applyPlan}
+                style={[styles.importBtn, { backgroundColor: theme.primary }]}>
                 <Icon name="check" size={20} color={theme.onPrimary} strokeWidth={2.6} />
                 <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 16 }}>
-                  Import {selectedCount} transaction{selectedCount === 1 ? '' : 's'}
+                  Import {plan.txCount} transaction{plan.txCount === 1 ? '' : 's'}
+                  {plan.dueCount > 0 ? ` + ${plan.dueCount} due${plan.dueCount === 1 ? '' : 's'}` : ''}
                 </ThemedText>
               </Pressable>
             </View>
@@ -464,36 +448,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two + 4,
     paddingHorizontal: Spacing.three,
   },
-  emptyCard: {
-    alignItems: 'center',
+  summaryCard: {
+    gap: Spacing.one,
   },
-  emptyText: {
-    textAlign: 'center',
+  summaryLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.two,
   },
   fieldBlock: {
     gap: Spacing.two,
-  },
-  accountRow: {
-    gap: Spacing.two,
-  },
-  accountChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.two + 4,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-  },
-  accountDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  selectRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   rowWrap: {
     marginBottom: Spacing.two,
@@ -503,14 +467,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two + 2,
     paddingVertical: Spacing.two + 4,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   previewInfo: {
     flex: 1,

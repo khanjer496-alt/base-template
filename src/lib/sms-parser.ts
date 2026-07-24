@@ -402,7 +402,11 @@ export function parseSms(
 
   const hasDebit = DEBIT_WORDS.test(raw);
   const hasCredit = CREDIT_WORDS.test(raw);
-  const isBillDue = BILL_DUE_WORDS.test(raw) && !hasDebit && !hasCredit;
+  // Carrier-billed store purchases ("App Store & Google Play bill") are
+  // receipts, never utility bills — treating them as dues produced garbage
+  // reminders with balance-sized amounts.
+  const carrierBilling = /app\s*store|google play|play store|itunes/i.test(raw);
+  const isBillDue = BILL_DUE_WORDS.test(raw) && !hasDebit && !hasCredit && !carrierBilling;
 
   if (PROMO_RE.test(raw) && !hasDebit && !hasCredit && !isBillDue) return null;
   if (!hasDebit && !hasCredit && !isBillDue) return null;
@@ -425,8 +429,13 @@ export function parseSms(
     .replace(/(?:\s+COM|\.com)$/i, '') // "NOON COM" / "noon.com" → "NOON"
     .trim();
   if (!merchant) {
-    // No merchant in the message: name the row by what actually happened.
-    merchant = isBillDue
+    // No "at/to/from" clause — but a known service named ANYWHERE in the
+    // message still identifies the row (many card descriptors put the
+    // merchant at the end with no preposition). Generic "Card purchase"
+    // titles can never group into subscriptions, so this matters.
+    const service =
+      !isBillDue && type === 'expense' && !transferHint ? normalizeServiceName(raw) : null;
+    merchant = service ?? (isBillDue
       ? 'Bill payment'
       : type === 'income'
         ? DEPOSIT_RE.test(raw)
@@ -442,7 +451,7 @@ export function parseSms(
               ? 'Cheque'
               : FEE_RE.test(raw)
                 ? 'Bank fee'
-                : 'Card purchase';
+                : 'Card purchase');
   } else {
     merchant = normalizeServiceName(merchant) ?? titleCase(merchant);
   }

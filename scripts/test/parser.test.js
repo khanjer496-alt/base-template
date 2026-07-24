@@ -290,5 +290,15 @@ t('suffix-form foreign amount converts too',
   'Debited 5.00 USD at PAYPAL *REALDEBRID using Credit Card ending 4821',
   { merchant: 'Real-Debrid', amountFils: 1836 });
 
+// ── carrier-billed store purchases are never utility-bill reminders ──
+t('App Store / Google Play "bill" message is not a bill due',
+  'Your App Store & Google Play bill of AED 7,551.00 is due on 28/07/2026',
+  null);
+
+// ── known service anywhere in the message names the row ──
+t('service name found without an at/to/from clause',
+  'USD 20.00 charged on Credit Card ending 4499 - OPENAI CHATGPT SUBSCRIPTION',
+  { merchant: 'ChatGPT', amountFils: 7345 });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
