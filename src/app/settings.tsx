@@ -13,11 +13,35 @@ import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useStore } from '@/lib/store';
+import NotificationReader from '../../modules/notification-reader';
 
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, setAppLock, exportBackup, restoreBackup, loadDemoData, clearAll } = useStore();
+  const { state, setAppLock, setMonthStartDay, exportBackup, restoreBackup, loadDemoData, clearAll } =
+    useStore();
+
+  const notifAvailable = Platform.OS === 'android' && NotificationReader != null;
+  const notifEnabled = notifAvailable && NotificationReader != null && NotificationReader.isEnabled();
+  const onNotificationAccess = () => {
+    if (!notifAvailable || !NotificationReader) {
+      Alert.alert('Not available', 'Bank app notifications work on the phone app only.');
+      return;
+    }
+    Alert.alert(
+      'Bank app notifications',
+      'Some banks send push notifications instead of SMS. Grant Wafra notification access and ' +
+        'money alerts import automatically. Only alerts that mention an amount are kept, and ' +
+        'they never leave this phone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: notifEnabled ? 'Open settings' : 'Enable',
+          onPress: () => NotificationReader?.openSettings(),
+        },
+      ],
+    );
+  };
 
   const toggleAppLock = async (enabled: boolean) => {
     if (!enabled) {
@@ -139,6 +163,21 @@ export default function SettingsScreen() {
               {divider}
               {row('mail', 'Import from bank SMS', () => router.push('/import-sms'))}
               {divider}
+              <Pressable onPress={onNotificationAccess} style={styles.settingRow}>
+                <View style={styles.rowLeft}>
+                  <Icon name="mail" size={15} color={theme.textSecondary} />
+                  <View>
+                    <ThemedText type="small">Bank app notifications (beta)</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {notifEnabled
+                        ? 'On · push alerts import automatically'
+                        : 'Off · for banks that push instead of SMS'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={15} color={theme.textSecondary} />
+              </Pressable>
+              {divider}
               <View style={styles.settingRow}>
                 <View style={styles.rowLeft}>
                   <Icon name="lock" size={15} color={theme.textSecondary} />
@@ -150,6 +189,36 @@ export default function SettingsScreen() {
                   trackColor={{ true: theme.primary, false: theme.track }}
                   thumbColor={theme.background}
                 />
+              </View>
+              {divider}
+              {/* Salary-day month start: "my month" begins when the salary lands. */}
+              <View style={styles.settingRow}>
+                <View style={styles.rowLeft}>
+                  <Icon name="calendar" size={15} color={theme.textSecondary} />
+                  <View>
+                    <ThemedText type="small">Month starts on day</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {state.monthStartDay > 1
+                        ? `Your money month runs day ${state.monthStartDay} to day ${state.monthStartDay - 1}`
+                        : 'Calendar months (1st to end)'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={() => setMonthStartDay(Math.max(1, state.monthStartDay - 1))}
+                    style={[styles.stepBtn, { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText type="smallBold">−</ThemedText>
+                  </Pressable>
+                  <ThemedText type="smallBold" tabular style={styles.stepValue}>
+                    {state.monthStartDay}
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => setMonthStartDay(Math.min(28, state.monthStartDay + 1))}
+                    style={[styles.stepBtn, { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText type="smallBold">+</ThemedText>
+                  </Pressable>
+                </View>
               </View>
             </View>
           </View>
@@ -212,6 +281,22 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.two,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  stepBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepValue: {
+    minWidth: 22,
+    textAlign: 'center',
   },
   settingRow: {
     flexDirection: 'row',

@@ -54,10 +54,44 @@ export function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** "2026-07" key for a date or ISO string. */
+/**
+ * Salary-day month start. With startDay = 25, the "July" money month runs
+ * 25 Jul – 24 Aug, matching when salaries actually land. 1 = calendar months.
+ * Set once from persisted settings; every month grouping in the app follows.
+ */
+let MONTH_START_DAY = 1;
+
+export function setMonthStartDay(day: number): void {
+  const d = Math.round(day);
+  MONTH_START_DAY = Number.isFinite(d) ? Math.min(28, Math.max(1, d)) : 1;
+}
+
+export function getMonthStartDay(): number {
+  return MONTH_START_DAY;
+}
+
+/** "2026-07" key for a date or ISO string, honoring the month start day. */
 export function monthKey(date: string | Date): string {
   const iso = typeof date === 'string' ? date : toISODate(date);
+  if (MONTH_START_DAY > 1 && Number(iso.slice(8, 10)) < MONTH_START_DAY) {
+    return shiftMonthKey(iso.slice(0, 7), -1);
+  }
   return iso.slice(0, 7);
+}
+
+/** First covered ISO date of a report month. */
+export function monthStartISO(key: string): string {
+  return `${key}-${String(MONTH_START_DAY).padStart(2, '0')}`;
+}
+
+/** Last covered ISO date of a report month (day before the next start). */
+export function monthEndISO(key: string): string {
+  if (MONTH_START_DAY === 1) {
+    return `${key}-${String(daysInMonth(key)).padStart(2, '0')}`;
+  }
+  const d = new Date(`${monthStartISO(shiftMonthKey(key, 1))}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return toISODate(d);
 }
 
 export function monthLabel(key: string, short = false): string {

@@ -52,6 +52,47 @@ const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:p
 const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
 
 const AED_AMOUNT_RE = /(?:AED|Dhs?\.?|د\.إ)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+/**
+ * Foreign-currency fallback: online subscriptions (ChatGPT, Claude, PayPal
+ * charges...) often arrive as "USD 20.00" with no AED figure at all. Rather
+ * than dropping the transaction, convert with an approximate rate — USD is
+ * pegged; the rest are refreshed per app release. An AED amount anywhere in
+ * the message always wins over conversion.
+ */
+const FX_RATE_FILS: Record<string, number> = {
+  USD: 367.25, // pegged
+  EUR: 430,
+  GBP: 497,
+  SAR: 97.9,
+  QAR: 100.9,
+  KWD: 1197,
+  BHD: 974,
+  OMR: 954,
+  INR: 4.4,
+  PKR: 1.3,
+  PHP: 6.5,
+  EGP: 7.6,
+  CAD: 268,
+  AUD: 242,
+  JPY: 2.45,
+  CNY: 51,
+  CHF: 460,
+  TRY: 9,
+};
+const FX_CODES = Object.keys(FX_RATE_FILS).join('|');
+const FX_PREFIX_RE = new RegExp(`\\b(${FX_CODES})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+const FX_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)\\s*(${FX_CODES})\\b`, 'i');
+
+function extractForeignAmountFils(raw: string): number | null {
+  const pre = raw.match(FX_PREFIX_RE);
+  const suf = raw.match(FX_SUFFIX_RE);
+  const code = (pre?.[1] ?? suf?.[2])?.toUpperCase();
+  const num = pre?.[2] ?? suf?.[1];
+  if (!code || !num) return null;
+  const fils = Math.round(Number(num.replace(/,/g, '')) * FX_RATE_FILS[code]);
+  if (!Number.isFinite(fils) || fils <= 0 || fils > MAX_PLAUSIBLE_AMOUNT_FILS) return null;
+  return fils;
+}
 /** Amount BEFORE the currency: "1,234.56 AED debited" — common ENBD/FAB form. */
 const AED_SUFFIX_RE = /([\d,]+(?:\.\d{1,2})?)\s*(?:AED|Dhs?\.?)(?![A-Za-z])/gi;
 /**
@@ -216,6 +257,10 @@ function extractAmountFils(raw: string, allowBalanceFallback: boolean): number |
   return allowBalanceFallback ? first : null;
 }
 
+function amountWithFx(raw: string, allowBalanceFallback: boolean): number | null {
+  return extractAmountFils(raw, allowBalanceFallback) ?? extractForeignAmountFils(raw);
+}
+
 function extractMerchant(raw: string, re: RegExp): string {
   re.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -314,7 +359,7 @@ export function parseSms(
   // since these messages also contain the word "payment". Only credit cards
   // receive payments, whatever the message called the card.
   if (card?.kind !== 'account' && card && CARD_PAYMENT_RE.test(raw)) {
-    const amountFils = extractAmountFils(raw, true);
+    const amountFils = amountWithFx(raw, true);
     if (!amountFils) return null;
     return {
       kind: 'cardPayment',
@@ -335,7 +380,7 @@ export function parseSms(
 
   // Credit-card statement with dues. Statements only exist for credit cards.
   if (card && STATEMENT_RE.test(raw) && BILL_DUE_WORDS.test(raw)) {
-    const amountFils = extractAmountFils(raw, true);
+    const amountFils = amountWithFx(raw, true);
     if (!amountFils) return null;
     const minMatch = raw.match(MIN_DUE_RE);
     return {
@@ -362,7 +407,7 @@ export function parseSms(
   if (PROMO_RE.test(raw) && !hasDebit && !hasCredit && !isBillDue) return null;
   if (!hasDebit && !hasCredit && !isBillDue) return null;
 
-  const amountFils = extractAmountFils(raw, isBillDue);
+  const amountFils = amountWithFx(raw, isBillDue);
   if (!amountFils) return null;
 
   const type: TransactionType = !isBillDue && hasCredit && !hasDebit ? 'income' : 'expense';

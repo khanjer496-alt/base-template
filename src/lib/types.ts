@@ -126,4 +126,6 @@ export interface AppState {
   onboarded: boolean;
   userName: string;
   appLock: boolean;
+  /** Day of month the reporting month begins (salary day). 1 = calendar months. */
+  monthStartDay: number;
 }

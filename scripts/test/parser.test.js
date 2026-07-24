@@ -109,9 +109,9 @@ t('multi-currency prefers AED in parens',
   'Purchase of USD 9.99 (AED 36.70) at NETFLIX with Credit Card ending 4821',
   { amountFils: 3670, merchant: 'Netflix', category: 'entertainment' });
 
-t('foreign-only currency skipped',
+t('foreign-only currency converts to AED at the peg',
   'Purchase of USD 49.99 at STEAM GAMES with Credit Card ending 4821',
-  null);
+  { amountFils: 18359 });
 
 const ov = parseSms('Purchase of AED 55.00 at MYSTERY VENDOR with card ending 11', { 'mystery vendor': 'health' });
 if (ov && ov.categoryGuess === 'health') { pass++; console.log('✓ merchant override applied'); }
@@ -276,6 +276,19 @@ t('Anthropic descriptor becomes Claude',
 t('Apple billing descriptor becomes Apple',
   'Purchase of AED 19.99 at APPLE.COM/BILL ITUNES with Credit Card ending 4821',
   { merchant: 'Apple' });
+
+// ── foreign-currency fallback conversion ──
+t('USD-only subscription charge converts at the peg',
+  'Your Credit Card ending 4499 was used for USD 20.00 at OPENAI *CHATGPT',
+  { merchant: 'ChatGPT', amountFils: 7345 });
+
+t('AED figure always beats foreign conversion',
+  'Purchase of USD 9.99 (AED 36.70) at NETFLIX.COM with Credit Card ending 1234',
+  { amountFils: 3670 });
+
+t('suffix-form foreign amount converts too',
+  'Debited 5.00 USD at PAYPAL *REALDEBRID using Credit Card ending 4821',
+  { merchant: 'Real-Debrid', amountFils: 1836 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

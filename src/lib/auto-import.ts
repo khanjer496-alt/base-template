@@ -1,5 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 
+import NotificationReader from '../../modules/notification-reader';
 import SmsReader, { type RawSms } from '../../modules/sms-reader';
 import { bankFromSender, cardAccountName, colorForHint } from '@/lib/cards';
 import { toISODate } from '@/lib/format';
@@ -72,6 +73,30 @@ export async function scanInbox(
     onProgress?.(scannedCount, parsed.length);
     untilMs = batch[batch.length - 1].date; // page ends exclusive, walk backwards
     if (batch.length < PAGE_SIZE) break;
+  }
+
+  // Bank-app push notifications captured by the notification listener (banks
+  // are shifting from SMS to push). Same parser, same dedupe fingerprints.
+  if (NotificationReader?.isEnabled?.()) {
+    try {
+      const captured = await NotificationReader.getCaptured(sinceMs);
+      for (const n of captured) {
+        scannedCount += 1;
+        if (n.ts > newestTs) newestTs = n.ts;
+        const p = parseSms(`${n.title} ${n.text}`.trim(), overrides);
+        if (!p) continue;
+        parsed.push({
+          ...p,
+          date: p.date ?? toISODate(new Date(n.ts)),
+          smsTs: n.ts,
+          // Package names usually contain the bank ("com.enbd...", "adcb...").
+          sender: `${n.pkg} ${n.title}`,
+        });
+      }
+      onProgress?.(scannedCount, parsed.length);
+    } catch {
+      // Listener data is best-effort; SMS results stand on their own.
+    }
   }
 
   // Oldest-first so account auto-creation sees the earliest occurrence first.

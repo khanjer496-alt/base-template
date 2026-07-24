@@ -1,4 +1,4 @@
-import { daysInMonth, monthKey, monthLabel, shortDate, toISODate } from '@/lib/format';
+import { monthEndISO, monthKey, monthLabel, monthStartISO, shortDate, toISODate } from '@/lib/format';
 import type { Transaction } from '@/lib/types';
 
 /**
@@ -97,9 +97,16 @@ export function elapsedDays(p: PeriodLike, today: Date, transactions: Transactio
   const todayISO = toISODate(today);
   switch (period.mode) {
     case 'month': {
-      if (period.key === monthKey(today)) return today.getDate();
-      if (period.key > monthKey(today)) return 0;
-      return daysInMonth(period.key);
+      const nowKey = monthKey(today);
+      if (period.key > nowKey) return 0;
+      const endISO = period.key === nowKey ? todayISO : monthEndISO(period.key);
+      return (
+        Math.round(
+          (new Date(`${endISO}T12:00:00`).getTime() -
+            new Date(`${monthStartISO(period.key)}T12:00:00`).getTime()) /
+            86400000,
+        ) + 1
+      );
     }
     case 'year': {
       if (period.year === today.getFullYear()) return dayOfYear(today);
@@ -139,7 +146,7 @@ export function periodEndISO(p: PeriodLike, today: Date): string {
   switch (period.mode) {
     case 'month': {
       if (period.key >= monthKey(today)) return todayISO;
-      return `${period.key}-${String(daysInMonth(period.key)).padStart(2, '0')}`;
+      return monthEndISO(period.key);
     }
     case 'year':
       if (period.year >= today.getFullYear()) return todayISO;

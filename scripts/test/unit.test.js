@@ -384,5 +384,22 @@ ok('period: movers empty for all-time', an.categoryMovers(aTx, { mode: 'all' }).
 const rangeTop = an.topMerchants(aTx, { mode: 'range', from: '2026-07-01', to: '2026-07-05' });
 ok('period: range-scoped top merchants', rangeTop[0].totalFils === 50000 && rangeTop.length === 2);
 
+// ── salary-day month start (runs last: it mutates the global grouping) ──
+fmt.setMonthStartDay(25);
+ok('salary month: day before start belongs to previous month',
+  fmt.monthKey('2026-07-24') === '2026-06');
+ok('salary month: start day opens the new month', fmt.monthKey('2026-07-25') === '2026-07');
+ok('salary month: start ISO uses the start day', fmt.monthStartISO('2026-07') === '2026-07-25');
+ok('salary month: end is day before next start', fmt.monthEndISO('2026-06') === '2026-07-24');
+ok('salary month: inPeriod follows the shifted boundary',
+  per.inPeriod('2026-07-24', { mode: 'month', key: '2026-06' }) &&
+  !per.inPeriod('2026-07-24', { mode: 'month', key: '2026-07' }));
+ok('salary month: elapsed days counted from the start day',
+  per.elapsedDays({ mode: 'month', key: '2026-06' }, new Date(2026, 6, 24), []) === 30);
+ok('salary month: period end for a past month',
+  per.periodEndISO({ mode: 'month', key: '2026-05' }, new Date(2026, 6, 24)) === '2026-06-24');
+fmt.setMonthStartDay(1);
+ok('calendar months restore cleanly', fmt.monthKey('2026-07-24') === '2026-07');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

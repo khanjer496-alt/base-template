@@ -9,7 +9,7 @@ import React, {
   useRef,
 } from 'react';
 
-import { toISODate } from '@/lib/format';
+import { setMonthStartDay as applyMonthStartDay, toISODate } from '@/lib/format';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
 import { normalizeServiceName } from '@/lib/sms-parser';
 import type {
@@ -40,6 +40,7 @@ const EMPTY_STATE: AppState = {
   onboarded: false,
   userName: 'there',
   appLock: false,
+  monthStartDay: 1,
 };
 
 let idCounter = 0;
@@ -85,6 +86,7 @@ type Action =
   | { type: 'editGoal'; id: string; patch: Partial<Omit<Goal, 'id'>> }
   | { type: 'deleteGoal'; id: string }
   | { type: 'setAppLock'; enabled: boolean }
+  | { type: 'setMonthStartDay'; day: number }
   | { type: 'setOnboarded' }
   | { type: 'restore'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'loadDemo'; state: Partial<Omit<AppState, 'hydrated'>> }
@@ -94,9 +96,19 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'hydrate':
     case 'loadDemo':
-    case 'restore':
+    case 'restore': {
       // Merge over defaults so states saved by older app versions stay valid.
-      return { ...EMPTY_STATE, ...action.state, hydrated: true };
+      const next = { ...EMPTY_STATE, ...action.state, hydrated: true };
+      // Month grouping is computed all over the app; sync the global before
+      // anything renders against the hydrated state.
+      applyMonthStartDay(next.monthStartDay || 1);
+      return next;
+    }
+    case 'setMonthStartDay': {
+      const day = Math.min(28, Math.max(1, Math.round(action.day) || 1));
+      applyMonthStartDay(day);
+      return { ...state, monthStartDay: day };
+    }
     case 'addTransaction':
       return { ...state, transactions: sortTxs([action.transaction, ...state.transactions]) };
     case 'editTransaction': {
@@ -279,6 +291,7 @@ interface StoreValue {
   editGoal: (id: string, patch: Partial<Omit<Goal, 'id'>>) => void;
   deleteGoal: (id: string) => void;
   setAppLock: (enabled: boolean) => void;
+  setMonthStartDay: (day: number) => void;
   setOnboarded: () => void;
   exportBackup: () => string;
   restoreBackup: (json: string) => boolean;
@@ -606,6 +619,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'setOnboarded' });
   }, []);
 
+  const setMonthStartDay = useCallback((day: number) => {
+    dispatch({ type: 'setMonthStartDay', day });
+  }, []);
+
   const exportBackup = useCallback(() => {
     const { hydrated: _h, ...data } = state;
     return JSON.stringify({ app: 'wafra', version: 1, exportedAt: new Date().toISOString(), data });
@@ -657,6 +674,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       editGoal,
       deleteGoal,
       setAppLock,
+      setMonthStartDay,
       setOnboarded,
       exportBackup,
       restoreBackup,
@@ -687,6 +705,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       editGoal,
       deleteGoal,
       setAppLock,
+      setMonthStartDay,
       setOnboarded,
       exportBackup,
       restoreBackup,
