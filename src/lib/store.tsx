@@ -716,7 +716,11 @@ export function accountBalanceFils(state: AppState, accountId: string): number {
 }
 
 export function netWorthFils(state: AppState): number {
-  return state.accounts.reduce((sum, a) => sum + accountBalanceFils(state, a.id), 0);
+  // Hidden (dead card) accounts carry stale partial-history balances — skip them.
+  return state.accounts.reduce(
+    (sum, a) => (a.archived ? sum : sum + accountBalanceFils(state, a.id)),
+    0,
+  );
 }
 
 /** Net worth as of end-of-day on the given ISO date. */

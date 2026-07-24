@@ -225,6 +225,41 @@ ok('openDues: dues stale past 30d overdue decay away',
 ok('openDues: recent overdue credit due still shows',
   guardOpen.some(d => d.due.id === 'g1' && d.status === 'overdue'));
 
+// Archived (hidden) cards drop out of dues too
+const archivedState = {
+  ...guardState,
+  accounts: guardState.accounts.map(a => a.id === 'cc' ? { ...a, archived: true } : a),
+};
+ok('openDues: archived cards contribute no dues',
+  cardsGuardLib.openDues(archivedState, new Date(2026, 6, 24)).length === 0);
+
+// ── inactive-account detection: expired cards fade out after 90 silent days ──
+const dormancyState = {
+  accounts: [
+    { id: 'live', name: 'Live Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff' },
+    { id: 'dead', name: 'Expired Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff' },
+    { id: 'snap', name: 'Snapshot-only Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff', snapshotTs: new Date(2026, 6, 20).getTime() },
+    { id: 'manual', name: 'Hand-added Cash', kind: 'cash', openingFils: 100000, color: '#fff' },
+    { id: 'hidden', name: 'Hidden Card', kind: 'card', cardType: 'debit', openingFils: 0, color: '#fff', archived: true },
+  ],
+  transactions: [
+    { id: 't1', type: 'expense', amountFils: 5000, category: 'dining', accountId: 'live', title: 'Cafe', date: '2026-07-20' },
+    { id: 't2', type: 'expense', amountFils: 5000, category: 'dining', accountId: 'dead', title: 'Old charge', date: '2025-11-02' },
+    { id: 't3', type: 'expense', amountFils: 5000, category: 'dining', accountId: 'hidden', title: 'Recent charge', date: '2026-07-21' },
+  ],
+  cardDues: [],
+};
+const dToday = new Date(2026, 6, 24);
+const inactive = (id) => cardsGuardLib.isInactiveAccount(
+  dormancyState, dormancyState.accounts.find(a => a.id === id), dToday);
+ok('dormancy: recently used card stays active', inactive('live') === false);
+ok('dormancy: card silent since last year is inactive', inactive('dead') === true);
+ok('dormancy: a fresh bank snapshot counts as activity', inactive('snap') === false);
+ok('dormancy: hand-added account with no history stays active', inactive('manual') === false);
+ok('dormancy: archived beats recent activity (hidden means hidden)', inactive('hidden') === true);
+ok('dormancy: last activity date reported',
+  cardsGuardLib.accountLastActivityISO(dormancyState, 'dead') === '2025-11-02');
+
 // Canonical names make variant descriptors group as ONE subscription
 const gpt = subsLib.detectSubscriptions([
   subTx('ChatGPT', '2026-05-03', 7341),

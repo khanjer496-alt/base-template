@@ -19,10 +19,10 @@ import { Icon } from '@/components/ui/icon';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { openDues } from '@/lib/cards';
+import { isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import { accountBalanceFils, netWorthFils, useStore } from '@/lib/store';
-import type { AccountKind } from '@/lib/types';
+import type { Account, AccountKind } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
 
@@ -42,7 +42,8 @@ const isIconName = (v: string): v is (typeof GOAL_ICONS)[number] =>
 export default function WalletScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, addAccount, deleteAccount, payCardDue, addGoal, editGoal, deleteGoal } = useStore();
+  const { state, addAccount, editAccount, deleteAccount, payCardDue, addGoal, editGoal, deleteGoal } =
+    useStore();
 
   const now = useMemo(() => new Date(), []);
   const todayISO = toISODate(now);
@@ -62,13 +63,25 @@ export default function WalletScreen() {
   const dues = useMemo(() => openDues(state, now), [state, now]);
 
   // Cards (auto-discovered from SMS or added manually) get their own section.
+  // Expired/unused ones (silent 90+ days, or hidden) live in a drawer below.
+  const [showInactive, setShowInactive] = useState(false);
   const cards = useMemo(
-    () => state.accounts.filter((a) => a.kind === 'card' || a.cardType),
-    [state.accounts],
+    () =>
+      state.accounts.filter(
+        (a) => (a.kind === 'card' || a.cardType) && !isInactiveAccount(state, a, now),
+      ),
+    [state, now],
   );
   const nonCardAccounts = useMemo(
-    () => state.accounts.filter((a) => a.kind !== 'card' && !a.cardType),
-    [state.accounts],
+    () =>
+      state.accounts.filter(
+        (a) => a.kind !== 'card' && !a.cardType && !isInactiveAccount(state, a, now),
+      ),
+    [state, now],
+  );
+  const inactiveAccounts = useMemo(
+    () => state.accounts.filter((a) => isInactiveAccount(state, a, now)),
+    [state, now],
   );
   // This month's spend per account, for the per-card line.
   const monthSpendByAccount = useMemo(() => {
@@ -133,6 +146,21 @@ export default function WalletScreen() {
         { text: 'Delete', style: 'destructive', onPress: () => deleteAccount(id) },
       ],
     );
+  };
+
+  const accountOptions = (account: Account) => {
+    Alert.alert(account.name, account.archived ? 'Hidden from lists.' : undefined, [
+      {
+        text: account.archived ? 'Unhide' : 'Hide from lists',
+        onPress: () => editAccount(account.id, { archived: !account.archived }),
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => confirmDeleteAccount(account.id, account.name),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const onPayDue = (dueId: string, remainingFils: number, accountId: string, accName: string) => {
@@ -263,7 +291,7 @@ export default function WalletScreen() {
                   return (
                     <Pressable
                       key={account.id}
-                      onLongPress={() => confirmDeleteAccount(account.id, account.name)}
+                      onLongPress={() => accountOptions(account)}
                       style={[
                         styles.accountRow,
                         i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
@@ -320,7 +348,7 @@ export default function WalletScreen() {
                 return (
                   <Pressable
                     key={account.id}
-                    onLongPress={() => confirmDeleteAccount(account.id, account.name)}
+                    onLongPress={() => accountOptions(account)}
                     style={[
                       styles.accountRow,
                       i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
@@ -357,9 +385,59 @@ export default function WalletScreen() {
               )}
             </View>
             <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
-              Long-press a card or account to remove it
+              Long-press a card or account to hide or remove it
             </ThemedText>
           </View>
+
+          {/* Inactive: expired/unused cards and accounts */}
+          {inactiveAccounts.length > 0 && (
+            <View style={styles.section}>
+              <Pressable onPress={() => setShowInactive((v) => !v)} style={styles.sectionHeader}>
+                <ThemedText type="micro" themeColor="textSecondary">
+                  Inactive ({inactiveAccounts.length})
+                </ThemedText>
+                <Icon
+                  name={showInactive ? 'chevron-down' : 'chevron-right'}
+                  size={15}
+                  color={theme.textSecondary}
+                />
+              </Pressable>
+              {showInactive && (
+                <View>
+                  {inactiveAccounts.map((account, i) => (
+                    <Pressable
+                      key={account.id}
+                      onLongPress={() => accountOptions(account)}
+                      style={[
+                        styles.accountRow,
+                        styles.inactiveRow,
+                        i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
+                      ]}>
+                      <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
+                        <Icon
+                          name={account.cardType ? 'wallet' : KIND_META[account.kind].icon}
+                          size={20}
+                          color={account.color}
+                          strokeWidth={1.8}
+                        />
+                      </View>
+                      <View style={styles.accountInfo}>
+                        <ThemedText type="default" numberOfLines={1}>
+                          {account.name}
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {account.archived ? 'Hidden' : 'No activity for 90+ days'}
+                        </ThemedText>
+                      </View>
+                    </Pressable>
+                  ))}
+                  <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
+                    Long-press to unhide or delete
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Goals */}
           <View style={styles.section}>
@@ -640,6 +718,9 @@ const styles = StyleSheet.create({
   },
   hint: {
     opacity: 0.8,
+  },
+  inactiveRow: {
+    opacity: 0.55,
   },
   goalRow: {
     gap: Spacing.one + 2,

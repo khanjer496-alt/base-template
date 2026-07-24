@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,21 +9,51 @@ import { ThemedView } from '@/components/themed-view';
 import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { openDues } from '@/lib/cards';
+import { accountLastActivityISO, isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, shortDate } from '@/lib/format';
 import { accountBalanceFils, useStore } from '@/lib/store';
+import type { Account } from '@/lib/types';
 
 /** Every card as a wallet-style tile: bank, last4, live figures. */
 export default function CardsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state } = useStore();
+  const { state, editAccount, deleteAccount } = useStore();
   const now = useMemo(() => new Date(), []);
+  const [showInactive, setShowInactive] = useState(false);
 
   const cards = useMemo(
     () => state.accounts.filter((a) => a.kind === 'card' || a.cardType),
     [state.accounts],
   );
+  // Expired/unused cards (silent 90+ days, or hidden by hand) go to the bottom.
+  const activeCards = useMemo(
+    () => cards.filter((c) => !isInactiveAccount(state, c, now)),
+    [cards, state, now],
+  );
+  const inactiveCards = useMemo(
+    () => cards.filter((c) => isInactiveAccount(state, c, now)),
+    [cards, state, now],
+  );
+
+  const cardOptions = (card: Account) => {
+    Alert.alert(card.name, card.archived ? 'Hidden from lists.' : undefined, [
+      {
+        text: card.archived ? 'Unhide' : 'Hide card',
+        onPress: () => editAccount(card.id, { archived: !card.archived }),
+      },
+      {
+        text: 'Delete card + its transactions',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Delete card?', `"${card.name}" and all its transactions will be removed.`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => deleteAccount(card.id) },
+          ]),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
   const dues = useMemo(() => openDues(state, now), [state, now]);
   const monthSpend = useMemo(() => {
     const key = monthKey(now);
@@ -49,7 +79,8 @@ export default function CardsScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {cards.map((card, i) => {
+          {(() => {
+          const renderCard = (card: Account, i: number, inactive: boolean) => {
             const isCredit = card.cardType === 'credit';
             const derived = accountBalanceFils(state, card.id);
             const outstanding =
@@ -62,9 +93,14 @@ export default function CardsScreen() {
                 : null;
             const spent = monthSpend.get(card.id) ?? 0;
             const due = dues.find((d) => d.due.accountId === card.id);
+            const lastUsed = inactive ? accountLastActivityISO(state, card.id) : null;
             return (
-              <Animated.View key={card.id} entering={FadeInDown.delay(i * 70).duration(350)}>
-                <View
+              <Animated.View
+                key={card.id}
+                entering={FadeInDown.delay(i * 70).duration(350)}
+                style={inactive ? styles.inactiveTile : undefined}>
+                <Pressable
+                  onLongPress={() => cardOptions(card)}
                   style={[
                     styles.tile,
                     { backgroundColor: theme.card, borderColor: `${card.color}66` },
@@ -99,10 +135,15 @@ export default function CardsScreen() {
                       {isCredit ? 'CREDIT' : 'DEBIT'}
                     </ThemedText>
                   </View>
-                </View>
+                </Pressable>
 
                 {/* Facts under the tile */}
                 <View style={styles.facts}>
+                  {lastUsed && (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Last used {shortDate(lastUsed)}
+                    </ThemedText>
+                  )}
                   {limitLeft !== null && (
                     <ThemedText type="small" themeColor="textSecondary" tabular>
                       {formatAED(limitLeft, { decimals: false })} limit left
@@ -129,7 +170,34 @@ export default function CardsScreen() {
                 </View>
               </Animated.View>
             );
-          })}
+          };
+          return (
+            <>
+              {activeCards.map((c, i) => renderCard(c, i, false))}
+
+              {inactiveCards.length > 0 && (
+                <Pressable
+                  onPress={() => setShowInactive((v) => !v)}
+                  style={[styles.inactiveHeader, { borderColor: theme.cardBorder }]}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    Inactive cards ({inactiveCards.length})
+                  </ThemedText>
+                  <Icon
+                    name={showInactive ? 'chevron-down' : 'chevron-right'}
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+              )}
+              {showInactive && inactiveCards.map((c, i) => renderCard(c, i, true))}
+              {showInactive && inactiveCards.length > 0 && (
+                <ThemedText type="micro" themeColor="textSecondary" style={styles.inactiveHint}>
+                  No activity for 90+ days. Long-press a card to hide it for good or delete it.
+                </ThemedText>
+              )}
+            </>
+          );
+          })()}
 
           {cards.length === 0 && (
             <View style={styles.empty}>
@@ -224,6 +292,20 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingTop: Spacing.two,
     paddingHorizontal: Spacing.one,
+  },
+  inactiveTile: {
+    opacity: 0.55,
+  },
+  inactiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  inactiveHint: {
+    opacity: 0.8,
+    marginTop: -Spacing.two,
   },
   empty: {
     alignItems: 'center',

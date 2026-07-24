@@ -37,6 +37,8 @@ export interface Account {
   snapshotKind?: 'balance' | 'limit' | 'outstanding';
   /** Timestamp (ms) of the SMS the snapshot came from — newest wins. */
   snapshotTs?: number;
+  /** Hidden from lists (expired/unused card). Data stays; a new charge keeps it hidden until unhidden. */
+  archived?: boolean;
 }
 
 export interface Transaction {
