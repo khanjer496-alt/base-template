@@ -23,9 +23,14 @@ import { useStore } from '@/lib/store';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
   {
-    icon: 'mail',
-    title: 'Bank app notifications',
-    text: 'Capture push alerts from banks that stopped sending SMS.',
+    icon: 'spark',
+    title: 'Automatic tracking',
+    text: 'Bank SMS and app notifications become transactions, cards and dues by themselves.',
+  },
+  {
+    icon: 'chart',
+    title: 'Insights & subscriptions',
+    text: 'Auto-detected subscriptions, due-date countdowns, plain-language insights.',
   },
   {
     icon: 'calendar',
@@ -36,11 +41,6 @@ const FEATURES: { icon: IconName; title: string; text: string }[] = [
     icon: 'download',
     title: 'Backup & restore',
     text: 'Move your full history to a new phone with one file.',
-  },
-  {
-    icon: 'chart',
-    title: 'Everything else, free forever',
-    text: 'SMS auto-tracking, cards, dues, subscriptions and insights stay free.',
   },
 ];
 
@@ -96,8 +96,8 @@ export default function ProScreen() {
               {state.pro
                 ? 'Active on this device. Thank you for supporting Wafra.'
                 : trialDaysLeft(state) > 0
-                  ? `Everything is unlocked for your first ${TRIAL_DAYS} days — ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left. Keep it going:`
-                  : 'Your free trial has ended. A few power features fund the app — everything core stays free.'}
+                  ? `Everything is free for your first ${TRIAL_DAYS} days — ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left. Keep it going:`
+                  : 'Your free trial has ended and tracking is paused. Subscribe to keep Wafra working — your data never leaves your phone either way.'}
             </ThemedText>
             {!state.pro && trialDaysLeft(state) > 0 && (
               <View style={[styles.trialChip, { backgroundColor: `${theme.primary}1c` }]}>

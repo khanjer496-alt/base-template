@@ -194,7 +194,7 @@ export default function SettingsScreen() {
                         ? 'Active'
                         : trialDaysLeft(state) > 0
                           ? `Free trial · ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left`
-                          : 'Notifications, salary months, backup'}
+                          : 'Trial ended · tracking paused'}
                     </ThemedText>
                   </View>
                 </View>

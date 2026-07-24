@@ -29,6 +29,7 @@ import {
 } from '@/lib/auto-import';
 import { getCategory } from '@/lib/categories';
 import { formatAED, shortDate } from '@/lib/format';
+import { isProActive } from '@/lib/purchases';
 import { parseSmsBatch } from '@/lib/sms-parser';
 import { useStore } from '@/lib/store';
 
@@ -60,6 +61,10 @@ export default function ImportSmsScreen() {
   const [skippedCount, setSkippedCount] = useState(0);
 
   const runScan = async () => {
+    if (!isProActive(state)) {
+      router.push('/pro');
+      return;
+    }
     setScanning(true);
     setProgress(null);
     try {
@@ -89,6 +94,10 @@ export default function ImportSmsScreen() {
   };
 
   const runParse = (input: string) => {
+    if (!isProActive(state)) {
+      router.push('/pro');
+      return;
+    }
     const parsed: ScannedSms[] = parseSmsBatch(input, state.merchantOverrides);
     const p = buildImportPlan(parsed, state, state.lastScanTs);
     const txLike = parsed.filter((x) => x.kind === 'transaction' || x.kind === 'cardPayment');

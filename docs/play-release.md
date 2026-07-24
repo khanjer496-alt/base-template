@@ -71,9 +71,12 @@ scan → transactions appearing.
 
 ## Monetization — Wafra Pro
 
-- Model: freemium subscription. Free = full tracking (SMS import, cards,
-  dues, subscriptions, insights, budgets). Pro = bank-app notification
-  capture, salary-day month start, backup/restore.
+- Model: 3-day free trial, then subscription required. Trial = everything
+  unlocked from first launch. After trial, SMS/notification importing
+  pauses until subscribed (viewing existing data and manual entry keep
+  working). Salary-day months and backup/restore are Pro-gated too.
+- Configure the same 3-day free trial on the Play subscription offers so
+  the store purchase button reads "3 days free".
 - SKUs (create in Play Console → Monetize → Subscriptions):
   `wafra_pro_monthly` (AED 9.99/mo), `wafra_pro_yearly` (AED 74.99/yr).
 - Code: paywall at `src/app/pro.tsx`; entitlement `state.pro`; billing

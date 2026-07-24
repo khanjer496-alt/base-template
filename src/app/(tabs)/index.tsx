@@ -38,6 +38,7 @@ import { openDues } from '@/lib/cards';
 import { getCategory } from '@/lib/categories';
 import { formatAED, formatCompactAED, greetingForHour, shortDate } from '@/lib/format';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
+import { isProActive } from '@/lib/purchases';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
 import { inPeriod, isCurrentMonth, periodLabel, type Period } from '@/lib/period';
 import { usePeriod } from '@/lib/period-context';
@@ -373,6 +374,11 @@ export default function HomeScreen() {
 
   const runAutoImport = useCallback(
     async (interactive: boolean) => {
+      // Hard paywall: tracking pauses when the trial ends without Pro.
+      if (!isProActive(state)) {
+        if (interactive) router.push('/pro');
+        return;
+      }
       if (!isSmsScanningAvailable()) return;
       let granted = await hasSmsPermission();
       if (!granted && interactive) granted = await requestSmsPermission();
@@ -447,7 +453,24 @@ export default function HomeScreen() {
             onOpenPeriod={() => setPeriodSheetOpen(true)}
           />
 
-          {needsPermission && (
+          {!isProActive(state) && (
+            <Animated.View entering={FadeInDown.duration(350)}>
+              <Pressable
+                onPress={() => router.push('/pro')}
+                style={[styles.permissionRow, { borderColor: theme.gold }]}>
+                <Icon name="diamond" size={18} color={theme.gold} />
+                <View style={styles.permissionText}>
+                  <ThemedText type="smallBold">Trial ended · tracking paused</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Subscribe to keep importing your bank SMS
+                  </ThemedText>
+                </View>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {needsPermission && isProActive(state) && (
             <Animated.View entering={FadeInDown.duration(350)}>
               <Pressable
                 onPress={() => runAutoImport(true)}
