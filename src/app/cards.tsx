@@ -77,7 +77,8 @@ export default function CardsScreen() {
                     {/* Chip */}
                     <View style={[styles.chip, { borderColor: `${theme.gold}88`, backgroundColor: `${theme.gold}22` }]} />
                     <ThemedText type="subtitle" style={{ color: card.color, fontWeight: '800' }}>
-                      {card.bankName ?? 'Card'}
+                      {card.bankName ??
+                        (card.name.replace(/\s*(?:credit|debit)?\s*card.*$/i, '').trim() || 'Card')}
                     </ThemedText>
                   </View>
 

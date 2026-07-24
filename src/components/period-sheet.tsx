@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { monthKey, shiftMonthKey } from '@/lib/format';
+import { monthKey, shiftMonthKey, toISODate } from '@/lib/format';
 import { usePeriod } from '@/lib/period-context';
 import type { Period } from '@/lib/period';
 
@@ -37,9 +37,17 @@ export function PeriodSheet({ visible, onClose }: PeriodSheetProps) {
   const dateValid = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   const rangeValid = dateValid(fromText) && dateValid(toText) && fromText <= toText;
 
+  const daysAgoISO = (days: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - days);
+    return toISODate(d);
+  };
   const presets: { label: string; period: Period }[] = [
     { label: 'This month', period: { mode: 'month', key: nowKey } },
     { label: 'Last month', period: { mode: 'month', key: shiftMonthKey(nowKey, -1) } },
+    { label: 'Last 7 days', period: { mode: 'range', from: daysAgoISO(6), to: toISODate(now) } },
+    { label: 'Last 30 days', period: { mode: 'range', from: daysAgoISO(29), to: toISODate(now) } },
+    { label: 'Last 90 days', period: { mode: 'range', from: daysAgoISO(89), to: toISODate(now) } },
     { label: `This year`, period: { mode: 'year', year: thisYear } },
     { label: `${thisYear - 1}`, period: { mode: 'year', year: thisYear - 1 } },
     { label: 'All time', period: { mode: 'all' } },
