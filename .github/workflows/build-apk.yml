@@ -42,11 +42,25 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
 
-      # Sign releases with the Play upload key. The repo is private and the
-      # upload key is replaceable in Play Console if ever compromised.
+      # Sign releases with the Play upload key from the WAFRA_KEYSTORE_B64
+      # repo secret (base64 of wafra-upload.jks). Until the secret is added,
+      # a fresh throwaway key is generated so builds stay green — side-load
+      # updates then need uninstall/reinstall, and Play uploads need the
+      # real key.
       - name: Configure release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.WAFRA_KEYSTORE_B64 }}
         run: |
-          cp keystore/wafra-upload.jks android/app/wafra-upload.jks
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/wafra-upload.jks
+            echo "Using the real upload keystore from secrets."
+          else
+            keytool -genkeypair -v -keystore android/app/wafra-upload.jks \
+              -alias wafra -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass wafra-upload-2026 -keypass wafra-upload-2026 \
+              -dname "CN=Wafra, OU=Wafra, O=Wafra, L=Dubai, C=AE"
+            echo "::warning::WAFRA_KEYSTORE_B64 secret not set - signed with a throwaway key."
+          fi
           cat >> android/app/build.gradle <<'EOG'
 
           android {
