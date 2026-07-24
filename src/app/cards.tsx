@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BankAvatar } from '@/components/ui/bank-avatar';
 import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -112,10 +113,17 @@ export default function CardsScreen() {
                   <View style={styles.tileTop}>
                     {/* Chip */}
                     <View style={[styles.chip, { borderColor: `${theme.gold}88`, backgroundColor: `${theme.gold}22` }]} />
-                    <ThemedText type="subtitle" style={{ color: card.color, fontWeight: '800' }}>
-                      {card.bankName ??
-                        (card.name.replace(/\s*(?:credit|debit)?\s*card.*$/i, '').trim() || 'Card')}
-                    </ThemedText>
+                    <View style={styles.tileBank}>
+                      <ThemedText type="subtitle" style={{ color: card.color, fontWeight: '800' }}>
+                        {card.bankName ??
+                          (card.name.replace(/\s*(?:credit|debit)?\s*card.*$/i, '').trim() || 'Card')}
+                      </ThemedText>
+                      <BankAvatar
+                        name={card.bankName ?? card.name}
+                        color={card.color}
+                        size={28}
+                      />
+                    </View>
                   </View>
 
                   <View style={styles.tileMiddle}>
@@ -268,6 +276,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  tileBank: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   chip: {
     width: 38,

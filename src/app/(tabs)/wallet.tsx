@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BankAvatar } from '@/components/ui/bank-avatar';
 import { Icon } from '@/components/ui/icon';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -296,9 +297,10 @@ export default function WalletScreen() {
                         styles.accountRow,
                         i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
                       ]}>
-                      <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
-                        <Icon name="wallet" size={20} color={account.color} strokeWidth={1.8} />
-                      </View>
+                      <BankAvatar
+                        name={account.bankName ?? account.name}
+                        color={account.color}
+                      />
                       <View style={styles.accountInfo}>
                         <ThemedText type="default" numberOfLines={1}>
                           {account.name}
@@ -353,9 +355,11 @@ export default function WalletScreen() {
                       styles.accountRow,
                       i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
                     ]}>
-                    <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
-                      <Icon name={meta.icon} size={20} color={account.color} strokeWidth={1.8} />
-                    </View>
+                    <BankAvatar
+                      name={account.bankName ?? account.name}
+                      color={account.color}
+                      icon={meta.icon}
+                    />
                     <View style={styles.accountInfo}>
                       <ThemedText type="default" numberOfLines={1}>
                         {account.name}
@@ -413,14 +417,11 @@ export default function WalletScreen() {
                         styles.inactiveRow,
                         i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.cardBorder },
                       ]}>
-                      <View style={[styles.accountBadge, { backgroundColor: `${account.color}22` }]}>
-                        <Icon
-                          name={account.cardType ? 'wallet' : KIND_META[account.kind].icon}
-                          size={20}
-                          color={account.color}
-                          strokeWidth={1.8}
-                        />
-                      </View>
+                      <BankAvatar
+                        name={account.bankName ?? account.name}
+                        color={account.color}
+                        icon={account.cardType ? 'wallet' : KIND_META[account.kind].icon}
+                      />
                       <View style={styles.accountInfo}>
                         <ThemedText type="default" numberOfLines={1}>
                           {account.name}

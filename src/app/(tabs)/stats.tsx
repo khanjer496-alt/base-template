@@ -271,6 +271,7 @@ export default function StatsScreen() {
                   label: monthLabel(m.key, true).split(' ')[0],
                   values: [{ value: m.fils, color: getCategory(drillCategory).color }],
                 }))}
+                valueFormatter={formatCompactAED}
                 onPressGroup={(gi) => {
                   const k = drillTrend[gi]?.key;
                   if (k) setPeriod({ mode: 'month', key: k });
@@ -370,6 +371,16 @@ export default function StatsScreen() {
                   key={i}
                   onPress={() => setSelectedDay(selectedDay === i ? null : i)}
                   style={styles.weekCol}>
+                  <ThemedText
+                    type="micro"
+                    tabular
+                    themeColor="textSecondary"
+                    style={[
+                      styles.weekValue,
+                      { opacity: selectedDay === null || selectedDay === i ? 1 : 0.4 },
+                    ]}>
+                    {v > 0 ? formatCompactAED(v) : ''}
+                  </ThemedText>
                   <View style={[styles.weekTrack, { backgroundColor: theme.track }]}>
                     <View
                       style={[
@@ -410,11 +421,13 @@ export default function StatsScreen() {
                 />
               </Svg>
               <View style={styles.sparkLabels}>
-                <ThemedText type="micro" themeColor="textSecondary">
-                  {monthLabel(netWorth[0]?.key ?? key, true)}
+                <ThemedText type="micro" themeColor="textSecondary" tabular>
+                  {monthLabel(netWorth[0]?.key ?? key, true)} ·{' '}
+                  {formatCompactAED(netWorth[0]?.fils ?? 0)}
                 </ThemedText>
-                <ThemedText type="micro" themeColor="textSecondary">
-                  {monthLabel(netWorth[netWorth.length - 1]?.key ?? key, true)}
+                <ThemedText type="micro" themeColor="textSecondary" tabular>
+                  {monthLabel(netWorth[netWorth.length - 1]?.key ?? key, true)} ·{' '}
+                  {formatCompactAED(netWorth[netWorth.length - 1]?.fils ?? 0)}
                 </ThemedText>
               </View>
             </View>
@@ -439,6 +452,7 @@ export default function StatsScreen() {
                   { value: m.expense, color: theme.expense },
                 ],
               }))}
+              valueFormatter={formatCompactAED}
               highlightIndex={highlightIndex >= 0 ? highlightIndex : undefined}
               onPressGroup={(gi) => {
                 setPeriod({ mode: 'month', key: trend[gi].key });
@@ -607,6 +621,10 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     justifyContent: 'flex-end',
     overflow: 'hidden',
+  },
+  weekValue: {
+    fontSize: 9,
+    lineHeight: 12,
   },
   weekFill: {
     width: '100%',

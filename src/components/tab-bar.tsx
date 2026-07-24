@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 const TAB_ICONS: Record<string, IconName> = {
   index: 'home',
   stats: 'chart',
+  bills: 'repeat',
   budgets: 'target',
   wallet: 'wallet',
 };
@@ -21,6 +22,7 @@ const TAB_ICONS: Record<string, IconName> = {
 const TAB_LABELS: Record<string, string> = {
   index: 'Home',
   stats: 'Insights',
+  bills: 'Bills',
   budgets: 'Budgets',
   wallet: 'Wallet',
 };

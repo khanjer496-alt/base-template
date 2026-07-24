@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -19,6 +18,7 @@ import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { billsForMonth, type BillStatus } from '@/lib/bills';
+import { openDues } from '@/lib/cards';
 import { EXPENSE_CATEGORIES } from '@/lib/categories';
 import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import {
@@ -38,14 +38,14 @@ type Segment = 'reminders' | 'subscriptions';
 
 export default function BillsScreen() {
   const theme = useTheme();
-  const router = useRouter();
-  const { state, addBill, deleteBill, markBillPaid, setNotSubscription } = useStore();
+  const { state, addBill, deleteBill, markBillPaid, setNotSubscription, payCardDue } = useStore();
 
   const now = useMemo(() => new Date(), []);
   const key = monthKey(now);
   const todayISO = toISODate(now);
 
   const [segment, setSegment] = useState<Segment>('subscriptions');
+  const [detail, setDetail] = useState<Subscription | null>(null);
   const [adderVisible, setAdderVisible] = useState(false);
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
@@ -56,6 +56,7 @@ export default function BillsScreen() {
     () => billsForMonth(state.bills, state.transactions, now),
     [state.bills, state.transactions, now],
   );
+  const dues = useMemo(() => openDues(state, now), [state, now]);
   const detected = useMemo(
     () => detectSubscriptions(state.transactions, state.notSubscriptions),
     [state.transactions, state.notSubscriptions],
@@ -71,6 +72,38 @@ export default function BillsScreen() {
     () => new Set(state.bills.map((b) => b.title.toLowerCase())),
     [state.bills],
   );
+
+  // Everything the detail sheet needs about the tapped subscription: its raw
+  // charges (newest first), which cards paid it, first charge, lifetime total.
+  const detailData = useMemo(() => {
+    if (!detail) return null;
+    const titleKey = detail.title.trim().toLowerCase();
+    const txs = state.transactions
+      .filter(
+        (t) => t.type === 'expense' && !t.isTransfer && t.title.trim().toLowerCase() === titleKey,
+      )
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    if (txs.length === 0) return null;
+    const firstISO = txs[txs.length - 1].date;
+    const accounts = [...new Set(txs.map((t) => t.accountId))]
+      .map((id) => state.accounts.find((a) => a.id === id))
+      .filter((a): a is NonNullable<typeof a> => a != null);
+    const totalFils = txs.reduce((s, t) => s + t.amountFils, 0);
+    const sortedAmounts = txs.map((t) => t.amountFils).sort((a, b) => a - b);
+    const medianFils = sortedAmounts[Math.floor(sortedAmounts.length / 2)];
+    return { txs, firstISO, accounts, totalFils, medianFils };
+  }, [detail, state.transactions, state.accounts]);
+
+  const subscribedFor = (firstISO: string): string => {
+    const d = new Date(`${firstISO}T12:00:00`);
+    const months =
+      (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (months < 1) return 'under a month';
+    if (months < 12) return `${months} month${months === 1 ? '' : 's'}`;
+    const y = Math.floor(months / 12);
+    const m = months % 12;
+    return m > 0 ? `${y} yr ${m} mo` : `${y} year${y === 1 ? '' : 's'}`;
+  };
 
   const statusMeta = (status: BillStatus, daysLeft: number) => {
     switch (status) {
@@ -123,6 +156,35 @@ export default function BillsScreen() {
     );
   };
 
+  const onPayDue = (dueId: string, remainingFils: number, accountId: string, accName: string) => {
+    Alert.alert(
+      `Pay ${accName}?`,
+      `Marks ${formatAED(remainingFils, { decimals: false })} as paid and records the transfer.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          onPress: () =>
+            payCardDue(
+              dueId,
+              remainingFils,
+              {
+                type: 'income',
+                amountFils: remainingFils,
+                category: 'other',
+                accountId,
+                title: `${accName} payment`,
+                date: todayISO,
+                source: 'manual',
+                isTransfer: true,
+              },
+              true,
+            ),
+        },
+      ],
+    );
+  };
+
   const onLongPressBill = (billId: string, billTitle: string) => {
     Alert.alert('Delete reminder?', `"${billTitle}" will no longer be tracked.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -147,6 +209,7 @@ export default function BillsScreen() {
     return (
       <Animated.View key={sub.title} entering={FadeInDown.delay(Math.min(i, 8) * 40).duration(300)}>
         <Pressable
+          onPress={() => setDetail(sub)}
           onLongPress={() => onDismissSub(sub)}
           style={[
             styles.row,
@@ -204,14 +267,14 @@ export default function BillsScreen() {
 
   return (
     <ThemedView style={styles.root}>
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: theme.backgroundSelected }]}>
-            <Icon name="chevron-left" size={18} color={theme.text} />
-          </Pressable>
-          <ThemedText type="heading">Bills</ThemedText>
+          <View>
+            <ThemedText type="title">Bills</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Dues, subscriptions and utilities
+            </ThemedText>
+          </View>
           <Pressable
             onPress={() => setAdderVisible(true)}
             style={[styles.backBtn, { backgroundColor: theme.primary }]}>
@@ -235,12 +298,58 @@ export default function BillsScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Credit-card payment dues, always on top — these have deadlines. */}
+          {dues.length > 0 && (
+            <View style={styles.duesBlock}>
+              <ThemedText type="micro" themeColor="textSecondary">
+                Card payments due
+              </ThemedText>
+              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
+                const account = state.accounts.find((a) => a.id === due.accountId);
+                const urgent = status === 'urgent' || status === 'overdue';
+                return (
+                  <View key={due.id} style={styles.dueRow}>
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <ThemedText type="default">{account?.name ?? 'Card'}</ThemedText>
+                      <ThemedText
+                        type="small"
+                        style={{ color: urgent ? theme.expense : theme.textSecondary }}>
+                        {status === 'overdue'
+                          ? `${-daysLeft}d overdue`
+                          : `Pay by ${shortDate(due.dueDate)} · ${daysLeft}d left`}
+                        {belowMinimum
+                          ? ` · min ${formatAED(due.minDueFils, { decimals: false })}`
+                          : ''}
+                      </ThemedText>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                      <ThemedText
+                        type="smallBold"
+                        tabular
+                        style={urgent ? { color: theme.expense } : undefined}>
+                        {formatAED(remainingFils, { decimals: false })}
+                      </ThemedText>
+                      <Pressable
+                        onPress={() =>
+                          onPayDue(due.id, remainingFils, due.accountId, account?.name ?? 'Card')
+                        }>
+                        <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                          Mark paid
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {segment === 'subscriptions' && (
             <>
               {subs.length > 0 && (
                 <View style={styles.totalRow}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Detected from your charge history · long-press to remove
+                    Detected from your charge history · tap one for details
                   </ThemedText>
                   <ThemedText type="smallBold" tabular>
                     {formatAED(subsTotal, { decimals: false })}/mo
@@ -264,11 +373,11 @@ export default function BillsScreen() {
               {commitments.length > 0 && (
                 <View style={styles.commitBlock}>
                   <ThemedText type="micro" themeColor="textSecondary">
-                    Fixed monthly commitments
+                    Utilities & fixed bills
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Rent, utilities and other regular payments — recurring, but not
-                    cancellable subscriptions.
+                    Electricity, internet, rent and other regular payments that recur
+                    every month.
                   </ThemedText>
                   <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
                 </View>
@@ -348,6 +457,162 @@ export default function BillsScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Subscription detail sheet */}
+      <Modal
+        visible={detail !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetail(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setDetail(null)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => {}}>
+            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
+            {detail && detailData && (
+              <>
+                <View style={styles.sheetHeader}>
+                  <View style={styles.detailTitleRow}>
+                    <MerchantAvatar title={detail.title} category={detail.category} size={42} />
+                    <View style={{ flexShrink: 1 }}>
+                      <ThemedText type="heading" numberOfLines={1}>
+                        {detail.title}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {detail.status === 'stopped'
+                          ? `stopped · last charged ${shortDate(detail.lastChargedISO)}`
+                          : `${detail.cadence} · ${formatAED(detail.monthlyEquivalentFils, { decimals: false })}/mo`}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => setDetail(null)}>
+                    <Icon name="close" size={20} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+
+                {/* Lifetime facts */}
+                <View style={styles.factRow}>
+                  <View style={styles.fact}>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      Subscribed for
+                    </ThemedText>
+                    <ThemedText type="smallBold">{subscribedFor(detailData.firstISO)}</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      since {shortDate(detailData.firstISO)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.fact}>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      Charges
+                    </ThemedText>
+                    <ThemedText type="smallBold" tabular>
+                      {detailData.txs.length}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.fact}>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      Total paid
+                    </ThemedText>
+                    <ThemedText type="smallBold" tabular>
+                      {formatAED(detailData.totalFils, { decimals: false })}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                {/* Which card pays it */}
+                <View style={styles.paidWith}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    Paid with
+                  </ThemedText>
+                  <ThemedText type="small" numberOfLines={2}>
+                    {detailData.accounts.length > 0
+                      ? detailData.accounts.map((a) => a.name).join(', ')
+                      : 'Unknown account'}
+                  </ThemedText>
+                </View>
+
+                {/* Charge history */}
+                <View style={styles.historyBlock}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    History
+                  </ThemedText>
+                  <ScrollView style={styles.historyScroll} showsVerticalScrollIndicator={false}>
+                    {detailData.txs.slice(0, 36).map((t, i) => {
+                      const acc = state.accounts.find((a) => a.id === t.accountId);
+                      const offMedian =
+                        detailData.medianFils > 0 && t.amountFils > detailData.medianFils * 1.1;
+                      return (
+                        <View
+                          key={t.id}
+                          style={[
+                            styles.historyRow,
+                            i > 0 && {
+                              borderTopWidth: StyleSheet.hairlineWidth,
+                              borderTopColor: theme.cardBorder,
+                            },
+                          ]}>
+                          <View>
+                            <ThemedText type="small">{shortDate(t.date)}</ThemedText>
+                            {acc?.last4 && (
+                              <ThemedText type="micro" themeColor="textSecondary">
+                                ••{acc.last4}
+                              </ThemedText>
+                            )}
+                          </View>
+                          <ThemedText
+                            type="smallBold"
+                            tabular
+                            style={offMedian ? { color: theme.warning } : undefined}>
+                            {formatAED(t.amountFils, { decimals: false })}
+                          </ThemedText>
+                        </View>
+                      );
+                    })}
+                    {detailData.txs.length > 36 && (
+                      <ThemedText type="micro" themeColor="textSecondary" style={styles.historyMore}>
+                        + {detailData.txs.length - 36} older charges
+                      </ThemedText>
+                    )}
+                  </ScrollView>
+                </View>
+
+                {/* Actions */}
+                <View style={styles.detailActions}>
+                  {!trackedTitles.has(detail.title.toLowerCase()) && detail.status !== 'stopped' && (
+                    <Pressable
+                      onPress={() => {
+                        addBill({
+                          title: detail.title,
+                          category: detail.category,
+                          amountFils: detail.avgAmountFils,
+                          dueDay: Number(detail.nextExpectedISO.slice(8)),
+                          autoDetected: true,
+                        });
+                        setDetail(null);
+                      }}
+                      style={[styles.detailBtn, { backgroundColor: theme.primary }]}>
+                      <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>
+                        Remind me
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => {
+                      const sub = detail;
+                      setDetail(null);
+                      onDismissSub(sub);
+                    }}
+                    style={[styles.detailBtn, { backgroundColor: theme.backgroundSelected }]}>
+                    <ThemedText type="smallBold" style={{ color: theme.expense }}>
+                      Not a subscription
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Add reminder sheet */}
       <Modal visible={adderVisible} transparent animationType="fade" onRequestClose={() => setAdderVisible(false)}>
@@ -475,6 +740,16 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.three,
     paddingTop: Spacing.two,
+    paddingBottom: 110,
+  },
+  duesBlock: {
+    gap: Spacing.one,
+    paddingBottom: Spacing.three,
+  },
+  dueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
   },
   totalRow: {
     flexDirection: 'row',
@@ -595,6 +870,49 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   saveBtn: {
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.three,
+    alignItems: 'center',
+  },
+  detailTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    flexShrink: 1,
+    paddingRight: Spacing.two,
+  },
+  factRow: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  fact: {
+    flex: 1,
+    gap: 2,
+  },
+  paidWith: {
+    gap: 2,
+  },
+  historyBlock: {
+    gap: Spacing.one,
+  },
+  historyScroll: {
+    maxHeight: 260,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.two,
+  },
+  historyMore: {
+    paddingVertical: Spacing.two,
+  },
+  detailActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  detailBtn: {
+    flex: 1,
     borderRadius: Radius.md,
     paddingVertical: Spacing.three,
     alignItems: 'center',

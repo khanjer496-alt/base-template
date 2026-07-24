@@ -10,6 +10,7 @@ export default function TabsLayout() {
       tabBar={(props) => <WafraTabBar {...props} />}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="stats" />
+      <Tabs.Screen name="bills" />
       <Tabs.Screen name="budgets" />
       <Tabs.Screen name="wallet" />
     </Tabs>
