@@ -23,10 +23,13 @@ class NotificationReaderModule : Module() {
 
     /** Opens the system Notification access screen for the user to enable it. */
     Function("openSettings") {
-      val context = appContext.reactContext ?: return@Function
-      val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      context.startActivity(intent)
+      val context = appContext.reactContext
+      if (context != null) {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+      }
+      true
     }
 
     /** Captured money-related notifications with ts >= sinceMs, oldest first. */
