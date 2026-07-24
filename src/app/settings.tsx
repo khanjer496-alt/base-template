@@ -18,8 +18,31 @@ import NotificationReader from '../../modules/notification-reader';
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, setAppLock, setMonthStartDay, exportBackup, restoreBackup, loadDemoData, clearAll } =
+  const { state, setAppLock, setMonthStartDay, setPro, exportBackup, restoreBackup, loadDemoData, clearAll } =
     useStore();
+
+  // Pro gating: locked features route to the paywall instead of running.
+  const gated = (fn: () => void) => () => {
+    if (state.pro) fn();
+    else router.push('/pro');
+  };
+
+  // Founder unlock: 7 taps on the logo toggles Pro on side-load builds
+  // (Play builds grant it through Google Play billing instead).
+  const tapCount = React.useRef(0);
+  const tapTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onLogoTap = () => {
+    tapCount.current += 1;
+    if (tapTimer.current) clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => (tapCount.current = 0), 1500);
+    if (tapCount.current >= 7) {
+      tapCount.current = 0;
+      const next = !state.pro;
+      setPro(next);
+      Alert.alert(next ? 'Founder mode' : 'Founder mode off',
+        next ? 'Wafra Pro unlocked on this device.' : 'Wafra Pro disabled on this device.');
+    }
+  };
 
   const notifAvailable = Platform.OS === 'android' && NotificationReader != null;
   const notifEnabled = notifAvailable && NotificationReader != null && NotificationReader.isEnabled();
@@ -159,11 +182,24 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <ThemedText type="micro" themeColor="textSecondary">Features</ThemedText>
             <View>
+              <Pressable onPress={() => router.push('/pro')} style={styles.settingRow}>
+                <View style={styles.rowLeft}>
+                  <Icon name="diamond" size={15} color={theme.gold} />
+                  <View>
+                    <ThemedText type="small">Wafra Pro</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {state.pro ? 'Active' : 'Notifications, salary months, backup'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={15} color={theme.textSecondary} />
+              </Pressable>
+              {divider}
               {row('calendar', 'Bills and subscriptions', () => router.push('/bills'))}
               {divider}
               {row('mail', 'Import from bank SMS', () => router.push('/import-sms'))}
               {divider}
-              <Pressable onPress={onNotificationAccess} style={styles.settingRow}>
+              <Pressable onPress={gated(onNotificationAccess)} style={styles.settingRow}>
                 <View style={styles.rowLeft}>
                   <Icon name="mail" size={15} color={theme.textSecondary} />
                   <View>
@@ -206,7 +242,7 @@ export default function SettingsScreen() {
                 </View>
                 <View style={styles.stepper}>
                   <Pressable
-                    onPress={() => setMonthStartDay(Math.max(1, state.monthStartDay - 1))}
+                    onPress={gated(() => setMonthStartDay(Math.max(1, state.monthStartDay - 1)))}
                     style={[styles.stepBtn, { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText type="smallBold">−</ThemedText>
                   </Pressable>
@@ -214,7 +250,7 @@ export default function SettingsScreen() {
                     {state.monthStartDay}
                   </ThemedText>
                   <Pressable
-                    onPress={() => setMonthStartDay(Math.min(28, state.monthStartDay + 1))}
+                    onPress={gated(() => setMonthStartDay(Math.min(28, state.monthStartDay + 1)))}
                     style={[styles.stepBtn, { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText type="smallBold">+</ThemedText>
                   </Pressable>
@@ -226,9 +262,9 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <ThemedText type="micro" themeColor="textSecondary">Data</ThemedText>
             <View>
-              {row('download', 'Back up everything (JSON)', backupJson)}
+              {row('download', 'Back up everything (JSON)', gated(backupJson))}
               {divider}
-              {row('upload', 'Restore from backup', restoreFromFile)}
+              {row('upload', 'Restore from backup', gated(restoreFromFile))}
               {divider}
               {row('receipt', 'Export transactions (CSV)', exportCsv)}
               {divider}
@@ -239,7 +275,9 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.about}>
-            <WafraLogo markSize={36} />
+            <Pressable onPress={onLogoTap}>
+              <WafraLogo markSize={36} />
+            </Pressable>
             <ThemedText type="small" themeColor="textSecondary" style={styles.aboutText}>
               Know where it goes. Watch it grow. All data stays on this device.
             </ThemedText>

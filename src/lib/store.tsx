@@ -41,6 +41,7 @@ const EMPTY_STATE: AppState = {
   userName: 'there',
   appLock: false,
   monthStartDay: 1,
+  pro: false,
 };
 
 let idCounter = 0;
@@ -87,6 +88,7 @@ type Action =
   | { type: 'deleteGoal'; id: string }
   | { type: 'setAppLock'; enabled: boolean }
   | { type: 'setMonthStartDay'; day: number }
+  | { type: 'setPro'; pro: boolean }
   | { type: 'setOnboarded' }
   | { type: 'restore'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'loadDemo'; state: Partial<Omit<AppState, 'hydrated'>> }
@@ -104,6 +106,8 @@ function reducer(state: AppState, action: Action): AppState {
       applyMonthStartDay(next.monthStartDay || 1);
       return next;
     }
+    case 'setPro':
+      return { ...state, pro: action.pro };
     case 'setMonthStartDay': {
       const day = Math.min(28, Math.max(1, Math.round(action.day) || 1));
       applyMonthStartDay(day);
@@ -292,6 +296,7 @@ interface StoreValue {
   deleteGoal: (id: string) => void;
   setAppLock: (enabled: boolean) => void;
   setMonthStartDay: (day: number) => void;
+  setPro: (pro: boolean) => void;
   setOnboarded: () => void;
   exportBackup: () => string;
   restoreBackup: (json: string) => boolean;
@@ -623,6 +628,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'setMonthStartDay', day });
   }, []);
 
+  const setPro = useCallback((pro: boolean) => {
+    dispatch({ type: 'setPro', pro });
+  }, []);
+
   const exportBackup = useCallback(() => {
     const { hydrated: _h, ...data } = state;
     return JSON.stringify({ app: 'wafra', version: 1, exportedAt: new Date().toISOString(), data });
@@ -675,6 +684,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteGoal,
       setAppLock,
       setMonthStartDay,
+      setPro,
       setOnboarded,
       exportBackup,
       restoreBackup,
@@ -706,6 +716,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteGoal,
       setAppLock,
       setMonthStartDay,
+      setPro,
       setOnboarded,
       exportBackup,
       restoreBackup,

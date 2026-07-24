@@ -69,6 +69,23 @@ scan → transactions appearing.
 - [ ] Content rating questionnaire (PEGI 3 expected)
 - [ ] Countries: start UAE-only if desired
 
+## Monetization — Wafra Pro
+
+- Model: freemium subscription. Free = full tracking (SMS import, cards,
+  dues, subscriptions, insights, budgets). Pro = bank-app notification
+  capture, salary-day month start, backup/restore.
+- SKUs (create in Play Console → Monetize → Subscriptions):
+  `wafra_pro_monthly` (AED 9.99/mo), `wafra_pro_yearly` (AED 74.99/yr).
+- Code: paywall at `src/app/pro.tsx`; entitlement `state.pro`; billing
+  abstraction `src/lib/purchases.ts` — swap its stubs for react-native-iap
+  at submission (requestSubscription/getAvailablePurchases). UI unchanged.
+- Play policy: digital subscriptions MUST use Play Billing (15% fee under
+  $1M/yr after joining the small-business program). Include manage/cancel
+  link (Play handles it), and price in AED via Play Console pricing.
+- Side-load builds: billing is unavailable by design (Play Billing only
+  works when installed from Play); founder unlock = 7 taps on the Settings
+  logo toggles Pro locally.
+
 ## Roadmap notes borrowed from FinArt parity
 
 - Bank-app **notification listener** as a second capture channel (banks moving
