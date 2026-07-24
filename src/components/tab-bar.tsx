@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { useTheme } from '@/hooks/use-theme';
 
 const TAB_ICONS: Record<string, IconName> = {
@@ -19,12 +20,12 @@ const TAB_ICONS: Record<string, IconName> = {
   wallet: 'wallet',
 };
 
-const TAB_LABELS: Record<string, string> = {
-  index: 'Home',
-  stats: 'Insights',
-  bills: 'Bills',
-  budgets: 'Budgets',
-  wallet: 'Wallet',
+const TAB_LABELS: Record<string, () => string> = {
+  index: () => t('tabHome'),
+  stats: () => t('tabInsights'),
+  bills: () => t('tabBills'),
+  budgets: () => t('tabBudgets'),
+  wallet: () => t('tabWallet'),
 };
 
 /**
@@ -75,7 +76,7 @@ export function WafraTabBar({ state, navigation }: BottomTabBarProps) {
             styles.label,
             { color: focused ? theme.primary : theme.textSecondary },
           ]}>
-          {TAB_LABELS[route.name]}
+          {TAB_LABELS[route.name]()}
         </ThemedText>
       </Pressable>
     );

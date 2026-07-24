@@ -10,6 +10,7 @@ import { Icon, type IconName } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAED } from '@/lib/format';
+import { t } from '@/lib/i18n';
 import {
   isBillingAvailable,
   PRO_PRICES,
@@ -21,27 +22,11 @@ import {
 } from '@/lib/purchases';
 import { useStore } from '@/lib/store';
 
-const FEATURES: { icon: IconName; title: string; text: string }[] = [
-  {
-    icon: 'spark',
-    title: 'Automatic tracking',
-    text: 'Bank SMS and app notifications become transactions, cards and dues by themselves.',
-  },
-  {
-    icon: 'chart',
-    title: 'Insights & subscriptions',
-    text: 'Auto-detected subscriptions, due-date countdowns, plain-language insights.',
-  },
-  {
-    icon: 'calendar',
-    title: 'Salary-day months',
-    text: 'Your money month starts on payday, not the 1st.',
-  },
-  {
-    icon: 'download',
-    title: 'Backup & restore',
-    text: 'Move your full history to a new phone with one file.',
-  },
+const FEATURES: { icon: IconName; titleKey: Parameters<typeof t>[0]; textKey: Parameters<typeof t>[0] }[] = [
+  { icon: 'spark', titleKey: 'featAutoTracking', textKey: 'featAutoTrackingText' },
+  { icon: 'chart', titleKey: 'featInsights', textKey: 'featInsightsText' },
+  { icon: 'calendar', titleKey: 'featSalaryMonths', textKey: 'featSalaryMonthsText' },
+  { icon: 'download', titleKey: 'featBackup', textKey: 'featBackupText' },
 ];
 
 /** Wafra Pro paywall. Purchases run through Google Play Billing on the
@@ -94,15 +79,15 @@ export default function ProScreen() {
             <ThemedText type="title">Wafra Pro</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.heroText}>
               {state.pro
-                ? 'Active on this device. Thank you for supporting Wafra.'
+                ? t('proActiveThanks')
                 : trialDaysLeft(state) > 0
                   ? `Everything is free for your first ${TRIAL_DAYS} days — ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left. Keep it going:`
-                  : 'Your free trial has ended and tracking is paused. Subscribe to keep Wafra working — your data never leaves your phone either way.'}
+                  : t('trialEndedPaywall')}
             </ThemedText>
             {!state.pro && trialDaysLeft(state) > 0 && (
               <View style={[styles.trialChip, { backgroundColor: `${theme.primary}1c` }]}>
                 <ThemedText type="micro" style={{ color: theme.primary, fontWeight: '700' }}>
-                  FREE TRIAL ACTIVE
+                  {t('freeTrialActive')}
                 </ThemedText>
               </View>
             )}
@@ -111,16 +96,16 @@ export default function ProScreen() {
           <View style={styles.features}>
             {FEATURES.map((f, i) => (
               <Animated.View
-                key={f.title}
+                key={f.titleKey}
                 entering={FadeInDown.delay(80 + i * 60).duration(300)}
                 style={styles.feature}>
                 <View style={[styles.featureIcon, { backgroundColor: theme.backgroundSelected }]}>
                   <Icon name={f.icon} size={17} color={theme.primary} strokeWidth={1.9} />
                 </View>
                 <View style={styles.featureInfo}>
-                  <ThemedText type="smallBold">{f.title}</ThemedText>
+                  <ThemedText type="smallBold">{t(f.titleKey)}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {f.text}
+                    {t(f.textKey)}
                   </ThemedText>
                 </View>
               </Animated.View>
@@ -144,13 +129,13 @@ export default function ProScreen() {
                         },
                       ]}>
                       <ThemedText type="micro" themeColor="textSecondary">
-                        {p === 'yearly' ? 'YEARLY' : 'MONTHLY'}
+                        {p === 'yearly' ? t('yearly') : t('monthly')}
                       </ThemedText>
                       <ThemedText type="subtitle" tabular style={{ fontWeight: '800' }}>
                         {formatAED(PRO_PRICES[p].fils)}
                       </ThemedText>
                       <ThemedText type="micro" themeColor="textSecondary">
-                        {PRO_PRICES[p].caption}
+                        {p === 'yearly' ? t('perYear') : t('perMonth')}
                       </ThemedText>
                     </Pressable>
                   );
@@ -159,12 +144,12 @@ export default function ProScreen() {
 
               <Pressable onPress={buy} style={[styles.cta, { backgroundColor: theme.primary }]}>
                 <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 16 }}>
-                  Get Wafra Pro
+                  {t('getPro')}
                 </ThemedText>
               </Pressable>
               <Pressable onPress={restore} style={styles.restore}>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Restore purchase
+                  {t('restorePurchase')}
                 </ThemedText>
               </Pressable>
             </>

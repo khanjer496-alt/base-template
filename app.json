@@ -19,10 +19,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.READ_SMS",
         "android.permission.READ_SMS"
       ],
-      "package": "com.anonymous.wafra"
+      "package": "app.wafra.android",
+      "versionCode": 1
     },
     "web": {
       "output": "static",

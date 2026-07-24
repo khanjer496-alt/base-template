@@ -17,6 +17,7 @@ import { Icon } from '@/components/ui/icon';
 import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { billsForMonth, type BillStatus } from '@/lib/bills';
 import { openDues } from '@/lib/cards';
 import { EXPENSE_CATEGORIES } from '@/lib/categories';
@@ -270,9 +271,9 @@ export default function BillsScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.header}>
           <View>
-            <ThemedText type="title">Bills</ThemedText>
+            <ThemedText type="title">{t('billsTitle')}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Dues, subscriptions and utilities
+              {t('billsSubtitle')}
             </ThemedText>
           </View>
           <Pressable
@@ -291,7 +292,7 @@ export default function BillsScreen() {
               <ThemedText
                 type="smallBold"
                 themeColor={segment === s ? 'text' : 'textSecondary'}>
-                {s === 'subscriptions' ? `Subscriptions (${subs.length})` : `Reminders (${rows.length})`}
+                {s === 'subscriptions' ? `${t('subscriptionsSeg')} (${subs.length})` : `${t('remindersSeg')} (${rows.length})`}
               </ThemedText>
             </Pressable>
           ))}
@@ -302,7 +303,7 @@ export default function BillsScreen() {
           {dues.length > 0 && (
             <View style={styles.duesBlock}>
               <ThemedText type="micro" themeColor="textSecondary">
-                Card payments due
+                {t('cardPaymentsDue')}
               </ThemedText>
               {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
                 const account = state.accounts.find((a) => a.id === due.accountId);
@@ -349,7 +350,7 @@ export default function BillsScreen() {
               {subs.length > 0 && (
                 <View style={styles.totalRow}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Detected from your charge history · tap one for details
+                    {t('detectedHint')}
                   </ThemedText>
                   <ThemedText type="smallBold" tabular>
                     {formatAED(subsTotal, { decimals: false })}/mo
@@ -361,10 +362,10 @@ export default function BillsScreen() {
               {stopped.length > 0 && (
                 <View style={styles.commitBlock}>
                   <ThemedText type="micro" themeColor="textSecondary">
-                    Stopped subscriptions
+                    {t('stoppedSubs')}
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    No charges for over two cycles — most likely cancelled.
+                    {t('stoppedSubsHint')}
                   </ThemedText>
                   <View>{stopped.map((sub, i) => renderRecurringRow(sub, i))}</View>
                 </View>
@@ -373,11 +374,10 @@ export default function BillsScreen() {
               {commitments.length > 0 && (
                 <View style={styles.commitBlock}>
                   <ThemedText type="micro" themeColor="textSecondary">
-                    Utilities & fixed bills
+                    {t('utilitiesHeader')}
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Electricity, internet, rent and other regular payments that recur
-                    every month.
+                    {t('utilitiesHint')}
                   </ThemedText>
                   <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
                 </View>
@@ -494,7 +494,7 @@ export default function BillsScreen() {
                 <View style={styles.factRow}>
                   <View style={styles.fact}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      Subscribed for
+                      {t('subscribedFor')}
                     </ThemedText>
                     <ThemedText type="smallBold">{subscribedFor(detailData.firstISO)}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
@@ -503,7 +503,7 @@ export default function BillsScreen() {
                   </View>
                   <View style={styles.fact}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      Charges
+                      {t('charges')}
                     </ThemedText>
                     <ThemedText type="smallBold" tabular>
                       {detailData.txs.length}
@@ -511,7 +511,7 @@ export default function BillsScreen() {
                   </View>
                   <View style={styles.fact}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      Total paid
+                      {t('totalPaid')}
                     </ThemedText>
                     <ThemedText type="smallBold" tabular>
                       {formatAED(detailData.totalFils, { decimals: false })}
@@ -522,7 +522,7 @@ export default function BillsScreen() {
                 {/* Which card pays it */}
                 <View style={styles.paidWith}>
                   <ThemedText type="micro" themeColor="textSecondary">
-                    Paid with
+                    {t('paidWith')}
                   </ThemedText>
                   <ThemedText type="small" numberOfLines={2}>
                     {detailData.accounts.length > 0
@@ -534,7 +534,7 @@ export default function BillsScreen() {
                 {/* Charge history */}
                 <View style={styles.historyBlock}>
                   <ThemedText type="micro" themeColor="textSecondary">
-                    History
+                    {t('history')}
                   </ThemedText>
                   <ScrollView style={styles.historyScroll} showsVerticalScrollIndicator={false}>
                     {detailData.txs.slice(0, 36).map((t, i) => {
@@ -592,7 +592,7 @@ export default function BillsScreen() {
                       }}
                       style={[styles.detailBtn, { backgroundColor: theme.primary }]}>
                       <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>
-                        Remind me
+                        {t('remindMe')}
                       </ThemedText>
                     </Pressable>
                   )}
@@ -604,7 +604,7 @@ export default function BillsScreen() {
                     }}
                     style={[styles.detailBtn, { backgroundColor: theme.backgroundSelected }]}>
                     <ThemedText type="smallBold" style={{ color: theme.expense }}>
-                      Not a subscription
+                      {t('notASubscription')}
                     </ThemedText>
                   </Pressable>
                 </View>

@@ -119,13 +119,24 @@ await page.waitForTimeout(800);
 // Founder unlock: 7 taps on the settings logo
 const about = await page.getByText('Know where it goes. Watch it grow.', { exact: false }).first();
 await about.scrollIntoViewIfNeeded();
-const aboutBox = await about.boundingBox();
+await page.waitForTimeout(300);
+// The tappable logo is the ~36px svg above the about text.
+const logoPos = await page.evaluate(() => {
+  const svgs = [...document.querySelectorAll('svg')]
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width >= 30 && r.width <= 60 && r.y > 0 && r.y < window.innerHeight);
+  const r = svgs[svgs.length - 1];
+  return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+});
 for (let i = 0; i < 7; i++) {
-  await page.mouse.click(aboutBox.x + aboutBox.width / 2, aboutBox.y - 28);
+  await page.mouse.click(logoPos.x, logoPos.y);
   await page.waitForTimeout(120);
 }
-await page.waitForTimeout(600);
-ok('founder unlock activates Pro', !!(await visibleText(page, 'Active', 4000)));
+await page.waitForTimeout(700);
+const proStored = await page.evaluate(
+  () => JSON.parse(localStorage.getItem('wafra/state/v1') || '{}').pro === true,
+);
+ok('founder unlock activates Pro', proStored);
 
 // Trial expiry: rewind the trial clock, drop pro, reload → hard paywall banner
 await page.evaluate(() => {

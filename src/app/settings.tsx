@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, View } from 'react-native';
+import { Alert, I18nManager, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import { WafraLogo } from '@/components/wafra-logo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { MARKETS } from '@/lib/markets';
 import { isProActive, trialDaysLeft } from '@/lib/purchases';
 import { useStore } from '@/lib/store';
@@ -20,10 +21,20 @@ import NotificationReader from '../../modules/notification-reader';
 export default function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { state, setAppLock, setMonthStartDay, setPro, setMarket, exportBackup, restoreBackup, loadDemoData, clearAll } =
+  const { state, setAppLock, setMonthStartDay, setPro, setMarket, setUiLanguage, exportBackup, restoreBackup, loadDemoData, clearAll } =
     useStore();
 
   const market = MARKETS.find((m) => m.id === state.marketId) ?? MARKETS[0];
+  const cycleLanguage = () => {
+    const next = state.language === 'ar' ? 'en' : 'ar';
+    setUiLanguage(next);
+    // RTL flips on next app start (a React Native constraint).
+    if (Platform.OS !== 'web') {
+      I18nManager.allowRTL(next === 'ar');
+      I18nManager.forceRTL(next === 'ar');
+      Alert.alert(t('language'), t('restartForLanguage'));
+    }
+  };
   const cycleMarket = () => {
     const i = MARKETS.findIndex((m) => m.id === market.id);
     const next = MARKETS[(i + 1) % MARKETS.length];
@@ -184,22 +195,22 @@ export default function SettingsScreen() {
             style={[styles.backBtn, { backgroundColor: theme.backgroundSelected }]}>
             <Icon name="chevron-left" size={18} color={theme.text} />
           </Pressable>
-          <ThemedText type="heading">Settings</ThemedText>
+          <ThemedText type="heading">{t('settingsTitle')}</ThemedText>
           <View style={styles.backBtn} />
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.section}>
-            <ThemedText type="micro" themeColor="textSecondary">Features</ThemedText>
+            <ThemedText type="micro" themeColor="textSecondary">{t('featuresHeader')}</ThemedText>
             <View>
               <Pressable onPress={() => router.push('/pro')} style={styles.settingRow}>
                 <View style={styles.rowLeft}>
                   <Icon name="diamond" size={15} color={theme.gold} />
                   <View>
-                    <ThemedText type="small">Wafra Pro</ThemedText>
+                    <ThemedText type="small">{t('wafraPro')}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
                       {state.pro
-                        ? 'Active'
+                        ? t('proActive')
                         : trialDaysLeft(state) > 0
                           ? `Free trial · ${trialDaysLeft(state)} day${trialDaysLeft(state) === 1 ? '' : 's'} left`
                           : 'Trial ended · tracking paused'}
@@ -209,15 +220,15 @@ export default function SettingsScreen() {
                 <Icon name="chevron-right" size={15} color={theme.textSecondary} />
               </Pressable>
               {divider}
-              {row('calendar', 'Bills and subscriptions', () => router.push('/bills'))}
+              {row('calendar', t('billsAndSubs'), () => router.push('/bills'))}
               {divider}
-              {row('mail', 'Import from bank SMS', () => router.push('/import-sms'))}
+              {row('mail', t('importFromSms'), () => router.push('/import-sms'))}
               {divider}
               <Pressable onPress={gated(onNotificationAccess)} style={styles.settingRow}>
                 <View style={styles.rowLeft}>
                   <Icon name="mail" size={15} color={theme.textSecondary} />
                   <View>
-                    <ThemedText type="small">Bank app notifications (beta)</ThemedText>
+                    <ThemedText type="small">{t('bankAppNotifs')}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
                       {notifEnabled
                         ? 'On · push alerts import automatically'
@@ -231,7 +242,7 @@ export default function SettingsScreen() {
               <View style={styles.settingRow}>
                 <View style={styles.rowLeft}>
                   <Icon name="lock" size={15} color={theme.textSecondary} />
-                  <ThemedText type="small">App lock (biometric)</ThemedText>
+                  <ThemedText type="small">{t('appLock')}</ThemedText>
                 </View>
                 <Switch
                   value={state.appLock}
@@ -246,9 +257,22 @@ export default function SettingsScreen() {
                 <View style={styles.rowLeft}>
                   <Icon name="bank" size={15} color={theme.textSecondary} />
                   <View>
-                    <ThemedText type="small">Country</ThemedText>
+                    <ThemedText type="small">{t('country')}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      {market.flag} {market.name} · {market.currency.code} · tap to change
+                      {market.flag} {market.name} · {market.currency.code} · {t('tapToChange')}
+                    </ThemedText>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={15} color={theme.textSecondary} />
+              </Pressable>
+              {divider}
+              <Pressable onPress={cycleLanguage} style={styles.settingRow}>
+                <View style={styles.rowLeft}>
+                  <Icon name="receipt" size={15} color={theme.textSecondary} />
+                  <View>
+                    <ThemedText type="small">{t('language')}</ThemedText>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {state.language === 'ar' ? 'العربية' : 'English'} · {t('tapToChange')}
                     </ThemedText>
                   </View>
                 </View>
@@ -260,11 +284,11 @@ export default function SettingsScreen() {
                 <View style={styles.rowLeft}>
                   <Icon name="calendar" size={15} color={theme.textSecondary} />
                   <View>
-                    <ThemedText type="small">Month starts on day</ThemedText>
+                    <ThemedText type="small">{t('monthStartsOn')}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
                       {state.monthStartDay > 1
                         ? `Your money month runs day ${state.monthStartDay} to day ${state.monthStartDay - 1}`
-                        : 'Calendar months (1st to end)'}
+                        : t('calendarMonths')}
                     </ThemedText>
                   </View>
                 </View>
@@ -288,17 +312,17 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <ThemedText type="micro" themeColor="textSecondary">Data</ThemedText>
+            <ThemedText type="micro" themeColor="textSecondary">{t('dataHeader')}</ThemedText>
             <View>
-              {row('download', 'Back up everything (JSON)', gated(backupJson))}
+              {row('download', t('backupJson'), gated(backupJson))}
               {divider}
-              {row('upload', 'Restore from backup', gated(restoreFromFile))}
+              {row('upload', t('restoreBackup'), gated(restoreFromFile))}
               {divider}
-              {row('receipt', 'Export transactions (CSV)', exportCsv)}
+              {row('receipt', t('exportCsv'), exportCsv)}
               {divider}
-              {row('spark', 'Load demo data', () => confirmReset(true))}
+              {row('spark', t('loadDemo'), () => confirmReset(true))}
               {divider}
-              {row('trash', 'Erase all data', () => confirmReset(false), true)}
+              {row('trash', t('eraseAll'), () => confirmReset(false), true)}
             </View>
           </View>
 

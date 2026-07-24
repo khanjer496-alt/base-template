@@ -9,6 +9,7 @@ import { WafraLogo } from '@/components/wafra-logo';
 import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import {
   buildImportPlan,
   isSmsScanningAvailable,
@@ -96,7 +97,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
               onPress={() => setStep(isSmsScanningAvailable() ? 'permissions' : 'choose')}
               style={[styles.cta, { backgroundColor: theme.primary }]}>
               <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 16 }}>
-                Get started
+                {t('getStarted')}
               </ThemedText>
             </Pressable>
           </Animated.View>
@@ -180,7 +181,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
                 }}
                 style={[styles.cta, { backgroundColor: theme.primary }]}>
                 <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 16 }}>
-                  Explore with sample data
+                  {t('exploreSample')}
                 </ThemedText>
               </Pressable>
               <Pressable onPress={finish} style={styles.ghostBtn}>

@@ -20,6 +20,7 @@ import { Icon } from '@/components/ui/icon';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import { accountBalanceFils, netWorthFils, useStore } from '@/lib/store';
@@ -199,9 +200,9 @@ export default function WalletScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View>
-              <ThemedText type="title">Wallet</ThemedText>
+              <ThemedText type="title">{t('walletTitle')}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary" tabular>
-                Net worth {formatAED(total, { decimals: false })}
+                {t('netWorth')} {formatAED(total, { decimals: false })}
               </ThemedText>
             </View>
             <View style={styles.headerActions}>
@@ -221,7 +222,7 @@ export default function WalletScreen() {
           {/* Card dues */}
           {dues.length > 0 && (
             <View style={styles.section}>
-              <ThemedText type="micro" themeColor="textSecondary">Card payments due</ThemedText>
+              <ThemedText type="micro" themeColor="textSecondary">{t('cardPaymentsDue')}</ThemedText>
               {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
                 const account = state.accounts.find((a) => a.id === due.accountId);
                 const urgent = status === 'urgent' || status === 'overdue';
@@ -264,11 +265,11 @@ export default function WalletScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <ThemedText type="micro" themeColor="textSecondary">
-                  Cards ({cards.length})
+                  {t('cardsHeader')} ({cards.length})
                 </ThemedText>
                 <Pressable onPress={() => router.push('/cards')}>
                   <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-                    See all
+                    {t('seeAll')}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -327,7 +328,7 @@ export default function WalletScreen() {
                         </ThemedText>
                         {isCredit && (
                           <ThemedText type="micro" themeColor="textSecondary">
-                            outstanding
+                            {t('outstanding')}
                           </ThemedText>
                         )}
                       </View>
@@ -340,7 +341,7 @@ export default function WalletScreen() {
 
           {/* Accounts */}
           <View style={styles.section}>
-            <ThemedText type="micro" themeColor="textSecondary">Accounts</ThemedText>
+            <ThemedText type="micro" themeColor="textSecondary">{t('accountsHeader')}</ThemedText>
             <View>
               {nonCardAccounts.map((account, i) => {
                 const derived = accountBalanceFils(state, account.id);
@@ -375,7 +376,7 @@ export default function WalletScreen() {
                       </ThemedText>
                       {fromBank && (
                         <ThemedText type="micro" themeColor="textSecondary">
-                          per bank SMS
+                          {t('perBankSms')}
                         </ThemedText>
                       )}
                     </View>
@@ -389,7 +390,7 @@ export default function WalletScreen() {
               )}
             </View>
             <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
-              Long-press a card or account to hide or remove it
+              {t('longPressHint')}
             </ThemedText>
           </View>
 
@@ -398,7 +399,7 @@ export default function WalletScreen() {
             <View style={styles.section}>
               <Pressable onPress={() => setShowInactive((v) => !v)} style={styles.sectionHeader}>
                 <ThemedText type="micro" themeColor="textSecondary">
-                  Inactive ({inactiveAccounts.length})
+                  {t('inactiveHeader')} ({inactiveAccounts.length})
                 </ThemedText>
                 <Icon
                   name={showInactive ? 'chevron-down' : 'chevron-right'}
@@ -443,10 +444,10 @@ export default function WalletScreen() {
           {/* Goals */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <ThemedText type="micro" themeColor="textSecondary">Savings goals</ThemedText>
+              <ThemedText type="micro" themeColor="textSecondary">{t('goalsHeader')}</ThemedText>
               <Pressable onPress={() => setGoalVisible(true)}>
                 <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-                  + New goal
+                  {t('newGoal')}
                 </ThemedText>
               </Pressable>
             </View>

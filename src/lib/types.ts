@@ -134,4 +134,6 @@ export interface AppState {
   trialStartTs: number;
   /** Market pack id (country). Auto-detected on first launch; user-changeable. */
   marketId: string;
+  /** UI language ('en' | 'ar'). Auto-detected on first launch. */
+  language: string;
 }

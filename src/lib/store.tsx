@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { I18nManager, Platform } from 'react-native';
 import React, {
   createContext,
   useCallback,
@@ -10,6 +11,7 @@ import React, {
 } from 'react';
 
 import { setMonthStartDay as applyMonthStartDay, toISODate } from '@/lib/format';
+import { detectLanguage, setLanguage } from '@/lib/i18n';
 import { detectMarketId, setActiveMarket } from '@/lib/markets';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
 import { normalizeServiceName } from '@/lib/sms-parser';
@@ -45,6 +47,7 @@ const EMPTY_STATE: AppState = {
   pro: false,
   trialStartTs: 0,
   marketId: '',
+  language: '',
 };
 
 let idCounter = 0;
@@ -93,6 +96,7 @@ type Action =
   | { type: 'setMonthStartDay'; day: number }
   | { type: 'setPro'; pro: boolean }
   | { type: 'setMarket'; id: string }
+  | { type: 'setUiLanguage'; language: string }
   | { type: 'setOnboarded' }
   | { type: 'restore'; state: Partial<Omit<AppState, 'hydrated'>> }
   | { type: 'loadDemo'; state: Partial<Omit<AppState, 'hydrated'>> }
@@ -113,6 +117,8 @@ function reducer(state: AppState, action: Action): AppState {
       // Localize automatically: country pack from the device locale, once.
       if (!next.marketId) next.marketId = detectMarketId();
       setActiveMarket(next.marketId);
+      if (!next.language) next.language = detectLanguage();
+      setLanguage(next.language === 'ar' ? 'ar' : 'en');
       return next;
     }
     case 'setPro':
@@ -120,6 +126,9 @@ function reducer(state: AppState, action: Action): AppState {
     case 'setMarket':
       setActiveMarket(action.id);
       return { ...state, marketId: action.id };
+    case 'setUiLanguage':
+      setLanguage(action.language === 'ar' ? 'ar' : 'en');
+      return { ...state, language: action.language };
     case 'setMonthStartDay': {
       const day = Math.min(28, Math.max(1, Math.round(action.day) || 1));
       applyMonthStartDay(day);
@@ -310,6 +319,7 @@ interface StoreValue {
   setMonthStartDay: (day: number) => void;
   setPro: (pro: boolean) => void;
   setMarket: (id: string) => void;
+  setUiLanguage: (language: string) => void;
   setOnboarded: () => void;
   exportBackup: () => string;
   restoreBackup: (json: string) => boolean;
@@ -372,6 +382,17 @@ async function loadPersisted(): Promise<Partial<Omit<AppState, 'hydrated'>> | nu
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
   const prevChunkCount = useRef(0);
+
+  // Keep the native RTL flag in sync with the chosen language (takes effect
+  // on the next app start — a React Native constraint).
+  useEffect(() => {
+    if (!state.hydrated || Platform.OS === 'web') return;
+    const wantRTL = state.language === 'ar';
+    if (I18nManager.isRTL !== wantRTL) {
+      I18nManager.allowRTL(wantRTL);
+      I18nManager.forceRTL(wantRTL);
+    }
+  }, [state.hydrated, state.language]);
 
   useEffect(() => {
     let cancelled = false;
@@ -649,6 +670,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'setMarket', id });
   }, []);
 
+  const setUiLanguage = useCallback((language: string) => {
+    dispatch({ type: 'setUiLanguage', language });
+  }, []);
+
   const exportBackup = useCallback(() => {
     const { hydrated: _h, ...data } = state;
     return JSON.stringify({ app: 'wafra', version: 1, exportedAt: new Date().toISOString(), data });
@@ -703,6 +728,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setMonthStartDay,
       setPro,
       setMarket,
+      setUiLanguage,
       setOnboarded,
       exportBackup,
       restoreBackup,
@@ -736,6 +762,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setMonthStartDay,
       setPro,
       setMarket,
+      setUiLanguage,
       setOnboarded,
       exportBackup,
       restoreBackup,

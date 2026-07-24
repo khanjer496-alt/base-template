@@ -59,15 +59,19 @@ scan → transactions appearing.
 
 ## Build checklist before submission
 
-- [ ] Unique applicationId (e.g. app.wafra.android) — currently template id
-- [ ] versionCode/versionName scheme wired to CI
-- [ ] Signed **AAB** (Play requires AAB, not APK) with an upload key
-- [ ] Release shrinking/proguard pass; strip debug flags
-- [ ] Final app icon + adaptive icon + splash
-- [ ] Privacy policy URL (add page to landing site; required field)
+- [x] Unique applicationId: app.wafra.android (versionCode 1 in app.json)
+- [x] Signed releases: keystore/wafra-upload.jks (upload key; CI signs both
+      APK and AAB — replaceable in Play Console if ever compromised)
+- [x] Play **AAB** built by CI as the wafra-aab artifact every push
+- [x] Privacy policy written (landing page section; host on real domain)
+- [x] i18n: English + Arabic UI with RTL; auto-detected, Settings override
+- [ ] Final app icon + adaptive icon + splash pass
 - [ ] Screenshots (phone, 1080×1920+) + feature graphic 1024×500
 - [ ] Content rating questionnaire (PEGI 3 expected)
-- [ ] Countries: start UAE-only if desired
+- [ ] Countries + pricing (UAE first; SA pack ready when expanding)
+- [ ] YOUR STEPS: Play developer account ($25), upload wafra-aab to a
+      closed test track, paste the SMS declaration, add privacy policy URL,
+      create the two Pro subscription SKUs (3-day free trial on each)
 
 ## Monetization — Wafra Pro
 

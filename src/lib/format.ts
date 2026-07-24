@@ -1,3 +1,4 @@
+import { t } from '@/lib/i18n';
 import { getActiveMarket } from '@/lib/markets';
 
 const MONTHS = [
@@ -122,15 +123,15 @@ export function shortDate(iso: string): string {
 
 /** "Today", "Yesterday", or "Friday, 18 Jul". */
 export function friendlyDate(iso: string, todayISO: string): string {
-  if (iso === todayISO) return 'Today';
+  if (iso === todayISO) return t('today');
   const d = new Date(`${iso}T12:00:00`);
-  const t = new Date(`${todayISO}T12:00:00`);
-  if (Math.round((t.getTime() - d.getTime()) / 86400000) === 1) return 'Yesterday';
+  const t2 = new Date(`${todayISO}T12:00:00`);
+  if (Math.round((t2.getTime() - d.getTime()) / 86400000) === 1) return t('yesterday');
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 
 export function greetingForHour(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 12) return t('goodMorning');
+  if (hour < 17) return t('goodAfternoon');
+  return t('goodEvening');
 }

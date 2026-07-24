@@ -26,6 +26,7 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { useToast } from '@/components/ui/toast';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import {
   buildImportPlan,
   hasSmsPermission,
@@ -136,7 +137,7 @@ function Hero({
         </Pressable>
         <Pressable onPress={() => router.push('/stats')} hitSlop={8}>
           <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
-            Report
+            {t('report')}
           </ThemedText>
         </Pressable>
       </View>
@@ -460,9 +461,9 @@ export default function HomeScreen() {
                 style={[styles.permissionRow, { borderColor: theme.gold }]}>
                 <Icon name="diamond" size={18} color={theme.gold} />
                 <View style={styles.permissionText}>
-                  <ThemedText type="smallBold">Trial ended · tracking paused</ThemedText>
+                  <ThemedText type="smallBold">{t('trialEndedBanner')}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Subscribe to keep importing your bank SMS
+                    {t('trialEndedBannerSub')}
                   </ThemedText>
                 </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />
@@ -477,9 +478,9 @@ export default function HomeScreen() {
                 style={[styles.permissionRow, { borderColor: theme.primary }]}>
                 <Icon name="spark" size={18} color={theme.primary} />
                 <View style={styles.permissionText}>
-                  <ThemedText type="smallBold">Turn on automatic tracking</ThemedText>
+                  <ThemedText type="smallBold">{t('turnOnTracking')}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Wafra reads bank SMS on this device only
+                    {t('trackingPrivacy')}
                   </ThemedText>
                 </View>
                 <Icon name="chevron-right" size={16} color={theme.textSecondary} />

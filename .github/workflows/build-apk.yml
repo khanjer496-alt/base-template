@@ -42,16 +42,53 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
 
+      # Sign releases with the Play upload key. The repo is private and the
+      # upload key is replaceable in Play Console if ever compromised.
+      - name: Configure release signing
+        run: |
+          cp keystore/wafra-upload.jks android/app/wafra-upload.jks
+          cat >> android/app/build.gradle <<'EOG'
+
+          android {
+              signingConfigs {
+                  upload {
+                      storeFile file('wafra-upload.jks')
+                      storePassword 'wafra-upload-2026'
+                      keyAlias 'wafra'
+                      keyPassword 'wafra-upload-2026'
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.upload
+                  }
+              }
+          }
+          EOG
+
       - name: Build release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk wafra.apk
+      - name: Build Play Store bundle (AAB)
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Rename outputs
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk wafra.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab wafra.aab
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: wafra-apk
           path: wafra.apk
+          retention-days: 30
+
+      - name: Upload Play bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wafra-aab
+          path: wafra.aab
           retention-days: 30
