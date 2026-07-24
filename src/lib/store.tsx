@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from 'react';
 
 import { toISODate } from '@/lib/format';
@@ -305,17 +306,51 @@ function demoState(): Partial<Omit<AppState, 'hydrated'>> {
   };
 }
 
+/**
+ * Transactions are stored in chunks: Android's AsyncStorage keeps each key in
+ * a single SQLite row capped at ~2MB, and a full SMS history in one blob blew
+ * past it — the save "worked" but every read failed, so the app opened as if
+ * brand new. Meta (small) lives at STORAGE_KEY; rows live at :tx:N keys.
+ */
+const TX_CHUNK_SIZE = 400;
+const txChunkKey = (i: number) => `${STORAGE_KEY}:tx:${i}`;
+
+type PersistedMeta = Partial<Omit<AppState, 'hydrated'>> & { txChunks?: number };
+
+async function loadPersisted(): Promise<Partial<Omit<AppState, 'hydrated'>> | null> {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as PersistedMeta;
+  if (!Array.isArray(parsed.transactions)) {
+    const count = Number(parsed.txChunks) || 0;
+    const txs: Transaction[] = [];
+    if (count > 0) {
+      const pairs = await AsyncStorage.multiGet(
+        Array.from({ length: count }, (_, i) => txChunkKey(i)),
+      );
+      for (const [, v] of pairs) {
+        if (v) txs.push(...(JSON.parse(v) as Transaction[]));
+      }
+    }
+    parsed.transactions = txs;
+  }
+  delete parsed.txChunks;
+  return parsed;
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
+  const prevChunkCount = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const loaded = await loadPersisted();
         if (cancelled) return;
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<Omit<AppState, 'hydrated'>>;
+        if (loaded) {
+          const parsed = loaded;
+          prevChunkCount.current = Math.ceil((parsed.transactions?.length ?? 0) / TX_CHUNK_SIZE);
           // Pre-onboarding builds stored data without the flag; count them as onboarded.
           if (parsed.onboarded === undefined) parsed.onboarded = true;
           // Repair rows imported before the masked-PAN parser fix: titles like
@@ -388,8 +423,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!state.hydrated) return;
-    const { hydrated: _hydrated, ...toSave } = state;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toSave)).catch(() => {});
+    const { hydrated: _hydrated, transactions, ...meta } = state;
+    const chunks: [string, string][] = [];
+    for (let i = 0; i * TX_CHUNK_SIZE < transactions.length; i++) {
+      chunks.push([
+        txChunkKey(i),
+        JSON.stringify(transactions.slice(i * TX_CHUNK_SIZE, (i + 1) * TX_CHUNK_SIZE)),
+      ]);
+    }
+    (async () => {
+      try {
+        await AsyncStorage.multiSet([
+          [STORAGE_KEY, JSON.stringify({ ...meta, txChunks: chunks.length })],
+          ...chunks,
+        ]);
+        if (prevChunkCount.current > chunks.length) {
+          await AsyncStorage.multiRemove(
+            Array.from({ length: prevChunkCount.current - chunks.length }, (_, i) =>
+              txChunkKey(chunks.length + i),
+            ),
+          );
+        }
+        prevChunkCount.current = chunks.length;
+      } catch {
+        // Persistence is best-effort; the in-memory state stays authoritative.
+      }
+    })();
   }, [state]);
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
