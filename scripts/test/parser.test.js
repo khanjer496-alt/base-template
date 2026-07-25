@@ -576,6 +576,18 @@ t('insurance truncation categorizes as health',
   'Purchase of AED 866.25 with Debit Card ending 1354 at DUBAI NATIONAL INSURAN, DUBAI. Avl Balance is AED 13,100.21.',
   { category: 'health' });
 
+t('colon-style parking confirmation also parses as Parking',
+  'Confirmation\nPlate: DXB 5559301-DD\nZone: Sharjah\nTicketNo: 5556576\nPaid: 2 AED\nValid Up To: 12-04-26 20:07 PM',
+  { merchant: 'Parking', amountFils: 200, category: 'transport' });
+
+t('Smart Dubai fee categorizes as government',
+  'Purchase of AED 30.00 with Debit Card ending 8783 at Smart Dubai Government, Dubai. Avl Balance is AED 6,549.04.',
+  { merchant: 'Smart Dubai Government', category: 'government' });
+
+t('Ministry of Interior categorizes as government',
+  'Credit Card Purchase \nCard No XXXX9960 \nAED 353.00 \nMinistry of Interior AUH ARE \n20/02/25 20:37 \nAvailable Balance AED 3285.23 Your February statement payment due date is 26/02/2025',
+  { category: 'government' });
+
 t('hotel resort categorizes as travel',
   'Credit Card Purchase \nCard No XXXX3749 \nAED 300.00 \nTHE OBEROI BEACH RESOR AJMAN ARE \n22/04/25 14:09 \nAvailable Balance AED 4116.98\nYour April statement payment due date is 26/04/2025',
   { category: 'travel' });

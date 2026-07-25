@@ -13,6 +13,7 @@ export type CategoryId =
   | 'travel'
   | 'entertainment'
   | 'charity'
+  | 'government'
   | 'salary'
   | 'business'
   | 'other';
