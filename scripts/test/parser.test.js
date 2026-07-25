@@ -336,6 +336,37 @@ t('DIB style: Dhs alias amount parses',
   'Dhs 320.00 debited from your account for payment to SEWA on 16/07/2026',
   { merchant: 'SEWA', amountFils: 32000, category: 'utilities' });
 
+// ── FAB account credit: "Your balance is" quotes the balance with no Avl prefix ──
+const fabCredit = parseSms(
+  'An amount of AED 5000.00 has been credited to your FAB account XXXX0004 on 26/06/2026 .Your balance is AED 401913.68');
+{
+  const errs = [];
+  if (!fabCredit) errs.push('did not parse');
+  else {
+    if (fabCredit.type !== 'income') errs.push(`type ${fabCredit.type} != income`);
+    if (fabCredit.amountFils !== 500000) errs.push(`amount ${fabCredit.amountFils} != 500000 (balance mistaken for amount)`);
+    if (fabCredit.snapshotKind !== 'balance') errs.push(`snapshotKind ${fabCredit.snapshotKind} != balance`);
+    if (fabCredit.snapshotFils !== 40191368) errs.push(`snapshotFils ${fabCredit.snapshotFils} != 40191368`);
+    if (!fabCredit.card || fabCredit.card.last4 !== '0004') errs.push(`card ${JSON.stringify(fabCredit.card)} != ..0004`);
+    if (fabCredit.date !== '2026-06-26') errs.push(`date ${fabCredit.date} != 2026-06-26`);
+  }
+  if (errs.length) { fail++; console.log(`✗ FAB "Your balance is" account credit\n    ${errs.join('\n    ')}`); }
+  else { pass++; console.log('✓ FAB "Your balance is" account credit'); }
+}
+
+t('bare "daily limit" mention is NOT a snapshot source of truth',
+  'Purchase of AED 200.00 at CARREFOUR with Debit Card ending 1234. Daily limit AED 5,000 applies',
+  { amountFils: 20000 });
+
+const dailyLimit = parseSms(
+  'Purchase of AED 200.00 at CARREFOUR with Debit Card ending 1234. Daily limit AED 5,000 applies');
+if (dailyLimit && dailyLimit.snapshotKind === null) {
+  pass++; console.log('✓ daily-limit mention captures no snapshot');
+} else {
+  fail++; console.log('✗ daily-limit mention captures no snapshot',
+    JSON.stringify(dailyLimit && { k: dailyLimit.snapshotKind, f: dailyLimit.snapshotFils }));
+}
+
 const enbdSnap = parseSms(
   'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00');
 if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1991000) {

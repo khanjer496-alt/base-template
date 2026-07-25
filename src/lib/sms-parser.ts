@@ -350,6 +350,11 @@ function extractMerchant(raw: string, re: RegExp): string {
 
 const SNAPSHOT_RE =
   /(?:avl|avail(?:able)?|remaining|total)\.?\s*(?:cr(?:edit)?\.?\s+)?(limit|bal(?:ance)?|outstanding)[^0-9-]{0,12}([\d,]+(?:\.\d{1,2})?)/i;
+// "Your balance is AED 401913.68" — balance quotes without an Avl/Total
+// prefix. Kept separate so bare "limit" mentions (daily limits, offers)
+// still need the availability prefix above.
+const PLAIN_BALANCE_RE =
+  /(?:your|current|new|updated|net|a\/?c(?:count)?)\s+bal(?:ance)?\s*(?:is|:|now)?[^0-9-]{0,10}([\d,]+(?:\.\d{1,2})?)/i;
 const MAX_SNAPSHOT_FILS = 1_000_000_000; // 10M in the local currency
 
 /** The balance / available-limit figure banks append to most alerts. */
@@ -363,6 +368,13 @@ function extractSnapshot(raw: string): { fils: number; kind: SnapshotKind } | nu
         fils,
         kind: word.startsWith('limit') ? 'limit' : word === 'outstanding' ? 'outstanding' : 'balance',
       };
+    }
+  }
+  const plain = raw.match(PLAIN_BALANCE_RE);
+  if (plain) {
+    const fils = Math.round(Number(plain[1].replace(/,/g, '')) * 100);
+    if (Number.isFinite(fils) && fils >= 0 && fils <= MAX_SNAPSHOT_FILS) {
+      return { fils, kind: 'balance' };
     }
   }
   const o = raw.match(OUTSTANDING_RE);
