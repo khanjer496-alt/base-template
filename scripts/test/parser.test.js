@@ -734,6 +734,11 @@ t('alpha flight service is airport catering', shop('ALPHA FLIGHT SERVICE', 'SHAR
 t('car centre is transport', shop('CAR CENTER SERVICES', 'SHARJAH'), { category: 'transport' });
 t('dott is micromobility', shop('Dott PENDING', 'Dubai'), { category: 'transport' });
 t('mamzar park is leisure', shop('AL MAMZAR PARK', 'DUBAI'), { category: 'entertainment' });
+// Playing sport is health, matching gym/padel/fitness. A shop that SELLS
+// sportswear is still retail, which is why shopping is tested beside it.
+t('a sports playground is health', shop('OLE FOR SPORTS PLAYGR', 'AJMAN'), { category: 'health' });
+t('a football academy is health', shop('FOOTBALL ACADEMY', 'DUBAI'), { category: 'health' });
+t('a sportswear retailer is still shopping', shop('SUN & SAND SPORTS', 'DUBAI'), { category: 'shopping' });
 t('majid al futtaim is retail', shop('MAJID AL FUTTAIM', 'DUBAI'), { category: 'shopping' });
 t('bioniq is supplements', shop('SP BIONIQ-GLOBAL', '+9715474'), { category: 'health' });
 t('a finance house instalment is a loan', shop('AAFAQ ISLAMIC FINANCE', 'DUBAI'), { category: 'loan' });
