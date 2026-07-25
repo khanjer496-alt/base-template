@@ -723,6 +723,27 @@ t('SPRM is a supermarket',
   'Purchase of AED 10.00 with Debit Card ending 8783 at NEW STAR FAMILIES SPRM, DUBAI. Avl Balance is AED 6,747.70.',
   { category: 'groceries' });
 
+// ── Guess rather than dump in "other" ──
+// Corrections are permanent now, so a wrong guess costs one tap while an
+// "other" row costs a cluttered bucket forever.
+const shop = (name, place) =>
+  `Purchase of AED 42.00 with Debit Card ending 8783 at ${name}, ${place}. Avl Balance is AED 972.01.`;
+
+t('aseer time is a restaurant', shop('ASEER TIME', 'AJMAN'), { category: 'dining' });
+t('alpha flight service is airport catering', shop('ALPHA FLIGHT SERVICE', 'SHARJAH'), { category: 'dining' });
+t('car centre is transport', shop('CAR CENTER SERVICES', 'SHARJAH'), { category: 'transport' });
+t('dott is micromobility', shop('Dott PENDING', 'Dubai'), { category: 'transport' });
+t('mamzar park is leisure', shop('AL MAMZAR PARK', 'DUBAI'), { category: 'entertainment' });
+t('majid al futtaim is retail', shop('MAJID AL FUTTAIM', 'DUBAI'), { category: 'shopping' });
+t('bioniq is supplements', shop('SP BIONIQ-GLOBAL', '+9715474'), { category: 'health' });
+t('a finance house instalment is a loan', shop('AAFAQ ISLAMIC FINANCE', 'DUBAI'), { category: 'loan' });
+t('fiverr matches even with a region suffix', shop('FiverrEU', 'Nicosia'), { category: 'entertainment' });
+
+// A district name in the descriptor must not decide the category: every shop
+// and cafe in City Walk carries it.
+t('a roastery in City Walk is dining, not entertainment',
+  shop('NIGHTJAR CITY WALK', 'DUBAI'), { category: 'dining' });
+
 // ── Dates: a wrong date files a transaction in the wrong month ──
 t('impossible calendar date is rejected, not rolled into the next month',
   'Purchase of AED 90.00 with Credit Card ending 4499 at LULU on 30/02/2026',
