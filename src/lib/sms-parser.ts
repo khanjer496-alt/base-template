@@ -263,7 +263,7 @@ const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/rent|ejari|landlord/i, 'rent'],
   [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|\bsivvi\b|ikea|home centre|homebox|home box|pan emirates|danube home|ace hardware|dragon ?mart|sharaf|jumbo|emax|virgin megastore|decathlon|sun ?& ?sand|nike|adidas|puma\b|\bh ?& ?m\b|zara\b|bershka|pull ?& ?bear|matalan|max fashion|centrepoint|splash\b|lifestyle|brands for less|daiso|miniso|mumzworld|firstcry|toys ?r ?us|dubizzle|mall\b|store|shop|boutique|tailor|tailo\b|salon|barber|spa\b|beauty|laundry|dry ?clean|perfume|jewel|gold ?souk|florist|flower|fashion|garment|abaya|red ?tag|landmark retail|citywalk|matajer|american eagle|hennes|uniqlo|sephora|skechers|lc waikiki|\basos\b|alibaba|duty ?free|dufry|\boutlet\b|jashanmal|washmen|hairdress|house ?hold|majid al futtaim|\bmaf\b|gmg consumer|al ?shaya/i, 'shopping'],
   [/pharmacy|phcy|life pharm|bin sina|boots\b|supercare|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|burjeel|zulekha|prime medical|dental|medical|medic\b|polyclinic|physio|optic|vision|lab\b|diagnostic|x-?ray|derma|vet\b|veterinar|sukoon|\bdaman\b|\baxa\b|insuran|\bins\b|wathba|gym\b|fitness|classpass|padel|phar\b|pharma|sports? club|fit body|be ?fit\b|bodybuilding|\bseha\b|patient portal|bioniq|supplement|dietary supp|nutrition|ole for sports|sports? ?(?:playgr|ground|centre|center|complex|academy|arena|hall)|football|futsal|tennis|basketball|swimming|athletic/i, 'health'],
-  [/school|university|college|tuition|academy|nursery|kindergarten|\bgems\b|taaleem|kumon|udemy|coursera|skillshare|training (?:center|centre)|institute/i, 'education'],
+  [/school|university|college|tuition|academy|nursery|kindergarten|\bgems\b|taaleem|kumon|udemy|coursera|coursra|skillshare|training (?:center|centre)|institute/i, 'education'],
   [/emirates(?!\s*(?:nbd|islamic|coop))|flydubai|etihad|air arabia|airline|airways|\bhotel\b|rotana|marriott|hilton|hyatt|radisson|movenpick|sheraton|ibis\b|novotel|booking|airbnb|agoda|expedia|almosafer|musafir|wego\b|cleartrip|wizz|visa fee|travel|resort|oberoi|chedi|meridien|fairmont|loungekey|dragonpass|airport companion|dayuse|trip\.?\s?(?:dot ?)?com|viator|makemytrip|airasia|hoteltonight/i, 'travel'],
   [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|apple\.com|you\s*tube|national park|cinema|vox\b|reel\b|novo\b|roxy\b|imax|netflix|spotify|anghami|shahid|osn\b|starz|game\b|gaming|arcade|bowling|magic planet|kidzania|global village|ferrari world|yas island|img world|wild wadi|aquaventure|dubai parks|adventure|entertainment|theme park|water ?park|playground|palyground|ball talent|openai|chat\s*gpt|anthropic|\bclaude\b|alldebrid|real-?debrid|getresponse|domain\.com|godaddy|namecheap|hostinger|\bhosting\b|museum|prison island|x ?strike|billiard|\bgolf\b|shooting|leisure|theentertainer|little fox|g2a\b|cdkeys|oculus|stadia|al futtaim cin|\bcin\b|bounce\b/i, 'entertainment'],
   [/donat|charity|zakat|sadaqah|dubai cares|red crescent|beit al khair|dar al ber|gofundme/i, 'charity'],
@@ -369,6 +369,7 @@ const SERVICE_NAMES: [RegExp, string][] = [
   [/steam\s*(?:purchase|games)|steampowered/i, 'Steam'],
   [/capital\.com/i, 'Capital.com'],
   [/name\.com/i, 'Name.com'],
+  [/coursra\*|coursera/i, 'Coursera'],
   [/\bkeeta\b/i, 'Keeta'],
   [/grubtech/i, 'Grubtech'],
   [/getresponse/i, 'GetResponse'],
@@ -495,13 +496,15 @@ function extractMerchant(raw: string, re: RegExp): string {
     // titled "View Your Statement" and "Avoid Charges" were the result.
     // A descriptor never opens with an imperative or names the reader.
     if (
-      /^(?:avoid|view|check|see|click|visit|call|contact|update|verify|confirm|download|enjoy|get|earn|save|know|learn|read|use|pay|activate|renew|register|apply|explore|discover|manage|track|start|join|book|order|shop|win|claim|reply|dial|send|scan|tap|switch|upgrade|unlock|redeem|collect|refer|share|follow|subscribe|opt)\b/i.test(
+      /^(?:avoid|view|check|see|click|visit|call|contact|update|verify|confirm|download|enjoy|get|earn|save|know|learn|read|use|pay|activate|renew|register|apply|explore|discover|manage|track|start|join|book|order|shop|win|claim|reply|dial|send|scan|switch|upgrade|unlock|redeem|collect|refer|share|follow|subscribe|opt)\b/i.test(
         candidate,
       )
     ) {
       continue;
     }
-    if (/\b(?:you|your|yours|which|whom|we|our|us|they|their)\b/i.test(candidate)) continue;
+    // Deliberately no "us"/"we": HOMES R US is a shop, not a sentence about
+    // the reader, and the guard deleted its name outright.
+    if (/\b(?:you|your|yours|which|whom|their)\b/i.test(candidate)) continue;
     if (candidate) return candidate;
     if (re.lastIndex === match.index) re.lastIndex++;
   }
@@ -648,6 +651,8 @@ export function parseSms(
   // are charged at AED 52.5 per transaction. Enjoy free banking at 430 ATMs".
   if (/\bare charged at\b|\bis charged at\b|\bper transaction\b/i.test(raw)) return null;
   if (/autopay service/i.test(raw)) return null;
+  // "Amount will be deducted from next recharge" — nothing has moved yet.
+  if (/deducted from (?:your )?next recharge|will be deducted from next/i.test(raw)) return null;
   // BNPL / tabby previews of TOMORROW's charge — the real charge arrives as
   // its own bank SMS, so importing these double-counts every instalment.
   if (
@@ -844,7 +849,7 @@ export function parseSms(
         transferHint: false,
         snapshotFils,
         snapshotKind,
-        categoryGuess: 'other',
+        categoryGuess: guessCategory(raw, 'expense', overrides, `Payment to \u2022${last4}`),
         raw,
       };
     }
@@ -1002,6 +1007,15 @@ export function parseSms(
   // but calling them "Card purchase" was wrong twice over, and a row that
   // reads "Transfer to Khalid Rashid" needs no category at all.
   let structuralMerchant = false;
+  // "RULE TRANSFER TO SAVINGS WITH ONE-SHOT SAVING" — an automated sweep into
+  // the user's own savings pot. It is the clearest possible self-transfer, and
+  // three of them were being counted as spending.
+  if (!isBillDue && /transfer to savings|savings? (?:rule|goal|pot|plan)\b|round-?up saving/i.test(raw)) {
+    merchant = 'Savings transfer';
+    structuralMerchant = true;
+    transferHint = true;
+  }
+
   if (!isBillDue && type === 'expense') {
     const named = raw.match(
       /\b(?:fastpay|instant|local|domestic|international|fund|mobile\s+banking)\s+transfer\s+to\s+([A-Za-z][A-Za-z .'\-]{2,40}?)\s*(?:[.,;]|\bif\b|$)/i,
@@ -1072,14 +1086,21 @@ export function parseSms(
     // as different ones.
     // Ziina and Mamo are UAE payment links: the shop's own name follows the
     // star, so "Ziina  *qasr al zain m" is Qasr Al Zain, not Ziina.
-    const unprefixed = merchant.replace(
+    // "HTTP WWW CARS24 COM" and "HTTP //WWW.BINANCE.COM" are URLs, not names.
+    // When nothing survives the scheme and host prefix, a service named
+    // anywhere in the message identifies the row better than "Www" does.
+    const deUrled =
+      merchant.replace(/^https?\s*[:/]*\s*(?:www[\s.]?)?/i, '').trim() ||
+      normalizeServiceName(raw) ||
+      merchant;
+    const unprefixed = deUrled.replace(
       /^(?:alp|eig|sq|tap|web|v|paypal|google|gpay|apl|amzn|pos|ziina|mamo|wl)\s*\*\s*/i,
       '',
     );
     merchant =
       normalizeServiceName(descriptor || merchant) ??
       normalizeServiceName(merchant) ??
-      titleCase((unprefixed || merchant).replace(/[\s,;.*-]+$/, ''));
+      titleCase((unprefixed || deUrled || merchant).replace(/[\s,;.*-]+$/, ''));
   }
   // ATM messages usually name a location; the row is still a cash withdrawal.
   if (!isBillDue && type === 'expense' && !transferHint && ATM_RE.test(raw)) {

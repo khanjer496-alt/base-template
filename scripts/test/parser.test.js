@@ -821,6 +821,35 @@ if (inbound && inbound.type === 'income' && inbound.transferHint === false) {
   pass++; console.log('\u2713 an unnamed incoming transfer still counts as income');
 } else { fail++; console.log('\u2717 an unnamed incoming transfer still counts as income', JSON.stringify(inbound && { m: inbound.merchant, t: inbound.type, h: inbound.transferHint })); }
 
+// Fourth corpus. The first two are regressions from my own guards.
+t('a shop with US in its name keeps it',
+  'Purchase of AED 397.00 with Debit Card ending 4733 at HOMES R US TRADING LLC, DUBAI. Avl Balance is AED 39,788.47.',
+  { merchant: 'Homes R Us Trading Llc', category: 'shopping' });
+t('a Tap* payment link is not an imperative',
+  'Purchase of AED 128.60 with Debit Card ending 4744 at Tap*OpenSooq, Dubai. Avl Balance is AED 2,954.09.',
+  { merchant: 'Opensooq' });
+
+const sweep = parseSms('AED 3,000.00 has been debited from your account no. 095-XXX11XXX-01 RULE TRANSFER TO SAVINGS WITH ONE-SHOT SAVING. The available balance is AED 2257.74.');
+if (sweep && sweep.merchant === 'Savings transfer' && sweep.transferHint === true) {
+  pass++; console.log('\u2713 a savings sweep is a transfer, not spending');
+} else { fail++; console.log('\u2717 a savings sweep is a transfer', JSON.stringify(sweep && { m: sweep.merchant, h: sweep.transferHint })); }
+
+t('a URL descriptor resolves to the service',
+  'Purchase of AED 200.00 with Debit Card ending 4744 at HTTP //WWW.BINANCE.COM, BUY DIGITAL A. Avl Balance is AED 4,019.17.',
+  { merchant: 'Binance' });
+t('a URL descriptor keeps its host when no service matches',
+  'Purchase of AED 299.00 with Debit Card ending 4744 at HTTP WWW CARS24 COM, RAS AL KHAIM. Avl Balance is AED 4,469.89.',
+  { merchant: 'Cars24' });
+t('a Coursera hash is one merchant',
+  'Purchase of AED 147.55 with Debit Card ending 4744 at COURSRA*B190SEQUMEGZ4E, MOUNTAIN VIEW. Avl Balance is AED 1,878.30.',
+  { merchant: 'Coursera', category: 'education' });
+t('a call-cost notice has not charged anything yet',
+  'Last call cost is AED 1.57 (VAT included) for Out of Credit Call Service. Amount will be deducted from next recharge.',
+  null);
+t('a biller portal receipt takes its category from the channel',
+  'Dear Customer, Your payment to the account number ····2543 has been processed.\nAmount Due: AED 408.45 \nAmount Paid: AED 408.45 \nPayment Channel: Etisalat Mobile App',
+  { merchant: 'Payment to \u20222543'.replace('\u2022', '\u2022'), category: 'telecom' });
+
 // Third corpus, from the shipped build.
 t('Trip.com is travel, dot and all',
   'Purchase of GBP 37.6 with Debit Card ending 4733 at TRIP.COM, LONDON. Avl Balance is AED 43,415.07.',
