@@ -42,3 +42,7 @@ app-example
 /ios
 /android
 scripts/test/build/
+
+# The Worker has its own toolchain (Workers runtime types, not React Native).
+server/node_modules/
+server/.wrangler/

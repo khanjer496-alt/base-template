@@ -9,6 +9,8 @@ for f in types format categories sms-parser bills insights seed subscriptions ca
       -e "s|import('@/components/ui/icon').IconName|string|g" \
       ../../src/lib/$f.ts > build/$f.ts
 done
-npx tsc build/*.ts --module commonjs --target es2020 --outDir build --skipLibCheck
+cp ../../server/src/crypto.ts build/crypto.ts
+npx tsc build/*.ts --module commonjs --target es2022 --lib es2022,dom --outDir build --skipLibCheck
 node parser.test.js
 node unit.test.js
+node worker.test.js
