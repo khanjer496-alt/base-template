@@ -166,17 +166,19 @@ function reducer(state: AppState, action: Action): AppState {
       const patches = new Map(action.updates.map((u) => [u.id, u]));
       const existing =
         patches.size > 0
-          ? state.transactions.map((t) => {
-              const u = patches.get(t.id);
-              if (!u) return t;
-              return {
-                ...t,
-                ...(u.title !== undefined ? { title: u.title } : null),
-                ...(u.category !== undefined ? { category: u.category } : null),
-                ...(u.isTransfer !== undefined ? { isTransfer: u.isTransfer } : null),
-                ...(u.raw !== undefined ? { raw: u.raw } : null),
-              };
-            })
+          ? state.transactions
+              .filter((t) => !patches.get(t.id)?.remove)
+              .map((t) => {
+                const u = patches.get(t.id);
+                if (!u) return t;
+                return {
+                  ...t,
+                  ...(u.title !== undefined ? { title: u.title } : null),
+                  ...(u.category !== undefined ? { category: u.category } : null),
+                  ...(u.isTransfer !== undefined ? { isTransfer: u.isTransfer } : null),
+                  ...(u.raw !== undefined ? { raw: u.raw } : null),
+                };
+              })
           : state.transactions;
       return {
         ...state,
@@ -306,6 +308,8 @@ export interface TxHealUpdate {
   category?: CategoryId;
   isTransfer?: boolean;
   raw?: string;
+  /** The message no longer parses as a transaction (e.g. it's a statement reminder) — drop the row. */
+  remove?: boolean;
 }
 
 export interface ImportBatchInput {

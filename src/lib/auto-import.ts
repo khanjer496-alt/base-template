@@ -11,6 +11,24 @@ import type { ImportBatchInput, TxHealUpdate } from '@/lib/store';
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 40; // 40k messages is far beyond any real inbox
 
+/**
+ * Structurally-recognized titles: the row IS understood even though its
+ * category is the neutral one, so it shouldn't clutter Improve accuracy.
+ */
+const STRUCTURAL_TITLES = new Set([
+  'ATM withdrawal',
+  'Bank fee',
+  'VAT fee',
+  'Cash deposit',
+  'Cheque',
+  'Parking',
+  'Outgoing transfer',
+  'Incoming transfer',
+  'Inward remittance',
+  'Bank transfer',
+  'Card payment',
+]);
+
 export function isSmsScanningAvailable(): boolean {
   return Platform.OS === 'android' && SmsReader != null;
 }
@@ -149,7 +167,14 @@ export function buildImportPlan(
     const prior = smsKey ? priorBySmsKey.get(smsKey) : undefined;
     if (!prior) return;
     const patch: TxHealUpdate = { id: prior.id };
-    if (prior.title === 'Card purchase' && p.merchant !== 'Card purchase') {
+    // Retitle rows whose old title was generic OR whose category never got
+    // past "other" (that combination is where garbage titles live) — but
+    // never replace a name with the generic fallback.
+    if (
+      p.merchant !== 'Card purchase' &&
+      p.merchant !== prior.title &&
+      (prior.title === 'Card purchase' || prior.category === 'other')
+    ) {
       patch.title = p.merchant;
     }
     if (prior.category === 'other' && p.categoryGuess !== 'other' && !prior.isTransfer) {
@@ -162,7 +187,7 @@ export function buildImportPlan(
       p.type === 'expense' &&
       !p.transferHint &&
       !prior.isTransfer &&
-      (titleAfter === 'Card purchase' || catAfter === 'other');
+      (titleAfter === 'Card purchase' || (catAfter === 'other' && !STRUCTURAL_TITLES.has(titleAfter)));
     if (stillLow && !prior.raw) patch.raw = p.raw.slice(0, 300);
     if (Object.keys(patch).length > 1) updates.push(patch);
   };
@@ -229,6 +254,11 @@ export function buildImportPlan(
       continue;
     }
     if (p.kind === 'cardStatement') {
+      // A due reminder previously mis-imported as a fake expense gets
+      // dropped now that the parser recognizes what it is.
+      const staleKey = smsKeyOf(p);
+      const misread = staleKey ? priorBySmsKey.get(staleKey) : undefined;
+      if (misread && !misread.isTransfer) updates.push({ id: misread.id, remove: true });
       if (!p.card || !p.date) continue;
       if (p.date < staleDueCutoff) continue;
       const accountId = resolveAccount(p);
@@ -287,10 +317,12 @@ export function buildImportPlan(
     if (smsKey) seenSms.add(smsKey);
     // Low-confidence rows keep their source text so the user can report
     // unrecognized bank formats from Settings → Improve accuracy.
+    // Structurally-understood rows (ATM, VAT, transfers...) stay out.
     const lowConfidence =
       !p.transferHint &&
       p.type === 'expense' &&
-      (p.merchant === 'Card purchase' || p.categoryGuess === 'other');
+      (p.merchant === 'Card purchase' ||
+        (p.categoryGuess === 'other' && !STRUCTURAL_TITLES.has(p.merchant)));
     transactions.push({
       type: p.type,
       amountFils: p.amountFils,

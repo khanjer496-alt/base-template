@@ -367,6 +367,121 @@ if (dailyLimit && dailyLimit.snapshotKind === null) {
     JSON.stringify(dailyLimit && { k: dailyLimit.snapshotKind, f: dailyLimit.snapshotFils }));
 }
 
+// ── real-device corpus (user-shared formats, July 2026) ──
+t('parking confirmation is a transport expense, not "Paid Upto..."',
+  'Confirmation\nPlateNo-1239301\nPlateSource-Dubai\nTicketNo-4479126\nFee-AED2.38\nVAT-AED0.019\nPaid upto 09/07/26 09:08PM',
+  { merchant: 'Parking', amountFils: 238, category: 'transport', date: '2026-07-09' });
+
+t('older-style zone parking also parses',
+  'Confirmation\nPlate-DXB S 41279\nTicket-870527 Valid only in Zone-393K\nFee-AED4\nTnxFee-AED 0.30\nPaid upto 17/07/19 01:50 PM\nMax.allowed time in Zone 393K-24Hrs',
+  { merchant: 'Parking', amountFils: 400, category: 'transport' });
+
+t('VAT micro-debit is a VAT fee, not a card purchase',
+  'AED 0.05 has been debited from your account no. 095-XXX11XXX-01 Value Added Tax(VAT) @5%:O12348070. The available balance is AED 1,621.02.',
+  { merchant: 'VAT fee', amountFils: 5 });
+
+const payInstr = parseSms(
+  'Dear Customer, Your payment instructions of AED 7,663.94 to 5492********3749 has been processed on 10/07/2026 01:19');
+if (payInstr && payInstr.merchant === 'Card •3749 payment' && payInstr.transferHint === true &&
+    payInstr.amountFils === 766394 && payInstr.card && payInstr.card.kind === 'credit') {
+  pass++; console.log('✓ payment instructions to masked PAN is a card-payment transfer');
+} else {
+  fail++; console.log('✗ payment instructions to masked PAN is a card-payment transfer',
+    JSON.stringify(payInstr && { m: payInstr.merchant, t: payInstr.transferHint, a: payInstr.amountFils }));
+}
+
+t('payment instructions to a named biller keeps the biller name',
+  'Dear Customer, Your payment instructions of AED 313.95 to fbinter for consumer number 5554026 has been processed on 13/07/2026 22:01',
+  { merchant: 'Fbinter', amountFils: 31395 });
+
+const towardsCard = parseSms(
+  'AED 1,027.60 has been deducted from your account 095XXX11XXX01 towards payment of your Credit Card ending 8917.');
+if (towardsCard && towardsCard.transferHint === true) {
+  pass++; console.log('✓ "towards payment of your Credit Card" is a transfer');
+} else {
+  fail++; console.log('✗ "towards payment of your Credit Card" is a transfer',
+    JSON.stringify(towardsCard && { m: towardsCard.merchant, t: towardsCard.transferHint }));
+}
+
+const fabDue = parseSms(
+  'Dear Customer, the payment due date of your FAB Credit Card ending with 4499 is 06-07-2026. The total amount due is AED 8,144.40 and the Minimum due amount is AED 407.22. Please ignore the message, if already paid.');
+if (fabDue && fabDue.kind === 'cardStatement' && fabDue.amountFils === 814440 &&
+    fabDue.minDueFils === 40722 && fabDue.date === '2026-07-06') {
+  pass++; console.log('✓ FAB due-date reminder is a card statement, not a fake expense');
+} else {
+  fail++; console.log('✗ FAB due-date reminder is a card statement, not a fake expense',
+    JSON.stringify(fabDue && { k: fabDue.kind, a: fabDue.amountFils, min: fabDue.minDueFils, d: fabDue.date }));
+}
+
+const tt = parseSms(
+  'From HSBC: 20MAR25 TT Payment to 041-339***-001 AED 1,108.00+ Your available balance is AED 1,108.87');
+if (tt && tt.merchant === 'Bank transfer' && tt.transferHint === true && tt.type === 'income' && tt.amountFils === 110800) {
+  pass++; console.log('✓ HSBC TT payment is a bank transfer, not a garbage-titled expense');
+} else {
+  fail++; console.log('✗ HSBC TT payment is a bank transfer',
+    JSON.stringify(tt && { m: tt.merchant, t: tt.transferHint, ty: tt.type, a: tt.amountFils }));
+}
+
+t('HSBC DDR debit names the receiving bank',
+  'From HSBC: Account 41 -339***-1 was debited for AED 1108.00 on 4560902 for DUBAI ISLAMIC BANK PJSC . Please safe keep this unique DDR Reference No. 8883070.',
+  { merchant: 'Dubai Islamic Bank', amountFils: 110800 });
+
+t('DD instalment names the bank it was sent to',
+  'Dear Customer, your DD instalment of AED 2,476.89 has been debited from your FAB Account and has been sent to Dubai Islamic Bank as per your UAE Direct Debit Service Instructions. Terms and conditions apply.',
+  { merchant: 'Dubai Islamic Bank', amountFils: 247689 });
+
+t('ADCB Salik debit names Salik via the for-clause',
+  'AED300.00 debited from Acc/Cr.Card XXX7720 for Salik on 11-02-2025 09:03:37 through ADCB Mobile App.Avl.Limit is AED 2508.31',
+  { merchant: 'Salik', amountFils: 30000, category: 'transport' });
+
+t('YAP cash withdrawal is an ATM withdrawal',
+  "You've withdrawn AED 200.00 from YAP card ending with 3397 at DIB SHROUQ PLAZA AJMAN/AJMAN.",
+  { merchant: 'ATM withdrawal', amountFils: 20000 });
+
+t('instant transfer is titled Outgoing transfer',
+  'Dear Customer, AED 1,176.00 has been debited from your account 095XXX11XXX01 towards instant transfer. The available balance is AED 24,189.79.',
+  { merchant: 'Outgoing transfer', amountFils: 117600 });
+
+t('FAB multi-line Keeta purchase ignores the instalment promo footer',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 76.50 \nTAP*Keeta Dubai ARE \n15/12/25 22:34 \nAvailable Balance AED 10600.89\nYour December statement payment due date is 26/12/2025\n0% instalments up to 12 months, NO fees on international purchases. bit.ly/4nR8uHP Conditions apply.',
+  { merchant: 'Keeta', amountFils: 7650, category: 'dining', date: '2025-12-15' });
+
+t('telecom roaming rate card is not a transaction',
+  'Haven’t purchased any roaming minutes?\nYou can use your wallet credit for pay as you go calls as per the below rates:\nMake local calls for 5 AED/Minute.\nCall UAE or GCC countries for 9 AED/Minute.',
+  null);
+
+t('biller AutoPay receipt is skipped (bank side already counted)',
+  'Dear Valued Customer, Payment of AED 351.35 on 15/04/2019 has been received and posted to your account no 5552906 Thank you for using AutoPay service.',
+  null);
+
+t('ChatGPT via Google descriptor categorizes as entertainment',
+  'Purchase of AED 76.99 with Debit Card ending 1354 at Google ChatGPT, 650-5550000. Avl Balance is AED 15,021.77.  Pls refer stmt for exact amt.',
+  { merchant: 'ChatGPT', category: 'entertainment' });
+
+t('grab.com purchase names Grab and categorizes transport',
+  'Purchase of AED 16.92 with Debit Card ending 8783 at WWW.GRAB.COM, BANGKOK. Avl Balance is AED 35,848.02.  Pls refer stmt for exact amt.',
+  { merchant: 'Grab', category: 'transport' });
+
+t('foodstuff trader categorizes as groceries',
+  'Purchase of AED 244.00 with Credit Card ending 8917 at TOROUS FOODSTUFF LLC, SHARJAH. Avl Cr. Limit is AED 19,374.45',
+  { category: 'groceries' });
+
+t('local market categorizes as groceries',
+  'Purchase of AED 258.10 with Credit Card ending 8917 at AFAMIA MARKET, SHARJAH. Avl Cr. Limit is AED 19,900.17',
+  { category: 'groceries' });
+
+t('padel court categorizes as health',
+  'Purchase of AED 93.00 with Debit Card ending 8783 at OLE PADEL FOR SPORTS P, AJMAN. Avl Balance is AED 35,007.57.',
+  { category: 'health' });
+
+t('vending machine categorizes as groceries',
+  'Purchase of AED 2.00 with Debit Card ending 8783 at THE BLUE BOX VENDING 4, DUBAI. Avl Balance is AED 34,793.70.',
+  { category: 'groceries' });
+
+t('Liv ATM with empty location still an ATM withdrawal',
+  'Cash Withdrawal of AED 5,000.00 with Debit Card ending 8783 at , SHARJAH. Avl Bal is AED 4,500.40.Most Liv. users enjoy going cashless and pay with their debit card.',
+  { merchant: 'ATM withdrawal', amountFils: 500000 });
+
 const enbdSnap = parseSms(
   'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00');
 if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1991000) {
