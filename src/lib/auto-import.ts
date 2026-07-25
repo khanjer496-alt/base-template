@@ -6,7 +6,7 @@ import { bankFromSender, cardAccountName, colorForHint } from '@/lib/cards';
 import { toISODate } from '@/lib/format';
 import { parseSms, type ParsedSms } from '@/lib/sms-parser';
 import type { Account, AppState, CardDue, Transaction } from '@/lib/types';
-import type { ImportBatchInput } from '@/lib/store';
+import type { ImportBatchInput, TxHealUpdate } from '@/lib/store';
 
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 40; // 40k messages is far beyond any real inbox
@@ -109,6 +109,8 @@ export interface ImportPlan {
   txCount: number;
   newAccountCount: number;
   dueCount: number;
+  /** Already-imported rows the parser now reads better (renamed/recategorized). */
+  healedCount: number;
   billDues: ParsedSms[];
 }
 
@@ -136,6 +138,34 @@ export function buildImportPlan(
   // Message fingerprints survive parser updates (titles/accounts may change,
   // the source SMS does not). This is the primary duplicate guard on rescans.
   const seenSms = new Set(state.transactions.map((t) => t.smsKey).filter(Boolean));
+  // Existing SMS rows by fingerprint, for rescan healing: a message that
+  // dedupes but now parses BETTER upgrades its old row instead of being lost.
+  const priorBySmsKey = new Map<string, Transaction>();
+  for (const t of state.transactions) {
+    if (t.smsKey && t.source === 'sms') priorBySmsKey.set(t.smsKey, t);
+  }
+  const updates: TxHealUpdate[] = [];
+  const healFromReparse = (smsKey: string | undefined, p: ScannedSms) => {
+    const prior = smsKey ? priorBySmsKey.get(smsKey) : undefined;
+    if (!prior) return;
+    const patch: TxHealUpdate = { id: prior.id };
+    if (prior.title === 'Card purchase' && p.merchant !== 'Card purchase') {
+      patch.title = p.merchant;
+    }
+    if (prior.category === 'other' && p.categoryGuess !== 'other' && !prior.isTransfer) {
+      patch.category = p.categoryGuess;
+    }
+    if (p.transferHint && !prior.isTransfer) patch.isTransfer = true;
+    const titleAfter = patch.title ?? prior.title;
+    const catAfter = patch.category ?? prior.category;
+    const stillLow =
+      p.type === 'expense' &&
+      !p.transferHint &&
+      !prior.isTransfer &&
+      (titleAfter === 'Card purchase' || catAfter === 'other');
+    if (stillLow && !prior.raw) patch.raw = p.raw.slice(0, 300);
+    if (Object.keys(patch).length > 1) updates.push(patch);
+  };
   const smsKeyOf = (p: ScannedSms): string | undefined =>
     p.smsTs !== undefined ? `s${p.smsTs}-${p.amountFils}` : undefined;
   // Newest bank-quoted balance/limit per account — even from messages whose
@@ -222,7 +252,12 @@ export function buildImportPlan(
       noteSnapshot(accountId, p);
       const key = dedupeKey(date, p.amountFils, p.merchant);
       const smsKey = smsKeyOf(p);
-      if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
+      if (seen.has(key) || (smsKey && seenSms.has(smsKey))) {
+        // A row imported as a plain expense before this message was
+        // recognized as a card payment becomes a transfer now.
+        healFromReparse(smsKey, p);
+        continue;
+      }
       seen.add(key);
       if (smsKey) seenSms.add(smsKey);
       transactions.push({
@@ -244,7 +279,10 @@ export function buildImportPlan(
     noteSnapshot(accountId, p);
     const key = dedupeKey(date, p.amountFils, p.merchant);
     const smsKey = smsKeyOf(p);
-    if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
+    if (seen.has(key) || (smsKey && seenSms.has(smsKey))) {
+      healFromReparse(smsKey, p);
+      continue;
+    }
     seen.add(key);
     if (smsKey) seenSms.add(smsKey);
     // Low-confidence rows keep their source text so the user can report
@@ -268,10 +306,11 @@ export function buildImportPlan(
   }
 
   return {
-    batch: { transactions, newAccounts, newHints, newDues, snapshots, bankNames, lastScanTs: newestTs },
+    batch: { transactions, newAccounts, newHints, newDues, snapshots, bankNames, lastScanTs: newestTs, updates },
     txCount: transactions.length,
     newAccountCount: newAccounts.length,
     dueCount: newDues.length,
+    healedCount: updates.length,
     billDues,
   };
 }

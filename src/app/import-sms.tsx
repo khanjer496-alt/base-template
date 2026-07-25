@@ -85,7 +85,7 @@ export default function ImportSmsScreen() {
       setSkippedCount(Math.max(0, txLike.length - p.txCount));
       setPlan(p);
       setTrackedBills(new Set());
-      if (p.txCount === 0 && p.dueCount === 0 && p.billDues.length === 0) {
+      if (p.txCount === 0 && p.dueCount === 0 && p.billDues.length === 0 && p.healedCount === 0) {
         Alert.alert('Up to date', 'Everything in your inbox is already imported.');
       }
     } finally {
@@ -226,6 +226,16 @@ export default function ImportSmsScreen() {
               </ThemedText>
             </View>
           )}
+          {plan.healedCount > 0 && (
+            <View style={styles.summaryLine}>
+              <ThemedText type="smallBold" tabular style={{ color: theme.income }}>
+                {plan.healedCount}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                existing row{plan.healedCount === 1 ? '' : 's'} re-read better (renamed / recategorized)
+              </ThemedText>
+            </View>
+          )}
           {skippedCount > 0 && (
             <View style={styles.summaryLine}>
               <ThemedText type="smallBold" tabular>
@@ -236,7 +246,7 @@ export default function ImportSmsScreen() {
               </ThemedText>
             </View>
           )}
-          {plan.txCount === 0 && plan.dueCount === 0 && (
+          {plan.txCount === 0 && plan.dueCount === 0 && plan.healedCount === 0 && (
             <ThemedText type="small" themeColor="textSecondary">
               Nothing new to add.
             </ThemedText>
@@ -367,15 +377,18 @@ export default function ImportSmsScreen() {
             windowSize={7}
           />
 
-          {plan !== null && (plan.txCount > 0 || plan.dueCount > 0) && (
+          {plan !== null && (plan.txCount > 0 || plan.dueCount > 0 || plan.healedCount > 0) && (
             <View style={styles.footer}>
               <Pressable
                 onPress={applyPlan}
                 style={[styles.importBtn, { backgroundColor: theme.primary }]}>
                 <Icon name="check" size={20} color={theme.onPrimary} strokeWidth={2.6} />
                 <ThemedText type="smallBold" style={{ color: theme.onPrimary, fontSize: 16 }}>
-                  Import {plan.txCount} transaction{plan.txCount === 1 ? '' : 's'}
-                  {plan.dueCount > 0 ? ` + ${plan.dueCount} due${plan.dueCount === 1 ? '' : 's'}` : ''}
+                  {plan.txCount > 0 || plan.dueCount > 0
+                    ? `Import ${plan.txCount} transaction${plan.txCount === 1 ? '' : 's'}` +
+                      (plan.dueCount > 0 ? ` + ${plan.dueCount} due${plan.dueCount === 1 ? '' : 's'}` : '') +
+                      (plan.healedCount > 0 ? ` · fix ${plan.healedCount}` : '')
+                    : `Fix ${plan.healedCount} existing row${plan.healedCount === 1 ? '' : 's'}`}
                 </ThemedText>
               </Pressable>
             </View>

@@ -74,6 +74,7 @@ type Action =
       snapshots: Record<string, { fils: number; kind: 'balance' | 'limit' | 'outstanding'; ts: number }>;
       bankNames: Record<string, string>;
       lastScanTs: number;
+      updates: TxHealUpdate[];
     }
   | { type: 'undoBatch'; ids: string[] }
   | { type: 'upsertBudget'; budget: Budget }
@@ -161,9 +162,25 @@ function reducer(state: AppState, action: Action): AppState {
         if (bank) next = { ...next, bankName: bank };
         return next;
       });
+      // Heal existing rows the parser now reads better.
+      const patches = new Map(action.updates.map((u) => [u.id, u]));
+      const existing =
+        patches.size > 0
+          ? state.transactions.map((t) => {
+              const u = patches.get(t.id);
+              if (!u) return t;
+              return {
+                ...t,
+                ...(u.title !== undefined ? { title: u.title } : null),
+                ...(u.category !== undefined ? { category: u.category } : null),
+                ...(u.isTransfer !== undefined ? { isTransfer: u.isTransfer } : null),
+                ...(u.raw !== undefined ? { raw: u.raw } : null),
+              };
+            })
+          : state.transactions;
       return {
         ...state,
-        transactions: sortTxs([...action.transactions, ...state.transactions]),
+        transactions: sortTxs([...action.transactions, ...existing]),
         accounts,
         accountHints: { ...state.accountHints, ...action.newHints },
         cardDues: dues,
@@ -278,6 +295,19 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+/**
+ * Rescan healing: a message that deduped against an existing SMS row but now
+ * parses BETTER (named merchant, real category, transfer flag) upgrades that
+ * row in place instead of requiring an erase + reimport.
+ */
+export interface TxHealUpdate {
+  id: string;
+  title?: string;
+  category?: CategoryId;
+  isTransfer?: boolean;
+  raw?: string;
+}
+
 export interface ImportBatchInput {
   transactions: Omit<Transaction, 'id'>[];
   newAccounts: Omit<Account, 'id'>[];
@@ -289,6 +319,7 @@ export interface ImportBatchInput {
   /** accountRef → bank name learned from the SMS sender (backfill only). */
   bankNames: Record<string, string>;
   lastScanTs: number;
+  updates?: TxHealUpdate[];
 }
 
 interface StoreValue {
@@ -573,6 +604,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       snapshots,
       bankNames,
       lastScanTs: input.lastScanTs,
+      updates: input.updates ?? [],
     });
     return transactions.map((t) => t.id);
   }, []);
