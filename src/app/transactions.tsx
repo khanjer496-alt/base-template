@@ -26,7 +26,7 @@ import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId, Transaction, TransactionType } from '@/lib/types';
 
-type DatePreset = 'selected' | 'all' | 'month' | 'lastMonth' | '3months';
+type DatePreset = 'selected' | 'all' | 'month' | 'lastMonth' | '3months' | 'custom';
 type SortMode = 'newest' | 'oldest' | 'largest';
 
 interface Filters {
@@ -34,6 +34,9 @@ interface Filters {
   accountId: string | null;
   categories: Set<CategoryId>;
   datePreset: DatePreset;
+  /** Inclusive ISO bounds, used only when datePreset is 'custom'. */
+  dateFrom: string | null;
+  dateTo: string | null;
   minFils: number | null;
   sort: SortMode;
 }
@@ -43,6 +46,8 @@ const DEFAULT_FILTERS: Filters = {
   accountId: null,
   categories: new Set(),
   datePreset: 'selected', // follow the app-wide reporting period by default
+  dateFrom: null,
+  dateTo: null,
   minFils: null,
   sort: 'newest',
 };
@@ -117,6 +122,12 @@ export default function TransactionsScreen() {
       if (filters.datePreset === 'month' && k !== currentKey) return false;
       if (filters.datePreset === 'lastMonth' && k !== lastKey) return false;
       if (filters.datePreset === '3months' && k < threeKey) return false;
+      // Inclusive on both ends: someone asking for 1-31 Jan means to see the
+      // 31st. ISO dates compare correctly as strings, so no parsing needed.
+      if (filters.datePreset === 'custom') {
+        if (filters.dateFrom && t.date < filters.dateFrom) return false;
+        if (filters.dateTo && t.date > filters.dateTo) return false;
+      }
       if (!q) return true;
       return (
         t.title.toLowerCase().includes(q) ||
@@ -178,6 +189,7 @@ export default function TransactionsScreen() {
     month: 'This month',
     lastMonth: 'Last month',
     '3months': 'Last 3 months',
+    custom: 'Date range',
   };
 
   return (
@@ -370,6 +382,39 @@ export default function TransactionsScreen() {
                 </Pressable>
               ))}
             </View>
+
+            {filters.datePreset === 'custom' && (
+              <View style={styles.rangeRow}>
+                {(['dateFrom', 'dateTo'] as const).map((field) => (
+                  <View key={field} style={{ flex: 1, gap: 4 }}>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {field === 'dateFrom' ? 'From' : 'To'}
+                    </ThemedText>
+                    <TextInput
+                      value={filters[field] ?? ''}
+                      onChangeText={(v) => {
+                        // Typed a digit at a time, so the value is only applied
+                        // once it is a complete date — otherwise "2026-0" would
+                        // filter everything away mid-keystroke.
+                        const cleaned = v.replace(/[^\d-]/g, '').slice(0, 10);
+                        setFilters({
+                          ...filters,
+                          [field]: /^\d{4}-\d{2}-\d{2}$/.test(cleaned) ? cleaned : cleaned || null,
+                        });
+                      }}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="numbers-and-punctuation"
+                      maxLength={10}
+                      style={[
+                        styles.rangeInput,
+                        { color: theme.text, backgroundColor: theme.backgroundSelected },
+                      ]}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
 
             <ThemedText type="micro" themeColor="textSecondary">Account</ThemedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRowScroll}>
@@ -604,6 +649,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.one,
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.one,
+  },
+  rangeInput: {
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   chipRow: {
     flexDirection: 'row',
