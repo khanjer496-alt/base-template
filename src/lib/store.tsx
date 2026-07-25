@@ -14,7 +14,7 @@ import { setMonthStartDay as applyMonthStartDay, toISODate } from '@/lib/format'
 import { detectLanguage, setLanguage } from '@/lib/i18n';
 import { detectMarketId, setActiveMarket } from '@/lib/markets';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
-import { guessCategory, normalizeServiceName } from '@/lib/sms-parser';
+import { guessCategory, normalizeServiceName, parseSms, STRUCTURAL_TITLES } from '@/lib/sms-parser';
 import type {
   Account,
   AppState,
@@ -492,6 +492,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               }
               const guessed = guessCategory(t.title, t.type, parsed.merchantOverrides, t.title);
               return guessed !== 'other' ? { ...t, category: guessed } : t;
+            });
+            // Rows that kept their raw SMS re-parse under the CURRENT grammar
+            // on every launch: junk that no longer parses (promos, BNPL
+            // previews, reminders) disappears, misread rows get their real
+            // title/category/transfer flag, and rows the grammar now fully
+            // understands drop their raw. No rescan needed.
+            if (parsed.marketId) setActiveMarket(parsed.marketId);
+            parsed.transactions = parsed.transactions.flatMap((t) => {
+              if (!t.raw || t.source !== 'sms') return [t];
+              const p = parseSms(t.raw, parsed.merchantOverrides);
+              if (!p) return []; // no longer a transaction at all
+              if (p.kind === 'billDue' || p.kind === 'cardStatement') return []; // was a reminder
+              const next = { ...t };
+              if (
+                p.merchant !== 'Card purchase' &&
+                p.merchant !== t.title &&
+                (t.title === 'Card purchase' || t.category === 'other')
+              ) {
+                next.title = p.merchant;
+              }
+              if (t.category === 'other' && p.categoryGuess !== 'other' && !t.isTransfer) {
+                next.category = p.categoryGuess;
+              }
+              if ((p.transferHint || p.kind === 'cardPayment') && !t.isTransfer) {
+                next.isTransfer = true;
+              }
+              const stillLow =
+                !next.isTransfer &&
+                next.type === 'expense' &&
+                (next.title === 'Card purchase' ||
+                  (next.category === 'other' && !STRUCTURAL_TITLES.has(next.title)));
+              if (!stillLow) delete next.raw;
+              return [next];
             });
           }
           // Drop stale unsettled card dues, and dues attached to anything that

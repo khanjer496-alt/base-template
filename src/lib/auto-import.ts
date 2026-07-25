@@ -4,30 +4,12 @@ import NotificationReader from '../../modules/notification-reader';
 import SmsReader, { type RawSms } from '../../modules/sms-reader';
 import { bankFromSender, cardAccountName, colorForHint } from '@/lib/cards';
 import { toISODate } from '@/lib/format';
-import { parseSms, type ParsedSms } from '@/lib/sms-parser';
+import { parseSms, STRUCTURAL_TITLES, type ParsedSms } from '@/lib/sms-parser';
 import type { Account, AppState, CardDue, Transaction } from '@/lib/types';
 import type { ImportBatchInput, TxHealUpdate } from '@/lib/store';
 
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 40; // 40k messages is far beyond any real inbox
-
-/**
- * Structurally-recognized titles: the row IS understood even though its
- * category is the neutral one, so it shouldn't clutter Improve accuracy.
- */
-const STRUCTURAL_TITLES = new Set([
-  'ATM withdrawal',
-  'Bank fee',
-  'VAT fee',
-  'Cash deposit',
-  'Cheque',
-  'Parking',
-  'Outgoing transfer',
-  'Incoming transfer',
-  'Inward remittance',
-  'Bank transfer',
-  'Card payment',
-]);
 
 export function isSmsScanningAvailable(): boolean {
   return Platform.OS === 'android' && SmsReader != null;

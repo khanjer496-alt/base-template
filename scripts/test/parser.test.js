@@ -482,6 +482,104 @@ t('Liv ATM with empty location still an ATM withdrawal',
   'Cash Withdrawal of AED 5,000.00 with Debit Card ending 8783 at , SHARJAH. Avl Bal is AED 4,500.40.Most Liv. users enjoy going cashless and pay with their debit card.',
   { merchant: 'ATM withdrawal', amountFils: 500000 });
 
+// ── round-2 corpus (user-shared formats) ──
+const ttIssue = parseSms(
+  'AED 3,500.00 has been deducted from your account  095-XXX11XXX-01 for issuance of Telegraphic Transfer.');
+if (ttIssue && ttIssue.merchant === 'Telegraphic transfer' && ttIssue.transferHint === true && ttIssue.amountFils === 350000) {
+  pass++; console.log('✓ telegraphic transfer issuance is a transfer');
+} else {
+  fail++; console.log('✗ telegraphic transfer issuance is a transfer',
+    JSON.stringify(ttIssue && { m: ttIssue.merchant, t: ttIssue.transferHint, a: ttIssue.amountFils }));
+}
+
+const outward = parseSms(
+  'Outward Remittance \nDebit \nAccount XXXX0002 \nAED 7000.00\nValue Date 06/05/25  \nAvailable Balance AED 6493.85');
+if (outward && outward.merchant === 'Outward remittance' && outward.transferHint === true && outward.amountFils === 700000) {
+  pass++; console.log('✓ outward remittance multi-line is a transfer, not "Value Date"');
+} else {
+  fail++; console.log('✗ outward remittance multi-line is a transfer',
+    JSON.stringify(outward && { m: outward.merchant, t: outward.transferHint, a: outward.amountFils }));
+}
+
+const adcbDue = parseSms(
+  'Min payment of AED100.00 on your Cr.Card XXX7720 is due by Jul 19 2026. Total billed amt is AED1174.49. Pls ignore this message if already paid.');
+if (adcbDue && adcbDue.kind === 'cardStatement' && adcbDue.amountFils === 117449 &&
+    adcbDue.minDueFils === 10000 && adcbDue.date === '2026-07-19') {
+  pass++; console.log('✓ ADCB min-payment reminder is a statement with month-name date');
+} else {
+  fail++; console.log('✗ ADCB min-payment reminder is a statement',
+    JSON.stringify(adcbDue && { k: adcbDue.kind, a: adcbDue.amountFils, min: adcbDue.minDueFils, d: adcbDue.date }));
+}
+
+const payAgainst = parseSms(
+  'Your payment of AED 3506.37 against Credit Card no. XXX7720 was received at 07:06 PM on 11/12/2025. Thank you.');
+if (payAgainst && payAgainst.kind === 'cardPayment' && payAgainst.amountFils === 350637) {
+  pass++; console.log('✓ "payment against Credit Card was received" is a card payment');
+} else {
+  fail++; console.log('✗ "payment against Credit Card was received" is a card payment',
+    JSON.stringify(payAgainst && { k: payAgainst.kind, a: payAgainst.amountFils }));
+}
+
+t('tabby charge-tomorrow preview is skipped (real charge arrives separately)',
+  'Your Noon order for AED 49.75 is due tomorrow and will be charged to your default card. Pay it now at https://s.tabby.ai/s3b4DC',
+  null);
+
+t('instalment conversion offer is skipped',
+  '*Convert now* Pay as low as AED 226.8 per month for the purchase of AED 7379.54 at AL AIN AHLIA INS CO with credit card ending 9190 via clicking https://www.emiratesnbd.com/en/ipp/?ipp=5551144',
+  null);
+
+t('overdue nag is skipped',
+  'Dear Customer AED 205.84 for A/C no XXXXXX7720 is overdue. Please pay immediately to avoid blockage on credit facility. Kindly ignore if paid.',
+  null);
+
+t('SEWA payment receipt is skipped (bank side already counted)',
+  'Thank You! We have received AED 1480.90 for account(s) 5557118 on 21-04-23. Rate our service https://ratesewa.tiny.us/2yt9x7aw .Get your payment receipt here https://sewapayment.tiny.us/ycxdp5rv',
+  null);
+
+t('e& money cashback promo is skipped despite the word purchase',
+  "Get AED 15 Cashback!\n\nComplete your first purchase using your e& money card with AED 300 or more and get AED 15 cashback! Hurry, it's for a limited time \n\nhttps://bit.ly/eandmoneycrd\nT&Cs apply https://bit.ly/4caSsE2\n\nTo OPTOUT, SMS B AD-e& money to 7726",
+  null);
+
+t('real-estate ad with payment plan is skipped',
+  'New Launch! Masaar 3 by Arada\nLuxury Villas & Townhouse \n2,3,4 & 5 Beds \nStarts from AED 1.79 MN\n60/40 Payment Plan\nCall Us Now\n5553243\nwa.link/eqm3uu',
+  null);
+
+t('refund is income, not another expense',
+  'Purchase amount of AED 3.78 at PAYPAL on your Debit Card has been refunded to your card account. Avl Bal is AED 5,290.31.',
+  { type: 'income', amountFils: 378 });
+
+t('HSBC embedded merchant before "Purchase from" is extracted',
+  'From HSBC: 02MAR23 DX BLENDS CAFE Purchase from 041-339***-001 AED 20.00- by Card Ending with 3081. Your available balance is AED 17,452.50',
+  { merchant: 'Dx Blends Cafe', amountFils: 2000, category: 'dining' });
+
+t('merchant with slash parses fully (McDonalds drive-thru)',
+  'Purchase of AED 11.00 with Debit Card ending 8783 at MCDONALDS-ITTIHAD D/T, SHARJAH. Avl Balance is AED 7,885.70.',
+  { merchant: 'Mcdonalds-ittihad D/t', category: 'dining' });
+
+t('parenthetical descriptor drops (noon Food)',
+  'Purchase of AED 46.80 with Debit Card ending 8783 at noon Food(Noon ECommerce), 5558888. Avl Balance is AED 7,078.32.',
+  { merchant: 'Noon Food', category: 'dining' });
+
+t('SEWA bill notice is a due reminder, not an expense',
+  'Dear Customer, Bill amount for your account 5557118 is AED 785.4, billed on 07-Jan-22.Please pay by 22-Jan-22. Click here to view bill  https://sewapayment.tiny.us/359aezc3',
+  { kind: 'billDue' });
+
+t('supermarket truncation SUPE categorizes as groceries',
+  'Purchase of AED 120.24 with Credit Card ending 8917 at ABDULLA AND NASIR SUPE, SHARJAH. Avl Cr. Limit is AED 20,098.38',
+  { category: 'groceries' });
+
+t('restaurant suffix categorizes as dining',
+  'Purchase of AED 35.00 with Debit Card ending 1354 at BUKHARI AL KHALEEJ RES, Sharjah. Avl Balance is AED 22,517.79.',
+  { category: 'dining' });
+
+t('insurance truncation categorizes as health',
+  'Purchase of AED 866.25 with Debit Card ending 1354 at DUBAI NATIONAL INSURAN, DUBAI. Avl Balance is AED 13,100.21.',
+  { category: 'health' });
+
+t('hotel resort categorizes as travel',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 300.00 \nTHE OBEROI BEACH RESOR AJMAN ARE \n22/04/25 14:09 \nAvailable Balance AED 4116.98\nYour April statement payment due date is 26/04/2025',
+  { category: 'travel' });
+
 const enbdSnap = parseSms(
   'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00');
 if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1991000) {

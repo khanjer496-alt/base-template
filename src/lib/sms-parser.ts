@@ -37,11 +37,12 @@ export interface ParsedSms {
 
 const CREDIT_WORDS = /credit(?:ed)?|received|salary|refund(?:ed)?|deposit(?:ed)?|transferred to your/i;
 // DEBIT_WORDS is market-compiled below (its payment guard embeds the currency).
-const BILL_DUE_WORDS = /\bdue\s+(?:on|by|date)\b|\bbill\b.*\b(?:due|generated|payable)\b|\bpayment\s+due\b|\bmin(?:imum)?\s+(?:amount\s+)?due\b/i;
+const BILL_DUE_WORDS = /\bdue\s+(?:on|by|date)\b|\bbill\b.*\b(?:due|generated|payable)\b|\bbill amount\b|\bpay\s+by\b|\bpayment\s+due\b|\bmin(?:imum)?\s+(?:amount\s+)?due\b/i;
 const BILL_MERCHANT_RE = /(?:your|the)\s+([A-Za-z0-9][A-Za-z0-9 &.'\-]{1,30}?)\s+bill\b/i;
 
 /** Credit-card statement: has "statement"/"total due" language plus a card reference. */
-const STATEMENT_RE = /statement|total\s+(?:amount\s+)?due|outstanding\s+(?:amount|balance)\s+of/i;
+const STATEMENT_RE =
+  /statement|total\s+(?:amount\s+)?due|total\s+billed\s+am(?:oun)?t|min(?:imum)?\s+payment\s+of|outstanding\s+(?:amount|balance)\s+of/i;
 /** Purchase-style verbs that disqualify the statement branch (NOT "paid"). */
 const STATEMENT_TXN_BLOCK_RE = /purchase|was used|charged|withdraw|debited|spent/i;
 /** Payment INTO a card: settles dues rather than spending. */
@@ -52,7 +53,15 @@ const OTP_RE = /\botp\b|one[\s-]?time\s+(?:password|pin|code)|verification code|
 /** Pre-auth holds are not postings; the real charge arrives as its own SMS. */
 const PREAUTH_RE = /pre-?auth|amount\s+(?:has been\s+)?blocked|hold\s+(?:of|amount|placed)|temporary\s+hold/i;
 const DECLINED_RE = /declin|unsuccessful|insufficient|reversed|could not be (?:processed|completed)|has failed/i;
-const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|https?:\/\//i;
+const PROMO_RE =
+  /cashback|voucher|promo|discount|t&cs?\b|terms apply|conditions apply|shop now|hurry|limited time|congratulations|you (?:could|can) win|opt-?out|\bdnd\d*\b|bit\.ly|wa\.me|tinyurl|payment plan|bonus|rewards? (?:on|program|draw)|earn \d+x|https?:\/\//i;
+/**
+ * Evidence that money ACTUALLY moved — banks append promo footers to real
+ * alerts ("...Avl Bal AED 5,376. 0% instalments... bit.ly/..."), so promo
+ * markers alone must not discard a message that shows a transaction.
+ */
+const TXN_EVIDENCE_RE =
+  /purchase (?:of|amount)|was used for|has been (?:debited|deducted|credited|received)|debited from|deducted from|credited to|withdraw|avl\.?\s*(?:bal|cr|limit)|available (?:balance|credit)|bill amount|payment due|due (?:on|by|date)|pay by/i;
 
 /**
  * Currency-bound patterns compile from the ACTIVE MARKET's currency aliases
@@ -62,6 +71,7 @@ const PROMO_RE = /cashback offer|voucher|promo|discount|t&c|terms apply|shop now
 let AED_AMOUNT_RE = /x^/g;
 let AED_SUFFIX_RE = /x^/g;
 let MIN_DUE_RE = /x^/;
+let TOTAL_DUE_RE = /x^/;
 let OUTSTANDING_RE = /x^/;
 let CARD_PAYMENT_RE = /x^/;
 let DEBIT_WORDS = /x^/;
@@ -84,11 +94,13 @@ function ensureCurrencyPatterns(): void {
   AED_AMOUNT_RE = new RegExp(`(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'gi');
   AED_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)\\s*(?:${CUR})(?![A-Za-z])`, 'gi');
   MIN_DUE_RE = new RegExp(
-    `min(?:imum)?\\s+(?:amount\\s+)?due(?:\\s+amount)?\\s*(?:of|:|is)?\\s*(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+    `min(?:imum)?\\s+(?:(?:amount\\s+)?due(?:\\s+amount)?|payment(?:\\s+of)?)\\s*(?:of|:|is)?\\s*(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
+  TOTAL_DUE_RE = new RegExp(
+    `total\\s+(?:amount\\s+due|due|billed\\s+am(?:oun)?t)\\s*(?:is|:)?\\s*(?:${CUR})\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
   OUTSTANDING_RE = new RegExp(
     `\\boutstanding(?:\\s+(?:amount|balance))?\\s*(?:is|:|of)?\\s*(?:${CUR})?\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
   CARD_PAYMENT_RE = new RegExp(
-    `payment\\s+(?:of\\s+(?:${CUR})\\s*[\\d,.]+\\s+)?(?:is\\s+|was\\s+|has\\s+been\\s+)?(?:received|credited|processed)\\s+(?:towards?|to|on|for)\\s+(?:your\\s+)?(?:credit\\s+)?card|received\\s+payment\\s+for\\s+your\\s+(?:credit\\s+)?card|thank you for (?:your )?payment.*card|card\\s+(?:no\\.?\\s*)?[\\dXx*•]*\\s*has\\s+been\\s+paid`, 'i');
+    `payment\\s+(?:of\\s+(?:${CUR})\\s*[\\d,.]+\\s+)?(?:is\\s+|was\\s+|has\\s+been\\s+)?(?:received|credited|processed)\\s+(?:towards?|to|on|for)\\s+(?:your\\s+)?(?:\\w+\\s+)?(?:credit\\s+)?card|payment\\s+of\\s+(?:${CUR})\\s*[\\d,.]+\\s+against\\s+(?:your\\s+)?credit\\s+card|received\\s+payment\\s+for\\s+your\\s+(?:credit\\s+)?card|thank you for (?:your )?payment.*card|card\\s+(?:no\\.?\\s*)?[\\dXx*•]*\\s*has\\s+been\\s+paid`, 'i');
   DEBIT_WORDS = new RegExp(
     `purchase|debit(?:ed)?|deducted|spent|paid|payment(?!\\s+(?:due|of\\s+(?:${CUR})[\\d,. ]+(?:is\\s+)?received))|withdraw(?:n|al)?|was used|charged`, 'i');
   const codes = Object.keys(UNITS_PER_USD).filter((c) => c !== m.currency.code).join('|');
@@ -135,7 +147,7 @@ const MASKED_PAN_RE = /\b\d{4,6}[Xx*•]{2,}(\d{4})\b/;
 const MERCHANT_STOP =
   String.raw`(?=\s*(?:,|\.|;|\bon\b|\bwith\b|\busing\b|\bvia\b|\bending\b|\bcard\b|\ba\/c\b|\bacc(?:ount)?\b|\bref\b|\btxn\b|\bdated\b|\bavl\b|\bavail(?:able)?\b|\bbal(?:ance)?\b|\botp\b|\bfor\b|\bis\b|\bhas\b|\bhave\b|\bwas\b|\bwill\b|\baed\b|\bdhs\b|\bsar\b|\busd\b|\beur\b|\bgbp\b|$))`;
 const MERCHANT_RE = new RegExp(
-  String.raw`(?:\bat|\bto|\bfrom|@)\s+([A-Za-z0-9][A-Za-z0-9 &'\-*]{1,40}?)` + MERCHANT_STOP,
+  String.raw`(?:\bat|\bto|\bfrom|@)\s+([A-Za-z0-9][A-Za-z0-9 &'\-*/()]{1,40}?)` + MERCHANT_STOP,
   'gi',
 );
 
@@ -157,7 +169,7 @@ const DEPOSIT_RE = /cash\s+deposit|\bcdm\b|deposit(?:ed)?\s+(?:in|into|to)\b/i;
  * line is the merchant descriptor.
  */
 const LINE_NOISE_RE =
-  /\bcard\b|a\/?c\b|\bbal(?:ance)?\b|\blimit\b|statement|\bdue\b|payment|purchase|debit|credit|\botp\b|\bref(?:erence)?\b|\btxn\b|\bavl\b|avail/i;
+  /\bcard\b|a\/?c\b|\bbal(?:ance)?\b|\blimit\b|statement|\bdue\b|payment|purchase|debit|credit|\botp\b|\bref(?:erence)?\b|\btxn\b|\bavl\b|avail|value date|^date\b|paid upto/i;
 const LINE_DATE_RE = /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/;
 const TRAILING_PLACE_RE =
   /\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE|FRA|USA|GBR|DEU|NLD|ESP|ITA|IRL|SGP|HKG|IND|SAU|KSA|LUX|CAN|AUS|CHE|SWE|POL|JPN|RIYADH|JEDDAH)$/i;
@@ -195,22 +207,22 @@ const TRANSFER_HINT_RE =
 
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|nesto|al maya|west zone|viva supermarket|\bcoop\b|noon minutes|instashop|careem quik|talabat mart|hypermarket|supermarket|grocer|fresh market|baqala/i, 'groceries'],
-  [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery|pizza|burger|grill|chicken|broast|dunkin|krispy|baskin|papa john|pizza hut|domino|wingstop|five guys|shake shack|raising cane|jollibee|al ?baik|karak|chai|juice|catering|kitchen|bistro|donut|gelato|ice ?cream|sweets|pastr|foodcourt|food court|snack|falafel|biryani|mandi|machboos|kabab|kebab|hommus|manakish|allo beirut|wagamama|nando|chili|applebee|cheesecake|paul\b|shakespeare|arabian tea|barista|caribou|filli|karam|zaatar|maraheb|al safadi|automatic\b|\bkeeta\b|americana|kuwait food/i, 'dining'],
-  [/careem(?!\s*food)|uber|yango|bolt\b|udrive|ekar|taxi|\brta\b|\bnol\b|salik|darb|mawaqif|mawgif|parkin\b|enoc|eppco|adnoc(?!\s*(?:oasis|coop))|emarat|petrol|fuel|tyre|tire|car wash|autopro|quicklube|oil change|metro|tram|parking|valet|careem bike|\bgrab\b/i, 'transport'],
-  [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|btu\b|chilled water|electricity|water|cooling|utility|sewerage|\blpg\b|gas cylinder/i, 'utilities'],
+  [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery|pizza|burger|grill|chicken|broast|dunkin|krispy|baskin|papa john|pizza hut|domino|wingstop|five guys|shake shack|raising cane|jollibee|al ?baik|karak|chai|juice|catering|kitchen|bistro|donut|gelato|ice ?cream|sweets|pastr|foodcourt|food court|snack|falafel|biryani|mandi|machboos|kabab|kebab|hommus|manakish|allo beirut|wagamama|nando|chili|applebee|cheesecake|paul\b|shakespeare|arabian tea|barista|caribou|filli|karam|zaatar|maraheb|al safadi|automatic\b|\bkeeta\b|americana|kuwait food|restaur|\bsweets?\b|\bbake\b|bakeir|shawerm|noodle|sushi|ramen|bento|taco\b|wings\b|cookies|crumble|pinkberry|kcal\b|tortilla|arabica|hummus|\bfoods?\b|beverages/i, 'dining'],
+  [/careem(?!\s*food)|uber|yango|bolt\b|udrive|ekar|taxi|\brta\b|\bnol\b|salik|darb|mawaqif|mawgif|parkin\b|enoc|eppco|adnoc(?!\s*(?:oasis|coop))|emarat|petrol|fuel|tyre|tire|car wash|autopro|quicklube|oil change|metro|tram|parking|valet|careem bike|\bgrab\b|moi traffic|traffic fines|\brafid\b|cafu\b|cafuae|www cafu|refueled/i, 'transport'],
+  [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|btu\b|chilled water|electricity|water|cooling|utility|sewerage|ajmansewerage|\blpg\b|gas cylinder/i, 'utilities'],
   [/etisalat|\be&\b|eand\b|\bdu\b|virgin mobile|swyp|telecom|mobile recharge|internet|five telecom|wifi/i, 'telecom'],
   [/rent|ejari|landlord/i, 'rent'],
-  [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|\bsivvi\b|ikea|home centre|homebox|home box|pan emirates|danube home|ace hardware|dragon ?mart|sharaf|jumbo|emax|virgin megastore|decathlon|sun ?& ?sand|nike|adidas|puma\b|\bh ?& ?m\b|zara\b|bershka|pull ?& ?bear|matalan|max fashion|centrepoint|splash\b|lifestyle|brands for less|daiso|miniso|mumzworld|firstcry|toys ?r ?us|dubizzle|mall\b|store|shop|boutique|tailor|salon|barber|spa\b|beauty|laundry|dry ?clean|perfume|jewel|gold ?souk|florist|flower/i, 'shopping'],
-  [/pharmacy|phcy|life pharm|bin sina|boots\b|supercare|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|burjeel|zulekha|prime medical|dental|medical|medic\b|polyclinic|physio|optic|vision|lab\b|diagnostic|x-?ray|derma|vet\b|veterinar|sukoon|\bdaman\b|\baxa\b|insurance|gym\b|fitness|classpass|padel/i, 'health'],
+  [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|\bsivvi\b|ikea|home centre|homebox|home box|pan emirates|danube home|ace hardware|dragon ?mart|sharaf|jumbo|emax|virgin megastore|decathlon|sun ?& ?sand|nike|adidas|puma\b|\bh ?& ?m\b|zara\b|bershka|pull ?& ?bear|matalan|max fashion|centrepoint|splash\b|lifestyle|brands for less|daiso|miniso|mumzworld|firstcry|toys ?r ?us|dubizzle|mall\b|store|shop|boutique|tailor|tailo\b|salon|barber|spa\b|beauty|laundry|dry ?clean|perfume|jewel|gold ?souk|florist|flower|fashion|garment|abaya|red ?tag|landmark retail|citywalk|matajer|american eagle|hennes|uniqlo|sephora|skechers|lc waikiki|\basos\b|alibaba|duty ?free|dufry|\boutlet\b|jashanmal|washmen|hairdress|house ?hold/i, 'shopping'],
+  [/pharmacy|phcy|life pharm|bin sina|boots\b|supercare|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|burjeel|zulekha|prime medical|dental|medical|medic\b|polyclinic|physio|optic|vision|lab\b|diagnostic|x-?ray|derma|vet\b|veterinar|sukoon|\bdaman\b|\baxa\b|insuran|\bins\b|wathba|gym\b|fitness|classpass|padel|phar\b|pharma|sports? club|fit body|be ?fit\b|bodybuilding|\bseha\b|patient portal/i, 'health'],
   [/school|university|college|tuition|academy|nursery|kindergarten|\bgems\b|taaleem|kumon|udemy|coursera|skillshare|training (?:center|centre)|institute/i, 'education'],
-  [/emirates(?!\s*(?:nbd|islamic|coop))|flydubai|etihad|air arabia|airline|airways|\bhotel\b|rotana|marriott|hilton|hyatt|radisson|movenpick|sheraton|ibis\b|novotel|booking|airbnb|agoda|expedia|almosafer|musafir|wego\b|cleartrip|wizz|visa fee|travel/i, 'travel'],
-  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox\b|reel\b|novo\b|roxy\b|imax|netflix|spotify|anghami|shahid|osn\b|starz|game\b|gaming|arcade|bowling|magic planet|kidzania|global village|ferrari world|yas island|img world|wild wadi|aquaventure|dubai parks|adventure|entertainment|theme park|water ?park|playground|palyground|ball talent|openai|chat\s*gpt|anthropic|\bclaude\b|alldebrid|real-?debrid|getresponse|domain\.com|godaddy|namecheap|hostinger|\bhosting\b/i, 'entertainment'],
-  [/donat|charity|zakat|sadaqah|dubai cares|red crescent|beit al khair|dar al ber/i, 'charity'],
+  [/emirates(?!\s*(?:nbd|islamic|coop))|flydubai|etihad|air arabia|airline|airways|\bhotel\b|rotana|marriott|hilton|hyatt|radisson|movenpick|sheraton|ibis\b|novotel|booking|airbnb|agoda|expedia|almosafer|musafir|wego\b|cleartrip|wizz|visa fee|travel|resort|oberoi|chedi|meridien|fairmont|loungekey|dragonpass|airport companion|dayuse|trip ?(?:dot ?)?com|viator|makemytrip|airasia|hoteltonight/i, 'travel'],
+  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox\b|reel\b|novo\b|roxy\b|imax|netflix|spotify|anghami|shahid|osn\b|starz|game\b|gaming|arcade|bowling|magic planet|kidzania|global village|ferrari world|yas island|img world|wild wadi|aquaventure|dubai parks|adventure|entertainment|theme park|water ?park|playground|palyground|ball talent|openai|chat\s*gpt|anthropic|\bclaude\b|alldebrid|real-?debrid|getresponse|domain\.com|godaddy|namecheap|hostinger|\bhosting\b|museum|prison island|x ?strike|billiard|\bgolf\b|shooting|leisure|theentertainer|little fox|g2a\b|cdkeys|oculus|stadia|al futtaim cin|\bcin\b|bounce\b/i, 'entertainment'],
+  [/donat|charity|zakat|sadaqah|dubai cares|red crescent|beit al khair|dar al ber|gofundme/i, 'charity'],
   [/salary|payroll|wages/i, 'salary'],
   // Structural fallbacks — what the merchant IS, when no brand matched.
   // These sit last so brand rules always win.
-  [/hypermarket|supermarket|superm\w*|hyperm\w*|mini ?mart?\b|\bmart\b|grocer|baqala|coop\b|co-?op|vegetables|fruits|butcher|fish market|meat\b|roastery|adnoc oasis|zoom\b|7-?eleven|circle k|last chance|day to day|gala\b|west zone|foodstuff|tawfeer|vending|\bmarket\b/i, 'groceries'],
-  [/\brest\b|\bresto\b|restur|cafet|coffe|tea ?house|eater|diner\b|canteen/i, 'dining'],
+  [/hypermarket|supermarket|superm\w*|hyperm\w*|mini ?mart?\b|\bmart\b|grocer|baqala|coop\b|co-?op|vegetables|\bfruits?\b|butcher|fish market|meat\b|roastery|adnoc oasis|zoom\b|7-?11|7-?eleven|circle k|last chance|day to day|gala\b|west zone|foodstuff|tawfeer|tawpeek|vending|\bmarket\b|\bsupe\w*\b|sprmkt|spmkt|\bsmkt\b|now ?now|\bviva\b|smart seven|mazraat|janata|aswaaq|plus point/i, 'groceries'],
+  [/\brest\b|\bres\b|\bresto\b|restur|cafet|coffe|tea ?house|eater|diner\b|canteen/i, 'dining'],
   [/trading|general trading|electronics|mobile(?:s| shop)|computer|stationery|bookshop|book ?store|gifts|accessories|garments|textile|readymade|footwear|shoes|optical shop/i, 'shopping'],
 ];
 
@@ -274,6 +286,13 @@ const SERVICE_NAMES: [RegExp, string][] = [
   [/getresponse/i, 'GetResponse'],
   [/domain\.com/i, 'Domain.com'],
   [/www\.grab\b|grab\.com/i, 'Grab'],
+  [/instashop/i, 'InstaShop'],
+  [/ajmansewerage/i, 'Ajman Sewerage'],
+  [/liv\.?\s*prime/i, 'Liv Prime'],
+  [/\bcafu\b|cafuae|www cafu/i, 'CAFU'],
+  [/crypto\.com/i, 'Crypto.com'],
+  [/binance/i, 'Binance'],
+  [/fiverr/i, 'Fiverr'],
   [/discord/i, 'Discord'],
   [/\bnotion\b/i, 'Notion'],
   [/github/i, 'GitHub'],
@@ -281,6 +300,26 @@ const SERVICE_NAMES: [RegExp, string][] = [
   [/xbox\s*game\s*pass/i, 'Xbox Game Pass'],
   [/playstation\s*plus|psn\s*plus/i, 'PlayStation Plus'],
 ];
+
+/**
+ * Structurally-recognized titles: the row IS understood even though its
+ * category may be the neutral one — these never need format reporting.
+ */
+export const STRUCTURAL_TITLES = new Set([
+  'ATM withdrawal',
+  'Bank fee',
+  'VAT fee',
+  'Cash deposit',
+  'Cheque',
+  'Parking',
+  'Outgoing transfer',
+  'Incoming transfer',
+  'Inward remittance',
+  'Bank transfer',
+  'Card payment',
+  'Telegraphic transfer',
+  'Outward remittance',
+]);
 
 /** Clean descriptor noise and map to a canonical service name when known. */
 export function normalizeServiceName(merchant: string): string | null {
@@ -319,9 +358,10 @@ function extractAmountFils(raw: string, allowBalanceFallback: boolean): number |
   }
   AED_SUFFIX_RE.lastIndex = 0;
   while ((match = AED_SUFFIX_RE.exec(raw))) {
-    // Skip digits glued to identifiers ("a/c XX9012 AED..." must not read 9012).
+    // Skip digits glued to identifiers ("a/c XX9012 AED...", "041-339***-001
+    // AED..." must not read the account fragment as an amount).
     const before = match.index > 0 ? raw[match.index - 1] : ' ';
-    if (/[A-Za-z0-9*•.]/.test(before)) continue;
+    if (/[A-Za-z0-9*•.\-/]/.test(before)) continue;
     // Skip if this is the number part of a prefix match ("AED 100" also ends before "AED"? no —
     // but "AED 100.00 AED"-style doubles resolve identically, so duplicates are harmless).
     candidates.push({ index: match.index, value: Math.round(Number(match[1].replace(/,/g, '')) * 100) });
@@ -353,6 +393,7 @@ function extractMerchant(raw: string, re: RegExp): string {
     if (/\d{4}[Xx*•]{2,}/.test(candidate) || /^\d{6,}/.test(candidate)) continue; // masked PANs
     if ((candidate.match(/[A-Za-z]/g) ?? []).length < 3) continue; // account numbers, "AED 1"
     if (/^\d+\s+(?:month|day|week|year|hr|hour|min)/i.test(candidate)) continue; // "up to 12 months"
+    if (/^acc[\s/]|^a\/?c\b|^cr\.?\s*card/i.test(candidate)) continue; // "from Acc/Cr.Card ..."
     if (/^(?:aed|dhs|sar|usd|eur|gbp)\b/i.test(candidate)) continue;
     if (/^www\.?$/i.test(candidate)) continue; // "at WWW.GRAB.COM" stops at the dot
     if (candidate) return candidate;
@@ -424,15 +465,33 @@ function extractCard(raw: string): ParsedCard | null {
   return null;
 }
 
+const MONTH_NAMES: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+// ADCB style: "due by Jul 19 2026"
+const MONTH_DATE_RE = /\b(?:on|by|before)\s+([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/i;
+
 function extractDate(raw: string): string | null {
   const dateMatch = raw.match(DATETIME_RE) ?? raw.match(DATE_RE);
-  if (!dateMatch) return null;
-  const [, d, m, yRaw] = dateMatch;
-  const y = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
-  const day = Number(d);
-  const month = Number(m);
-  if (y >= 2000 && y <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-    return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  if (dateMatch) {
+    const [, d, m, yRaw] = dateMatch;
+    const y = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
+    const day = Number(d);
+    const month = Number(m);
+    if (y >= 2000 && y <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return null;
+  }
+  const named = raw.match(MONTH_DATE_RE);
+  if (named) {
+    const month = MONTH_NAMES[named[1].slice(0, 3).toLowerCase()];
+    const day = Number(named[2]);
+    const y = Number(named[3]);
+    if (month && y >= 2000 && y <= 2100 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
   }
   return null;
 }
@@ -453,6 +512,20 @@ export function parseSms(
   // purchases; a biller's own AutoPay receipt duplicates the bank-side SMS.
   if (/\d\s*(?:aed|dhs|sar)\s*\/\s*min(?:ute)?|roaming minutes/i.test(raw)) return null;
   if (/autopay service/i.test(raw)) return null;
+  // BNPL / tabby previews of TOMORROW's charge — the real charge arrives as
+  // its own bank SMS, so importing these double-counts every instalment.
+  if (
+    /will be charged to your (?:default )?(?:card|payment method)|due tomorrow and will be charged|statement for (?:aed\s*)?[\d,.]+ is ready|charged to your (?:card|default payment method) (?:tomorrow|on \d)/i.test(
+      raw,
+    )
+  ) {
+    return null;
+  }
+  // Instalment-conversion offers quote an EXISTING purchase; payment
+  // reminders and biller receipts duplicate messages already counted.
+  if (/\*?convert now\*?|converted into instalments?|converted into installments?|interest payment plan|easy payment plan/i.test(raw)) return null;
+  if (/payment reminder|due date reminder|pay immediately to avoid|avoid blockage|is overdue\b/i.test(raw)) return null;
+  if (/rate our service|thank you for using ajmanpay|successfully redeemed|delivery associate/i.test(raw)) return null;
 
   // RTA / municipal parking confirmations:
   //   Confirmation / PlateNo-XXX / TicketNo-XXX / Fee-AED2.38 / Paid upto ...
@@ -535,6 +608,28 @@ export function parseSms(
     }
   }
 
+  // Telegraphic transfers / outward remittances — money moved between
+  // accounts (usually abroad), not merchant spending.
+  if (/issuance of telegraphic transfer|debit telegraphic transfer|^outward remittance/i.test(raw)) {
+    const amountFils = amountWithFx(raw, false);
+    if (!amountFils) return null;
+    return {
+      kind: 'transaction',
+      type: 'expense',
+      amountFils,
+      merchant: /^outward remittance/i.test(raw) ? 'Outward remittance' : 'Telegraphic transfer',
+      date,
+      dueDay: null,
+      minDueFils: null,
+      card,
+      transferHint: true,
+      snapshotFils,
+      snapshotKind,
+      categoryGuess: 'other',
+      raw,
+    };
+  }
+
   // HSBC-style "TT Payment to 041-339***-001 AED 1,108.00+" — an
   // inter-account transfer; "+" after the amount marks money arriving.
   if (/\btt\s+payment\b/i.test(raw)) {
@@ -565,7 +660,12 @@ export function parseSms(
   // footer, not the statement itself ("if already paid" footers must NOT
   // disqualify a real due reminder, so this deliberately excludes "paid").
   if (card && STATEMENT_RE.test(raw) && BILL_DUE_WORDS.test(raw) && !STATEMENT_TXN_BLOCK_RE.test(raw)) {
-    const amountFils = amountWithFx(raw, true);
+    // "Min payment of AED100 ... Total billed amt is AED1174.49" — the
+    // stated total beats first-amount extraction (which would grab the min).
+    const totalMatch = raw.match(TOTAL_DUE_RE);
+    const amountFils = totalMatch
+      ? Math.round(Number(totalMatch[1].replace(/,/g, '')) * 100)
+      : amountWithFx(raw, true);
     if (!amountFils) return null;
     const minMatch = raw.match(MIN_DUE_RE);
     return {
@@ -585,21 +685,27 @@ export function parseSms(
     };
   }
 
-  const hasDebit = DEBIT_WORDS.test(raw);
-  const hasCredit = CREDIT_WORDS.test(raw);
+  // URLs carry misleading words ("sewapayment.tiny.us" is not a payment).
+  const prose = raw.replace(/https?:\/\/\S+/gi, ' ');
+  const hasDebit = DEBIT_WORDS.test(prose);
+  const hasCredit = CREDIT_WORDS.test(prose);
   // Carrier-billed store purchases ("App Store & Google Play bill") are
   // receipts, never utility bills — treating them as dues produced garbage
   // reminders with balance-sized amounts.
   const carrierBilling = /app\s*store|google play|play store|itunes/i.test(raw);
   const isBillDue = BILL_DUE_WORDS.test(raw) && !hasDebit && !hasCredit && !carrierBilling;
 
-  if (PROMO_RE.test(raw) && !hasDebit && !hasCredit && !isBillDue) return null;
+  if (PROMO_RE.test(raw) && !TXN_EVIDENCE_RE.test(raw)) return null;
   if (!hasDebit && !hasCredit && !isBillDue) return null;
 
   const amountFils = amountWithFx(raw, isBillDue);
   if (!amountFils) return null;
 
-  const type: TransactionType = !isBillDue && hasCredit && !hasDebit ? 'income' : 'expense';
+  // A refund reverses spending: money coming back IN, whatever verbs the
+  // message uses ("Purchase amount of AED X ... has been refunded").
+  const isRefund = /refunded to your (?:card|account)/i.test(raw);
+  const type: TransactionType =
+    isRefund || (!isBillDue && hasCredit && !hasDebit) ? 'income' : 'expense';
 
   let merchant = '';
   if (isBillDue) {
@@ -610,9 +716,16 @@ export function parseSms(
   }
   const transferHint = !isBillDue && TRANSFER_HINT_RE.test(raw);
   merchant = merchant
+    .replace(/\s*\([^)]*\)?\s*/g, ' ') // "noon Food(Noon ECommerce)" → "noon Food"
     .replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE)$/i, '')
     .replace(/(?:\s+COM|\.com)$/i, '') // "NOON COM" / "noon.com" → "NOON"
     .trim();
+  // HSBC embeds the merchant BEFORE the verb:
+  //   "From HSBC: 30AUG23 MINISTRY OF HUMAN RE Purchase from 041-..."
+  if (!merchant) {
+    const hsbc = raw.match(/from hsbc:\s*\d{1,2}[a-z]{3}\d{2,4}\s+(.{3,40}?)\s+purchase from/i);
+    if (hsbc) merchant = hsbc[1].trim();
+  }
   // Multi-line formats: the merchant sits on its own line after the amount.
   if (!merchant && !isBillDue && type === 'expense' && !transferHint) {
     const lineMerchant = merchantFromLines(raw);
