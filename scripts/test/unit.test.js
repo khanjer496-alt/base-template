@@ -530,6 +530,20 @@ ok('dues: the June payment still covers June',
 ok('dues: July stays open after June is marked paid',
   allocLib.openDues(markPaidState, new Date(2026, 6, 20)).length === 1);
 
+// ── One charge is not a subscription ──
+const subsLib2 = require('./build/subscriptions');
+const oneOff = (title, date) => ({
+  id: title + date, type: 'expense', amountFils: 1999, category: 'entertainment',
+  accountId: 'a1', title, date, source: 'sms',
+});
+ok('subs: a single charge from a known merchant is not a subscription',
+  subsLib2.detectSubscriptions([oneOff('Amazon Prime', '2026-07-10')], [], new Date(2026, 6, 25)).length === 0);
+ok('subs: two charges a month apart still detect',
+  subsLib2.detectSubscriptions(
+    [oneOff('Amazon Prime', '2026-06-10'), oneOff('Amazon Prime', '2026-07-10')],
+    [], new Date(2026, 6, 25),
+  ).length === 1);
+
 // ── A hand-corrected row survives re-parsing ──
 // buildImportPlan heals rows the parser now reads better. A row the user
 // corrected must be exempt, or every rescan silently undoes their work.

@@ -10,6 +10,13 @@ on:
       - '**.md'
       - 'scripts/test/**'
 
+# A push during a build was already cancelling it, but only after the runner
+# had burned 15 minutes on Gradle. Making it explicit kills the superseded run
+# immediately instead.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,6 +50,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Play rejects a versionCode it has seen before, and app.json pins it at
+      # 1 forever. The run number only ever increases, so every build is
+      # uploadable without anyone remembering to bump a file.
+      - name: Stamp versionCode from the run number
+        run: |
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.android = app.expo.android || {};
+            app.expo.android.versionCode = Number(process.env.GITHUB_RUN_NUMBER);
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+            console.log('versionCode =', app.expo.android.versionCode);
+          "
 
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install

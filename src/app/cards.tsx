@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,6 +23,26 @@ export default function CardsScreen() {
   const { state, editAccount, deleteAccount } = useStore();
   const now = useMemo(() => new Date(), []);
   const [showInactive, setShowInactive] = useState(false);
+  const [detail, setDetail] = useState<Account | null>(null);
+
+  /**
+   * Everything about the tapped card that lives outside the tile: its
+   * statements newest-first, and the payments made against it. Both come from
+   * data already on device — statements from cardDues, payments from the
+   * transfers the importer records when a card payment is detected.
+   */
+  const detailData = useMemo(() => {
+    if (!detail) return null;
+    const statements = state.cardDues
+      .filter((d) => d.accountId === detail.id)
+      .slice()
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+    const payments = state.transactions
+      .filter((t) => t.accountId === detail.id && t.isTransfer && t.type === 'income')
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    const paidTotal = payments.reduce((s, t) => s + t.amountFils, 0);
+    return { statements, payments, paidTotal };
+  }, [detail, state.cardDues, state.transactions]);
 
   const cards = useMemo(
     () => state.accounts.filter((a) => a.kind === 'card' || a.cardType),
@@ -101,6 +121,9 @@ export default function CardsScreen() {
                 entering={FadeInDown.delay(i * 70).duration(350)}
                 style={inactive ? styles.inactiveTile : undefined}>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${card.name}, open statements and payments`}
+                  onPress={() => setDetail(card)}
                   onLongPress={() => cardOptions(card)}
                   style={({ pressed }) => [
                     styles.tile,
@@ -255,6 +278,125 @@ export default function CardsScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Statements and payments for one card. Tapping a tile used to do
+          nothing, so the pay-by date and what had actually been paid were
+          only ever visible as a single line on the Bills tab. */}
+      <Modal
+        visible={detail !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetail(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setDetail(null)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => {}}>
+            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
+
+            {detail && detailData && (
+              <>
+                <View style={styles.sheetHeader}>
+                  <BankAvatar name={detail.bankName ?? detail.name} color={detail.color} size={40} />
+                  <View style={styles.sheetTitle}>
+                    <ThemedText type="heading" numberOfLines={1}>
+                      {detail.bankName ?? detail.name}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" tabular>
+                      {detail.cardType === 'credit' ? 'Credit' : 'Debit'}
+                      {detail.last4 ? ` ·· ${detail.last4}` : ''}
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={() => setDetail(null)} hitSlop={8}>
+                    <Icon name="close" size={20} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+
+                <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
+                  {/* Statements, newest first: the pay-by date the user asked for. */}
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    STATEMENTS
+                  </ThemedText>
+                  {detailData.statements.length === 0 ? (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.sheetEmpty}>
+                      No statement message has arrived for this card yet.
+                    </ThemedText>
+                  ) : (
+                    detailData.statements.map((d, i) => {
+                      const settled = !!d.settledAt || d.paidFils >= d.totalDueFils;
+                      return (
+                        <View
+                          key={d.id}
+                          style={[
+                            styles.sheetRow,
+                            i > 0 && {
+                              borderTopWidth: StyleSheet.hairlineWidth,
+                              borderTopColor: theme.cardBorder,
+                            },
+                          ]}>
+                          <View style={styles.sheetRowText}>
+                            <ThemedText type="smallBold" tabular>
+                              Due {shortDate(d.dueDate)}
+                            </ThemedText>
+                            <ThemedText type="micro" themeColor="textSecondary" tabular>
+                              min {formatAED(d.minDueFils, { decimals: false })}
+                            </ThemedText>
+                          </View>
+                          <View style={styles.sheetRowRight}>
+                            <ThemedText type="smallBold" tabular>
+                              {formatAED(d.totalDueFils, { decimals: false })}
+                            </ThemedText>
+                            <ThemedText
+                              type="micro"
+                              style={{ color: settled ? theme.income : theme.expense }}>
+                              {settled ? 'Settled' : 'Open'}
+                            </ThemedText>
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+
+                  {/* Payments made against the card. */}
+                  <View style={styles.sheetSection}>
+                    <View style={styles.sheetSectionHead}>
+                      <ThemedText type="micro" themeColor="textSecondary">
+                        PAYMENTS MADE
+                      </ThemedText>
+                      <ThemedText type="micro" themeColor="textSecondary" tabular>
+                        {formatAED(detailData.paidTotal, { decimals: false })} total
+                      </ThemedText>
+                    </View>
+                    {detailData.payments.length === 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.sheetEmpty}>
+                        No payment to this card has been detected yet.
+                      </ThemedText>
+                    ) : (
+                      detailData.payments.slice(0, 24).map((p, i) => (
+                        <View
+                          key={p.id}
+                          style={[
+                            styles.sheetRow,
+                            i > 0 && {
+                              borderTopWidth: StyleSheet.hairlineWidth,
+                              borderTopColor: theme.cardBorder,
+                            },
+                          ]}>
+                          <ThemedText type="small" tabular style={styles.sheetRowText}>
+                            {shortDate(p.date)}
+                          </ThemedText>
+                          <ThemedText type="smallBold" tabular style={{ color: theme.income }}>
+                            {formatAED(p.amountFils, { decimals: false })}
+                          </ThemedText>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -348,6 +490,66 @@ const styles = StyleSheet.create({
   inactiveHint: {
     opacity: 0.8,
     marginTop: -Spacing.two,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(7, 15, 12, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.four,
+    paddingBottom: Spacing.five,
+    gap: Spacing.three,
+    maxHeight: '82%',
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: -Spacing.two,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+  },
+  sheetTitle: {
+    flex: 1,
+    gap: 1,
+  },
+  sheetScroll: {
+    marginHorizontal: -Spacing.one,
+    paddingHorizontal: Spacing.one,
+  },
+  sheetSection: {
+    marginTop: Spacing.four,
+    gap: Spacing.one,
+  },
+  sheetSectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.two + 2,
+  },
+  sheetRowText: {
+    flex: 1,
+    gap: 1,
+  },
+  sheetRowRight: {
+    alignItems: 'flex-end',
+    gap: 1,
+  },
+  sheetEmpty: {
+    paddingVertical: Spacing.three,
   },
   empty: {
     alignItems: 'center',

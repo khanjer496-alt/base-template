@@ -129,15 +129,13 @@ export function detectSubscriptions(
       }
     }
 
+    // One charge is not evidence of recurrence, however well-known the
+    // merchant is. Treating it as one invented subscriptions from a single
+    // Prime Video rental or a one-off app-store purchase, and an imaginary
+    // monthly commitment is worse than a real one surfacing a cycle late.
+    // Known merchants still get the easier bar: one interval rather than two.
     const requiredIntervals = known ? 1 : 2;
-    if (!window || gaps.length < requiredIntervals) {
-      // Known merchants with a single charge still count as monthly.
-      if (known && charges.length >= 1) {
-        window = WINDOWS[1];
-      } else {
-        continue;
-      }
-    }
+    if (!window || gaps.length < requiredIntervals) continue;
 
     const last = charges[charges.length - 1];
     const priorAmounts = amounts.slice(0, -1);
