@@ -65,9 +65,19 @@ export default function BillsScreen() {
   );
   const subs = useMemo(() => activeSubscriptions(trueSubscriptions(detected)), [detected]);
   const stopped = useMemo(() => stoppedSubscriptions(trueSubscriptions(detected)), [detected]);
-  const commitments = useMemo(
+  const allCommitments = useMemo(
     () => activeSubscriptions(fixedCommitments(detected)),
     [detected],
+  );
+  // A car loan filed under "Utilities & fixed bills" reads as a bug even when
+  // the detection is right, so repayments get their own block.
+  const loans = useMemo(
+    () => allCommitments.filter((s) => s.category === 'loan'),
+    [allCommitments],
+  );
+  const commitments = useMemo(
+    () => allCommitments.filter((s) => s.category !== 'loan'),
+    [allCommitments],
   );
   const subsTotal = subscriptionsMonthlyTotal(subs);
   const trackedTitles = useMemo(
@@ -302,7 +312,7 @@ export default function BillsScreen() {
                 ? `${t('subscriptionsSeg')} (${subs.length})`
                 : s === 'cards'
                   ? `${t('cardsSeg')} (${dues.length})`
-                  : `${t('utilitiesSeg')} (${commitments.length + rows.length})`;
+                  : `${t('utilitiesSeg')} (${loans.length + commitments.length + rows.length})`;
             return (
               <Pressable
                 key={s}
@@ -437,6 +447,18 @@ export default function BillsScreen() {
 
           {segment === 'utilities' && (
             <>
+              {loans.length > 0 && (
+                <View style={styles.utilitiesBlock}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    {t('loansHeader')}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {t('loansHint')}
+                  </ThemedText>
+                  <View>{loans.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                </View>
+              )}
+
               {commitments.length > 0 && (
                 <View style={styles.utilitiesBlock}>
                   <ThemedText type="micro" themeColor="textSecondary">
@@ -549,7 +571,7 @@ export default function BillsScreen() {
                 <View style={styles.factRow}>
                   <View style={styles.fact}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      {t('subscribedFor')}
+                      {detail.category === 'loan' ? t('payingFor') : t('subscribedFor')}
                     </ThemedText>
                     <ThemedText type="smallBold">{subscribedFor(detailData.firstISO)}</ThemedText>
                     <ThemedText type="micro" themeColor="textSecondary">
@@ -558,7 +580,7 @@ export default function BillsScreen() {
                   </View>
                   <View style={styles.fact}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      {t('charges')}
+                      {detail.category === 'loan' ? t('payments') : t('charges')}
                     </ThemedText>
                     <ThemedText type="smallBold" tabular>
                       {detailData.txs.length}
