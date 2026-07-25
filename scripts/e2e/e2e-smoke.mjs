@@ -59,6 +59,18 @@ ok('home loads after onboarding', !!(await visibleText(page, 'Good ')));
 // Bills tab + subscription detail sheet
 await tapTab(page, 'Bills');
 ok('bills tab shows subscriptions segment', !!(await visibleText(page, /Subscriptions \(/)));
+
+// 3-tab layout: cards due and utilities get their own segments
+await page.getByText(/Cards due \(/).last().click();
+await page.waitForTimeout(700);
+ok('cards-due segment renders', !!(await visibleText(page, /Pay by|No card payments due/)));
+await page.getByText(/Utilities \(/).last().click();
+await page.waitForTimeout(700);
+ok('utilities segment renders',
+  !!(await visibleText(page, /Utilities & fixed bills|No utilities yet|Long-press a reminder/)));
+await page.getByText(/Subscriptions \(/).last().click();
+await page.waitForTimeout(500);
+
 const subRow = page.getByText(/monthly · last/).first();
 if (await subRow.count()) {
   await subRow.click();

@@ -277,6 +277,18 @@ t('Apple billing descriptor becomes Apple',
   'Purchase of AED 19.99 at APPLE.COM/BILL ITUNES with Credit Card ending 4821',
   { merchant: 'Apple' });
 
+// ── word-bounded service matching: CANVAS* stores must never group under Canva ──
+t('Canva descriptor still normalizes',
+  'Purchase of AED 36.70 at CANVA* PRO SUBSCRIPTION with Credit Card ending 4821',
+  { merchant: 'Canva' });
+
+const canvasShop = parseSms('Purchase of AED 365.78 at CANVAS TRADING LLC with Credit Card ending 4821');
+if (canvasShop && canvasShop.merchant !== 'Canva') {
+  pass++; console.log('✓ CANVAS merchant does not become Canva');
+} else {
+  fail++; console.log('✗ CANVAS merchant does not become Canva', JSON.stringify(canvasShop && canvasShop.merchant));
+}
+
 // ── foreign-currency fallback conversion ──
 t('USD-only subscription charge converts at the peg',
   'Your Credit Card ending 4499 was used for USD 20.00 at OPENAI *CHATGPT',

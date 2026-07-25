@@ -35,7 +35,7 @@ import {
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
-type Segment = 'reminders' | 'subscriptions';
+type Segment = 'subscriptions' | 'cards' | 'utilities';
 
 export default function BillsScreen() {
   const theme = useTheme();
@@ -285,32 +285,46 @@ export default function BillsScreen() {
         </View>
 
         <View style={[styles.segment, { backgroundColor: theme.backgroundSelected }]}>
-          {(['subscriptions', 'reminders'] as Segment[]).map((s) => (
-            <Pressable
-              key={s}
-              onPress={() => setSegment(s)}
-              style={[styles.segmentItem, segment === s && { backgroundColor: theme.card }]}>
-              <ThemedText
-                type="smallBold"
-                themeColor={segment === s ? 'text' : 'textSecondary'}>
-                {s === 'subscriptions' ? `${t('subscriptionsSeg')} (${subs.length})` : `${t('remindersSeg')} (${rows.length})`}
-              </ThemedText>
-            </Pressable>
-          ))}
+          {(['subscriptions', 'cards', 'utilities'] as Segment[]).map((s) => {
+            const label =
+              s === 'subscriptions'
+                ? `${t('subscriptionsSeg')} (${subs.length})`
+                : s === 'cards'
+                  ? `${t('cardsSeg')} (${dues.length})`
+                  : `${t('utilitiesSeg')} (${commitments.length + rows.length})`;
+            return (
+              <Pressable
+                key={s}
+                onPress={() => setSegment(s)}
+                style={[styles.segmentItem, segment === s && { backgroundColor: theme.card }]}>
+                <ThemedText
+                  type="smallBold"
+                  numberOfLines={1}
+                  themeColor={segment === s ? 'text' : 'textSecondary'}>
+                  {label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Credit-card payment dues, always on top — these have deadlines. */}
-          {dues.length > 0 && (
-            <View style={styles.duesBlock}>
-              <ThemedText type="micro" themeColor="textSecondary">
-                {t('cardPaymentsDue')}
-              </ThemedText>
-              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
+          {/* Credit-card statement dues live in their own tab. */}
+          {segment === 'cards' && (
+            <>
+              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }, i) => {
                 const account = state.accounts.find((a) => a.id === due.accountId);
                 const urgent = status === 'urgent' || status === 'overdue';
                 return (
-                  <View key={due.id} style={styles.dueRow}>
+                  <View
+                    key={due.id}
+                    style={[
+                      styles.dueRow,
+                      i > 0 && {
+                        borderTopWidth: StyleSheet.hairlineWidth,
+                        borderTopColor: theme.cardBorder,
+                      },
+                    ]}>
                     <View style={{ flex: 1, gap: 1 }}>
                       <ThemedText type="default">{account?.name ?? 'Card'}</ThemedText>
                       <ThemedText
@@ -343,17 +357,28 @@ export default function BillsScreen() {
                   </View>
                 );
               })}
-            </View>
+              {dues.length === 0 && (
+                <View style={styles.empty}>
+                  <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
+                    <Icon name="wallet" size={26} color={theme.textSecondary} strokeWidth={1.7} />
+                  </View>
+                  <ThemedText type="smallBold">{t('noCardDues')}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                    {t('noCardDuesText')}
+                  </ThemedText>
+                </View>
+              )}
+            </>
           )}
 
           {segment === 'subscriptions' && (
             <>
               {subs.length > 0 && (
                 <View style={styles.totalRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.totalCaption}>
                     {t('detectedHint')}
                   </ThemedText>
-                  <ThemedText type="smallBold" tabular>
+                  <ThemedText type="smallBold" tabular style={styles.totalAmount}>
                     {formatAED(subsTotal, { decimals: false })}/mo
                   </ThemedText>
                 </View>
@@ -385,19 +410,7 @@ export default function BillsScreen() {
                 </View>
               )}
 
-              {commitments.length > 0 && (
-                <View style={styles.commitBlock}>
-                  <ThemedText type="micro" themeColor="textSecondary">
-                    {t('utilitiesHeader')}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {t('utilitiesHint')}
-                  </ThemedText>
-                  <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
-                </View>
-              )}
-
-              {subs.length === 0 && commitments.length === 0 && (
+              {subs.length === 0 && (
                 <View style={styles.empty}>
                   <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
                     <Icon name="repeat" size={26} color={theme.textSecondary} strokeWidth={1.7} />
@@ -411,12 +424,23 @@ export default function BillsScreen() {
             </>
           )}
 
-          {segment === 'reminders' && (
+          {segment === 'utilities' && (
             <>
+              {commitments.length > 0 && (
+                <View style={styles.utilitiesBlock}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    {t('utilitiesHeader')}
+                  </ThemedText>
+                  <View>{commitments.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                </View>
+              )}
+
               {rows.length > 0 && (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-                  Long-press a reminder to delete it.
-                </ThemedText>
+                <View style={commitments.length > 0 ? styles.commitBlock : undefined}>
+                  <ThemedText type="micro" themeColor="textSecondary">
+                    {t('remindersSeg')}
+                  </ThemedText>
+                </View>
               )}
               <View>
                 {rows.map(({ bill, status, daysLeft }, i) => {
@@ -456,14 +480,20 @@ export default function BillsScreen() {
                   );
                 })}
               </View>
-              {rows.length === 0 && (
+              {rows.length > 0 && (
+                <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
+                  Long-press a reminder to delete it.
+                </ThemedText>
+              )}
+              {rows.length === 0 && commitments.length === 0 && (
                 <View style={styles.empty}>
                   <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSelected }]}>
                     <Icon name="calendar" size={26} color={theme.textSecondary} strokeWidth={1.7} />
                   </View>
-                  <ThemedText type="smallBold">No reminders yet</ThemedText>
+                  <ThemedText type="smallBold">No utilities yet</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                    Tap + to track DEWA, rent, or any monthly payment.
+                    Tap + to track DEWA, rent, or any monthly payment. Detected utility charges
+                    show up here on their own.
                   </ThemedText>
                 </View>
               )}
@@ -770,6 +800,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.two,
+    gap: Spacing.two,
+  },
+  totalCaption: {
+    flex: 1,
+  },
+  totalAmount: {
+    flexShrink: 0,
+  },
+  utilitiesBlock: {
+    gap: Spacing.one,
   },
   commitBlock: {
     marginTop: Spacing.four,

@@ -23,7 +23,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
 import { isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
-import { accountBalanceFils, netWorthFils, useStore } from '@/lib/store';
+import { netWorthFils, reliableBalanceFils, useStore } from '@/lib/store';
 import type { Account, AccountKind } from '@/lib/types';
 
 const TAB_BAR_CLEARANCE = 110;
@@ -275,18 +275,12 @@ export default function WalletScreen() {
               </View>
               <View>
                 {cards.map((account, i) => {
-                  const balance = accountBalanceFils(state, account.id);
                   const isCredit = account.cardType === 'credit';
-                  // The bank's own quoted figure beats our derived one.
-                  const snap = account.snapshotFils;
-                  const display =
-                    snap !== undefined && isCredit && account.snapshotKind === 'outstanding'
-                      ? snap
-                      : snap !== undefined && !isCredit && account.snapshotKind === 'balance'
-                        ? snap
-                        : isCredit
-                          ? Math.abs(Math.min(0, balance))
-                          : balance;
+                  // Only figures the bank itself quoted (balance/outstanding
+                  // SMS) are shown as balances. Partial SMS history can't
+                  // reconstruct one, so without a quote we show month spend.
+                  const reliable = reliableBalanceFils(state, account);
+                  const display = reliable !== null ? Math.abs(reliable) : null;
                   const availableLimit =
                     isCredit && account.snapshotKind === 'limit' ? (account.snapshotFils ?? null) : null;
                   const spent = monthSpendByAccount.get(account.id) ?? 0;
@@ -313,7 +307,9 @@ export default function WalletScreen() {
                           {availableLimit !== null
                             ? ` · ${formatAED(availableLimit, { decimals: false })} limit left`
                             : ''}
-                          {spent > 0 ? ` · ${formatAED(spent, { decimals: false })} this month` : ''}
+                          {display !== null && spent > 0
+                            ? ` · ${formatAED(spent, { decimals: false })} this month`
+                            : ''}
                         </ThemedText>
                       </View>
                       <View style={styles.accountRight}>
@@ -321,16 +317,21 @@ export default function WalletScreen() {
                           type="smallBold"
                           tabular
                           style={{
-                            color: isCredit && display > 0 ? theme.expense : theme.text,
+                            color:
+                              isCredit && display !== null && display > 0
+                                ? theme.expense
+                                : theme.text,
                             fontSize: 15,
                           }}>
-                          {formatAED(display, { decimals: false })}
+                          {formatAED(display ?? spent, { decimals: false })}
                         </ThemedText>
-                        {isCredit && (
-                          <ThemedText type="micro" themeColor="textSecondary">
-                            {t('outstanding')}
-                          </ThemedText>
-                        )}
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          {display !== null
+                            ? isCredit
+                              ? t('outstanding')
+                              : t('perBankSms')
+                            : t('spentThisMonthCaption')}
+                        </ThemedText>
                       </View>
                     </Pressable>
                   );
@@ -344,9 +345,8 @@ export default function WalletScreen() {
             <ThemedText type="micro" themeColor="textSecondary">{t('accountsHeader')}</ThemedText>
             <View>
               {nonCardAccounts.map((account, i) => {
-                const derived = accountBalanceFils(state, account.id);
+                const balance = reliableBalanceFils(state, account);
                 const fromBank = account.snapshotKind === 'balance' && account.snapshotFils !== undefined;
-                const balance = fromBank ? account.snapshotFils! : derived;
                 const meta = KIND_META[account.kind];
                 return (
                   <Pressable
@@ -372,13 +372,17 @@ export default function WalletScreen() {
                     </View>
                     <View style={styles.accountRight}>
                       <ThemedText type="smallBold" tabular style={{ fontSize: 15 }}>
-                        {formatAED(balance, { decimals: false })}
+                        {balance !== null ? formatAED(balance, { decimals: false }) : '—'}
                       </ThemedText>
-                      {fromBank && (
+                      {fromBank ? (
                         <ThemedText type="micro" themeColor="textSecondary">
                           {t('perBankSms')}
                         </ThemedText>
-                      )}
+                      ) : balance === null ? (
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          {t('noBalanceYet')}
+                        </ThemedText>
+                      ) : null}
                     </View>
                   </Pressable>
                 );

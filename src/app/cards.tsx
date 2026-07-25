@@ -13,7 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
 import { accountLastActivityISO, isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, shortDate } from '@/lib/format';
-import { accountBalanceFils, useStore } from '@/lib/store';
+import { reliableBalanceFils, useStore } from '@/lib/store';
 import type { Account } from '@/lib/types';
 
 /** Every card as a wallet-style tile: bank, last4, live figures. */
@@ -84,11 +84,10 @@ export default function CardsScreen() {
           {(() => {
           const renderCard = (card: Account, i: number, inactive: boolean) => {
             const isCredit = card.cardType === 'credit';
-            const derived = accountBalanceFils(state, card.id);
-            const outstanding =
-              card.snapshotKind === 'outstanding' && card.snapshotFils !== undefined
-                ? card.snapshotFils
-                : Math.abs(Math.min(0, derived));
+            // Only a bank-quoted outstanding figure is trustworthy; partial
+            // SMS history can't reconstruct one, so we fall back to spend.
+            const reliable = reliableBalanceFils(state, card);
+            const outstanding = isCredit && reliable !== null ? Math.abs(reliable) : null;
             const limitLeft =
               card.snapshotKind === 'limit' && card.snapshotFils !== undefined
                 ? card.snapshotFils
@@ -129,10 +128,10 @@ export default function CardsScreen() {
 
                   <View style={styles.tileMiddle}>
                     <ThemedText type="micro" themeColor="textSecondary">
-                      {isCredit ? 'OUTSTANDING' : 'SPENT THIS MONTH'}
+                      {outstanding !== null ? 'OUTSTANDING' : 'SPENT THIS MONTH'}
                     </ThemedText>
                     <ThemedText type="title" tabular>
-                      {formatAED(isCredit ? outstanding : spent, { decimals: false })}
+                      {formatAED(outstanding ?? spent, { decimals: false })}
                     </ThemedText>
                   </View>
 
@@ -158,7 +157,7 @@ export default function CardsScreen() {
                       {formatAED(limitLeft, { decimals: false })} limit left
                     </ThemedText>
                   )}
-                  {isCredit && spent > 0 && (
+                  {outstanding !== null && spent > 0 && (
                     <ThemedText type="small" themeColor="textSecondary" tabular>
                       {formatAED(spent, { decimals: false })} this month
                     </ThemedText>

@@ -790,24 +790,9 @@ export function useStore(): StoreValue {
   return ctx;
 }
 
-/** Current balance of an account: opening balance plus all its transactions. */
-export function accountBalanceFils(state: AppState, accountId: string): number {
-  const account = state.accounts.find((a) => a.id === accountId);
-  let balance = account?.openingFils ?? 0;
-  for (const t of state.transactions) {
-    if (t.accountId !== accountId) continue;
-    balance += t.type === 'income' ? t.amountFils : -t.amountFils;
-  }
-  return balance;
-}
-
-export function netWorthFils(state: AppState): number {
-  // Hidden (dead card) accounts carry stale partial-history balances — skip them.
-  return state.accounts.reduce(
-    (sum, a) => (a.archived ? sum : sum + accountBalanceFils(state, a.id)),
-    0,
-  );
-}
+// Pure balance math lives in balances.ts so the unit-test harness can load
+// it without React; re-exported here so screens keep one import path.
+export { accountBalanceFils, netWorthFils, reliableBalanceFils } from './balances';
 
 /** Net worth as of end-of-day on the given ISO date. */
 export function netWorthAtDate(state: AppState, dateISO: string): number {

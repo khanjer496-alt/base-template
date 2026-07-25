@@ -441,5 +441,37 @@ const aeAgain = mparser.parseSms(
 ok('market: UAE parsing unchanged after switching back',
   aeAgain && aeAgain.amountFils === 18750);
 
+// ── reliable balances: only bank-quoted or fully-manual figures count ──
+const bal = require('./build/balances');
+const mkAcc = (over) => ({
+  id: over.id, name: over.id, kind: 'bank', openingFils: 0, color: '#000', ...over,
+});
+const balState = {
+  accounts: [
+    mkAcc({ id: 'cc-quoted', kind: 'card', cardType: 'credit', snapshotKind: 'outstanding', snapshotFils: 406100 }),
+    mkAcc({ id: 'cc-limit-only', kind: 'card', cardType: 'credit', snapshotKind: 'limit', snapshotFils: 1200000 }),
+    mkAcc({ id: 'debit-quoted', kind: 'card', cardType: 'debit', snapshotKind: 'balance', snapshotFils: 1250000 }),
+    mkAcc({ id: 'debit-sms-no-snap', kind: 'card', cardType: 'debit' }),
+    mkAcc({ id: 'manual-cash', kind: 'cash', openingFils: 50000 }),
+    mkAcc({ id: 'archived-quoted', snapshotKind: 'balance', snapshotFils: 999900, archived: true }),
+  ],
+  transactions: [
+    { id: 'b1', accountId: 'debit-sms-no-snap', type: 'expense', amountFils: 108873_00, date: '2026-07-01', title: 'X', category: 'other', source: 'sms' },
+    { id: 'b2', accountId: 'manual-cash', type: 'expense', amountFils: 10000, date: '2026-07-02', title: 'Y', category: 'other', source: 'manual' },
+  ],
+};
+ok('reliable: credit card uses bank outstanding as negative',
+  bal.reliableBalanceFils(balState, balState.accounts[0]) === -406100);
+ok('reliable: credit card with only a limit snapshot is unknowable',
+  bal.reliableBalanceFils(balState, balState.accounts[1]) === null);
+ok('reliable: debit card uses bank balance snapshot',
+  bal.reliableBalanceFils(balState, balState.accounts[2]) === 1250000);
+ok('reliable: SMS-fed account without a quote never shows derived garbage',
+  bal.reliableBalanceFils(balState, balState.accounts[3]) === null);
+ok('reliable: fully-manual account derives from opening + entries',
+  bal.reliableBalanceFils(balState, balState.accounts[4]) === 40000);
+ok('net worth sums only reliable, skips archived',
+  bal.netWorthFils(balState) === -406100 + 1250000 + 40000);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

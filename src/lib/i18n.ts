@@ -54,6 +54,14 @@ const S = {
   billsSubtitle: { en: 'Dues, subscriptions and utilities', ar: 'مستحقات واشتراكات وفواتير' },
   subscriptionsSeg: { en: 'Subscriptions', ar: 'الاشتراكات' },
   remindersSeg: { en: 'Reminders', ar: 'التذكيرات' },
+  cardsSeg: { en: 'Cards due', ar: 'مستحقات البطاقات' },
+  utilitiesSeg: { en: 'Utilities', ar: 'المرافق' },
+  noCardDues: { en: 'No card payments due', ar: 'لا مستحقات على البطاقات' },
+  noCardDuesText: {
+    en: 'When your bank sends a statement SMS, the amount and pay-by date show up here.',
+    ar: 'عند وصول رسالة كشف الحساب من البنك، يظهر المبلغ وتاريخ السداد هنا.',
+  },
+  monthlySpendOnly: { en: 'tracking spend only', ar: 'تتبع المصروف فقط' },
   detectedHint: { en: 'Detected from your charge history · tap one for details', ar: 'مكتشفة من سجل عملياتك · اضغط للتفاصيل' },
   stoppedSubs: { en: 'Stopped subscriptions', ar: 'اشتراكات متوقفة' },
   stoppedSubsHint: { en: 'No charges for over two cycles — most likely cancelled.', ar: 'لا توجد عمليات خصم لدورتين — على الأغلب ملغاة.' },
@@ -76,6 +84,8 @@ const S = {
   newGoal: { en: '+ New goal', ar: '+ هدف جديد' },
   outstanding: { en: 'outstanding', ar: 'مستحق' },
   perBankSms: { en: 'per bank SMS', ar: 'حسب رسالة البنك' },
+  noBalanceYet: { en: 'no balance SMS yet', ar: 'لا رسالة رصيد بعد' },
+  spentThisMonthCaption: { en: 'spent this month', ar: 'مصروف هذا الشهر' },
   longPressHint: { en: 'Long-press a card or account to hide or remove it', ar: 'اضغط مطولاً على بطاقة أو حساب لإخفائه أو حذفه' },
 
   // Settings

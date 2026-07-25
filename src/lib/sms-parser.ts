@@ -219,10 +219,11 @@ const SERVICE_NAMES: [RegExp, string][] = [
   [/dropbox/i, 'Dropbox'],
   [/linkedin/i, 'LinkedIn'],
   [/adobe/i, 'Adobe'],
-  [/canva/i, 'Canva'],
+  // Word-bounded: "CANVAS TRADING" or "CANVAS HOME" must not become Canva.
+  [/\bcanva\b/i, 'Canva'],
   [/microsoft\s*365|office\s*365/i, 'Microsoft 365'],
   [/discord/i, 'Discord'],
-  [/notion/i, 'Notion'],
+  [/\bnotion\b/i, 'Notion'],
   [/github/i, 'GitHub'],
   [/telegram/i, 'Telegram Premium'],
   [/xbox\s*game\s*pass/i, 'Xbox Game Pass'],
