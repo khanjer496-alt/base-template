@@ -300,5 +300,38 @@ t('service name found without an at/to/from clause',
   'USD 20.00 charged on Credit Card ending 4499 - OPENAI CHATGPT SUBSCRIPTION',
   { merchant: 'ChatGPT', amountFils: 7345 });
 
+// ── real-world descriptor categorization (the "everything is Other" fix) ──
+t('unbranded supermarket classifies as groceries',
+  'Purchase of AED 84.20 at AL MADINA SUPERMARKET with Debit Card ending 1234',
+  { category: 'groceries' });
+
+t('pharmacy chain classifies as health',
+  'Purchase of AED 36.00 at LIFE PHARMACY BR 44 with Credit Card ending 1234',
+  { category: 'health' });
+
+t('abbreviated restaurant descriptor classifies as dining',
+  'Purchase of AED 27.50 at IKON REST CAFETERIA with Debit Card ending 1234',
+  { category: 'dining' });
+
+t('ride app classifies as transport',
+  'Purchase of AED 18.00 at YANGO RIDES DUBAI with Debit Card ending 1234',
+  { category: 'transport' });
+
+t('salon classifies as shopping (personal care)',
+  'Purchase of AED 120.00 at SUGAR LOUNGE SALON with Credit Card ending 1234',
+  { category: 'shopping' });
+
+t('gym membership classifies as health',
+  'Purchase of AED 350.00 at GYMNATION FITNESS with Credit Card ending 1234',
+  { category: 'health' });
+
+t('hotel stay classifies as travel',
+  'Purchase of AED 640.00 at ROTANA HOTEL DUBAI with Credit Card ending 1234',
+  { category: 'travel' });
+
+t('generic trading shop classifies as shopping',
+  'Purchase of AED 95.00 at AL NOOR GENERAL TRADING with Debit Card ending 1234',
+  { category: 'shopping' });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

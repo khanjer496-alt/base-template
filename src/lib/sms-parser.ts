@@ -149,18 +149,23 @@ const TRANSFER_HINT_RE =
 
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|nesto|al maya|west zone|viva supermarket|\bcoop\b|noon minutes|instashop|careem quik|talabat mart|hypermarket|supermarket|grocer|fresh market|baqala/i, 'groceries'],
-  [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery/i, 'dining'],
-  [/careem|uber|taxi|\brta\b|\bnol\b|salik|darb|enoc|eppco|adnoc|emarat|petrol|fuel|metro|parking|valet/i, 'transport'],
-  [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|electricity|water|cooling|utility/i, 'utilities'],
-  [/etisalat|\bdu\b|virgin mobile|telecom|mobile recharge|internet|five telecom/i, 'telecom'],
+  [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery|pizza|burger|grill|chicken|broast|dunkin|krispy|baskin|papa john|pizza hut|domino|wingstop|five guys|shake shack|raising cane|jollibee|al ?baik|karak|chai|juice|catering|kitchen|bistro|donut|gelato|ice ?cream|sweets|pastr|foodcourt|food court|snack|falafel|biryani|mandi|machboos|kabab|kebab|hommus|manakish|allo beirut|wagamama|nando|chili|applebee|cheesecake|paul\b|shakespeare|arabian tea|barista|caribou|filli|karam|zaatar|maraheb|al safadi|automatic\b/i, 'dining'],
+  [/careem(?!\s*food)|uber|yango|bolt\b|udrive|ekar|taxi|\brta\b|\bnol\b|salik|darb|mawaqif|parkin\b|enoc|eppco|adnoc(?!\s*(?:oasis|coop))|emarat|petrol|fuel|tyre|tire|car wash|autopro|quicklube|oil change|metro|tram|parking|valet|careem bike/i, 'transport'],
+  [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|btu\b|chilled water|electricity|water|cooling|utility|sewerage|\blpg\b|gas cylinder/i, 'utilities'],
+  [/etisalat|\be&\b|eand\b|\bdu\b|virgin mobile|swyp|telecom|mobile recharge|internet|five telecom|wifi/i, 'telecom'],
   [/rent|ejari|landlord/i, 'rent'],
-  [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|ikea|home centre|sharaf|jumbo|emax|dubizzle|mall|store|shop/i, 'shopping'],
-  [/pharmacy|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|dental|medical|optic|sukoon|\bdaman\b|\baxa\b|insurance/i, 'health'],
-  [/school|university|college|tuition|academy|nursery|\bgems\b|taaleem|kumon/i, 'education'],
-  [/emirates(?!\s*nbd)|flydubai|etihad|air arabia|airline|hotel|booking|airbnb|agoda|wizz|visa fee/i, 'travel'],
-  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox|reel|novo|netflix|spotify|anghami|shahid|osn|starz|game|entertainment/i, 'entertainment'],
-  [/donat|charity|zakat|sadaqah|dubai cares|red crescent/i, 'charity'],
+  [/tabby|tamara|postpay|cashew|amazon|noon(?!\s*(?:food|minutes))|shein|temu|aliexpress|namshi|ounass|\bsivvi\b|ikea|home centre|homebox|home box|pan emirates|danube home|ace hardware|dragon ?mart|sharaf|jumbo|emax|virgin megastore|decathlon|sun ?& ?sand|nike|adidas|puma\b|\bh ?& ?m\b|zara\b|bershka|pull ?& ?bear|matalan|max fashion|centrepoint|splash\b|lifestyle|brands for less|daiso|miniso|mumzworld|firstcry|toys ?r ?us|dubizzle|mall\b|store|shop|boutique|tailor|salon|barber|spa\b|beauty|laundry|dry ?clean|perfume|jewel|gold ?souk|florist|flower/i, 'shopping'],
+  [/pharmacy|phcy|life pharm|bin sina|boots\b|supercare|clinic|hospital|aster|medcare|\bnmc\b|mediclinic|saudi german|burjeel|zulekha|prime medical|dental|medical|medic\b|polyclinic|physio|optic|vision|lab\b|diagnostic|x-?ray|derma|vet\b|veterinar|sukoon|\bdaman\b|\baxa\b|insurance|gym\b|fitness|classpass/i, 'health'],
+  [/school|university|college|tuition|academy|nursery|kindergarten|\bgems\b|taaleem|kumon|udemy|coursera|skillshare|training (?:center|centre)|institute/i, 'education'],
+  [/emirates(?!\s*(?:nbd|islamic|coop))|flydubai|etihad|air arabia|airline|airways|\bhotel\b|rotana|marriott|hilton|hyatt|radisson|movenpick|sheraton|ibis\b|novotel|booking|airbnb|agoda|expedia|almosafer|musafir|wego\b|cleartrip|wizz|visa fee|travel/i, 'travel'],
+  [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox\b|reel\b|novo\b|roxy\b|imax|netflix|spotify|anghami|shahid|osn\b|starz|game\b|gaming|arcade|bowling|magic planet|kidzania|global village|ferrari world|yas island|img world|wild wadi|aquaventure|dubai parks|adventure|entertainment|theme park|water ?park/i, 'entertainment'],
+  [/donat|charity|zakat|sadaqah|dubai cares|red crescent|beit al khair|dar al ber/i, 'charity'],
   [/salary|payroll|wages/i, 'salary'],
+  // Structural fallbacks — what the merchant IS, when no brand matched.
+  // These sit last so brand rules always win.
+  [/hypermarket|supermarket|superm(?:kt|arket)|hyperm(?:kt|arket)|mini ?mart|\bmart\b|grocer|baqala|coop\b|co-?op|vegetables|fruits|butcher|fish market|meat\b|roastery|adnoc oasis|zoom\b|7-?eleven|circle k|last chance|day to day|gala\b|west zone/i, 'groceries'],
+  [/\brest\b|\bresto\b|restur|cafet|coffe|tea ?house|eater|diner\b|canteen/i, 'dining'],
+  [/trading|general trading|electronics|mobile(?:s| shop)|computer|stationery|bookshop|book ?store|gifts|accessories|garments|textile|readymade|footwear|shoes|optical shop/i, 'shopping'],
 ];
 
 export function guessCategory(

@@ -14,7 +14,7 @@ import { setMonthStartDay as applyMonthStartDay, toISODate } from '@/lib/format'
 import { detectLanguage, setLanguage } from '@/lib/i18n';
 import { detectMarketId, setActiveMarket } from '@/lib/markets';
 import { generateSeedTransactions, SEED_ACCOUNTS, SEED_BUDGETS } from '@/lib/seed';
-import { normalizeServiceName } from '@/lib/sms-parser';
+import { guessCategory, normalizeServiceName } from '@/lib/sms-parser';
 import type {
   Account,
   AppState,
@@ -447,6 +447,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               if (t.source !== 'sms') return true;
               const k = `${t.date}|${t.amountFils}|${t.type}|${t.title.trim().toLowerCase()}`;
               return best.get(k)?.id === t.id;
+            });
+            // Re-file rows stuck in Other: each parser release widens the
+            // merchant vocabulary, so imported-as-Other rows get another
+            // chance without needing a rescan. User overrides still win.
+            parsed.transactions = parsed.transactions.map((t) => {
+              if (t.source !== 'sms' || t.isTransfer || t.category !== 'other' || t.type !== 'expense') {
+                return t;
+              }
+              const guessed = guessCategory(t.title, t.type, parsed.merchantOverrides, t.title);
+              return guessed !== 'other' ? { ...t, category: guessed } : t;
             });
           }
           // Drop stale unsettled card dues, and dues attached to anything that
