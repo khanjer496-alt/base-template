@@ -76,6 +76,42 @@ RECEIVE_WAP_PUSH`.
 - Policy reference:
   https://support.google.com/googleplay/android-developer/answer/10208820
 
+## Data safety form answers
+
+The app makes no network requests of its own, so the honest answers are the
+simple ones. Keep them true: the moment anything is uploaded, these change.
+
+| Question | Answer |
+| --- | --- |
+| Does your app collect or share any of the required user data types? | **No** |
+| Is all user data encrypted in transit? | N/A — no data is transmitted |
+| Do you provide a way for users to request data deletion? | Yes — uninstall, or clear data in Settings |
+
+Play billing is Google's own processing and is not app-collected data. If a
+cloud sync or crash reporter is ever added, this section and the privacy
+policy both have to change before that build ships.
+
+For reference, FinArt — the closest comparable on Play — declares "No data
+shared with third parties", "Data is encrypted in transit", and collects
+"Personal info, Financial info and 4 others", because it offers multi-device
+sync and Drive backup. Wafra's position is stronger precisely because it has
+no server; that is worth saying plainly in the listing rather than leaving
+the reviewer to infer it.
+
+## Prominent disclosure (required before the SMS prompt)
+
+Play requires an in-app disclosure before the runtime permission dialog, in
+addition to the privacy policy. It must name the data, the use, and appear
+before the request. The onboarding permission screen is that disclosure — keep
+it saying, in substance:
+
+> Wafra reads bank alert messages to record your transactions automatically.
+> Messages are processed on this device and are never uploaded. Messages that
+> do not contain a currency amount are ignored and never stored.
+
+Do not soften this into marketing copy; the reviewer is checking for exactly
+these three facts.
+
 ## Build checklist before submission
 
 - [x] Unique applicationId: app.wafra.android (versionCode 1 in app.json)
