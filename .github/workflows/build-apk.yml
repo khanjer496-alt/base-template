@@ -1,11 +1,23 @@
 name: Build Android APK
 
+# A release build costs ~18 runner minutes; the free tier is 2,000 a month,
+# and building on every push to the working branch burned the whole allowance
+# in a month — after which nothing builds at all until the reset.
+#
+# So: CI (typecheck, lint, tests, ~2 min) still runs on every push and is what
+# actually guards the code. A full APK is built when someone asks for one, or
+# on main. That is also how it gets used — an installable build matters when
+# you are about to install it, not on every intermediate commit.
 on:
   workflow_dispatch:
+    inputs:
+      bundle:
+        description: 'Also build the Play Store bundle (.aab) — adds ~5 min'
+        type: boolean
+        default: false
   push:
     branches:
       - main
-      - claude/uae-android-app-ui-muatsu
     paths-ignore:
       - '**.md'
       - 'scripts/test/**'
@@ -148,14 +160,18 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
+      # Only needed to upload to Play, which is not what most builds are for.
       - name: Build Play Store bundle (AAB)
+        if: inputs.bundle || github.ref == 'refs/heads/main'
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon
 
       - name: Rename outputs
         run: |
           cp android/app/build/outputs/apk/release/app-release.apk wafra.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab wafra.aab
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp android/app/build/outputs/bundle/release/app-release.aab wafra.aab
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -165,6 +181,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Play bundle artifact
+        if: inputs.bundle || github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: wafra-aab
