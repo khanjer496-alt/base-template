@@ -63,7 +63,8 @@ export default function WalletScreen() {
   const [goalTarget, setGoalTarget] = useState('');
   const [goalIcon, setGoalIcon] = useState(GOAL_ICONS[0]);
 
-  const total = netWorthFils(state);
+  // Scans every transaction once per account, so it is kept off the render path.
+  const total = useMemo(() => netWorthFils(state), [state]);
   const dues = useMemo(() => openDues(state, now), [state, now]);
   const duesTotalFils = useMemo(
     () => dues.reduce((sum, d) => sum + d.remainingFils, 0),

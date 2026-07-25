@@ -15,20 +15,59 @@ export interface DueWithStatus {
 }
 
 /**
- * What has been paid toward a due: explicit paidFils (manual "Mark paid")
- * plus card-payment transfers on that account dated on/after the statement.
+ * Payments spread across an account's statements, each payment counted once.
+ *
+ * A due's matching window (~40 days before to 20 after) is wider than the
+ * monthly statement cycle, so consecutive statements overlap. Crediting every
+ * payment inside the window to each due independently meant one payment could
+ * settle two statements at once — the second month's balance silently
+ * vanished from the app while it was still owed.
+ *
+ * Payments are walked oldest-first and poured into the oldest statement they
+ * could belong to, so an overpayment still spills onto the next one.
  */
-export function duePaidFils(state: AppState, due: CardDue): number {
-  let paid = due.paidFils;
-  // Statement date approximated as ~25 days before the due date.
-  const stmtWindowStart = shiftISO(due.dueDate, -40);
-  for (const t of state.transactions) {
-    if (!t.isTransfer || t.accountId !== due.accountId || t.type !== 'income') continue;
-    if (t.date >= stmtWindowStart && t.date <= shiftISO(due.dueDate, 20)) {
-      paid += t.amountFils;
+function allocatePayments(
+  state: AppState,
+  accountId: string,
+  /** Included even when absent from state — callers may hold a due directly. */
+  target?: CardDue,
+): Map<string, number> {
+  const known = state.cardDues.filter((d) => d.accountId === accountId);
+  const dues = (target && !known.some((d) => d.id === target.id) ? [...known, target] : known)
+    .slice()
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  // Manual "Mark paid" amounts are already attributed to their own statement.
+  const allocated = new Map(dues.map((d) => [d.id, d.paidFils] as const));
+
+  const payments = state.transactions
+    .filter((t) => t.isTransfer && t.type === 'income' && t.accountId === accountId)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const payment of payments) {
+    let left = payment.amountFils;
+    for (const due of dues) {
+      if (left <= 0) break;
+      // Statement date approximated as ~25 days before the due date.
+      if (payment.date < shiftISO(due.dueDate, -40)) continue;
+      if (payment.date > shiftISO(due.dueDate, 20)) continue;
+      const already = allocated.get(due.id) ?? 0;
+      const outstanding = due.totalDueFils - already;
+      if (outstanding <= 0) continue;
+      const take = Math.min(outstanding, left);
+      allocated.set(due.id, already + take);
+      left -= take;
     }
   }
-  return paid;
+  return allocated;
+}
+
+/**
+ * What has been paid toward a due: explicit paidFils (manual "Mark paid")
+ * plus its share of the card-payment transfers on that account.
+ */
+export function duePaidFils(state: AppState, due: CardDue): number {
+  return allocatePayments(state, due.accountId, due).get(due.id) ?? due.paidFils;
 }
 
 function shiftISO(iso: string, days: number): string {

@@ -28,6 +28,9 @@ function paidByTransaction(bill: Bill, transactions: Transaction[], key: string)
     if (t.type !== 'expense' || t.isTransfer || monthKey(t.date) !== key) continue;
     if (t.amountFils < bill.amountFils * 0.85 || t.amountFils > bill.amountFils * 1.15) continue;
     const txTitle = normalize(t.title);
+    // Every string contains "", so a title that normalizes to nothing (a row
+    // titled "—" or "***") would otherwise mark any similar-sized bill paid.
+    if (!txTitle) continue;
     if (txTitle.includes(billTitle) || billTitle.includes(txTitle)) return true;
   }
   return false;

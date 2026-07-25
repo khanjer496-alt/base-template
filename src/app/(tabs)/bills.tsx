@@ -247,6 +247,9 @@ export default function BillsScreen() {
             </ThemedText>
             {!tracked && sub.status !== 'stopped' && (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remind me about ${sub.title}`}
+                hitSlop={8}
                 onPress={() =>
                   addBill({
                     title: sub.title,
@@ -255,8 +258,16 @@ export default function BillsScreen() {
                     dueDay: Number(sub.nextExpectedISO.slice(8)),
                     autoDetected: true,
                   })
-                }>
-                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                }
+                style={({ pressed }) => [
+                  styles.remindBtn,
+                  {
+                    backgroundColor: pressed ? `${theme.primary}2e` : `${theme.primary}17`,
+                    borderColor: `${theme.primary}44`,
+                    transform: [{ scale: pressed ? 0.97 : 1 }],
+                  },
+                ]}>
+                <ThemedText type="micro" style={{ color: theme.primary, fontWeight: '700' }}>
                   Remind me
                 </ThemedText>
               </Pressable>
@@ -745,6 +756,14 @@ export default function BillsScreen() {
 }
 
 const styles = StyleSheet.create({
+  /** Matches the "Mark paid" chip on Wallet dues: a real target, not bare text. */
+  remindBtn: {
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one + 3,
+    borderRadius: Radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignSelf: 'flex-end',
+  },
   root: {
     flex: 1,
     alignItems: 'center',

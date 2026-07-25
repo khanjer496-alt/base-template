@@ -42,6 +42,10 @@ export function DonutChart({
   const c = size / 2;
   const total = segments.reduce((s, seg) => s + seg.value, 0);
   const gapDeg = segments.length > 1 ? 2.5 : 0;
+  // Half the stroke, expressed as an angle: how far a round cap bulges past
+  // each end of an arc. Below twice this, the caps of a segment overlap its
+  // neighbours and a 2% slice paints as wide as a 6% one.
+  const capDeg = ((strokeWidth / 2 / r) * 180) / Math.PI;
 
   let cursor = 0;
   const arcs = total > 0
@@ -49,15 +53,18 @@ export function DonutChart({
         if (seg.value <= 0) return null;
         const sweep = (seg.value / total) * 360;
         const start = cursor + gapDeg / 2;
-        const end = cursor + Math.max(sweep - gapDeg / 2, 0.5);
+        // end must stay ahead of start: a sweep smaller than the gap used to
+        // produce end < start, which SVG draws the long way round as an arc
+        // covering almost the whole ring.
+        const end = Math.min(Math.max(cursor + sweep - gapDeg / 2, start + 0.4), 359.9);
         cursor += sweep;
         return (
           <Path
             key={i}
-            d={arcPath(c, c, r, start, Math.min(end, 359.9))}
+            d={arcPath(c, c, r, start, end)}
             stroke={seg.color}
             strokeWidth={strokeWidth}
-            strokeLinecap="round"
+            strokeLinecap={end - start > capDeg * 2 ? 'round' : 'butt'}
             fill="none"
             onPress={onPressSegment ? () => onPressSegment(i) : undefined}
           />

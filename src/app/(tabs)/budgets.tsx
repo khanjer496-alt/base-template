@@ -142,7 +142,8 @@ export default function BudgetsScreen() {
                             {over
                               ? `Over by ${formatAED(spent - budget.limitFils, { decimals: false })}`
                               : `${formatAED(budget.limitFils - spent, { decimals: false })} left`}
-                            {paceAhead && !over ? ' · ahead of pace' : ''}
+                            {/* "ahead of pace" reads as praise; this is a warning. */}
+                            {paceAhead && !over ? ' · faster than the month' : ''}
                           </ThemedText>
                         </View>
                         <View style={styles.budgetAmounts}>
@@ -156,9 +157,14 @@ export default function BudgetsScreen() {
                           </ThemedText>
                         </View>
                       </View>
+                      {/* Health, not identity. Painting the bar in the
+                          category's own color meant Shopping at 70% rendered
+                          red while Groceries at 99% rendered amber — the
+                          alarm colors read backwards. The avatar and label
+                          already say which category this is. */}
                       <ProgressBar
                         ratio={ratio}
-                        color={over ? theme.expense : nearly ? theme.warning : meta.color}
+                        color={over ? theme.expense : nearly ? theme.warning : theme.primary}
                       />
                     </Card>
                   </Pressable>

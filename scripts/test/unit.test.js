@@ -473,5 +473,54 @@ ok('reliable: fully-manual account derives from opening + entries',
 ok('net worth sums only reliable, skips archived',
   bal.netWorthFils(balState) === -406100 + 1250000 + 40000);
 
+// ── One payment must not settle two overlapping statements ──
+const allocLib = require('./build/cards');
+const allocAccount = {
+  id: 'c1', name: 'FAB Credit Card', kind: 'card', cardType: 'credit', openingFils: 0, color: '#fff',
+};
+const mkAlloc = (payments) => ({
+  accounts: [allocAccount],
+  cardDues: [
+    { id: 'd_jun', accountId: 'c1', totalDueFils: 100000, minDueFils: 10000, dueDate: '2026-06-15', paidFils: 0 },
+    { id: 'd_jul', accountId: 'c1', totalDueFils: 100000, minDueFils: 10000, dueDate: '2026-07-15', paidFils: 0 },
+  ],
+  transactions: payments.map((p, i) => ({
+    id: `t${i}`, type: 'income', isTransfer: true, accountId: 'c1',
+    amountFils: p.amountFils, date: p.date, category: 'other', title: 'card payment', source: 'manual',
+  })),
+});
+
+const oneCoversOne = mkAlloc([{ amountFils: 100000, date: '2026-06-10' }]);
+ok('dues: a single payment settles only the statement it covers',
+  allocLib.duePaidFils(oneCoversOne, oneCoversOne.cardDues[0]) === 100000 &&
+  allocLib.duePaidFils(oneCoversOne, oneCoversOne.cardDues[1]) === 0);
+ok('dues: the unpaid second statement stays open',
+  allocLib.openDues(oneCoversOne, new Date(2026, 6, 20)).length === 1);
+
+const overpay = mkAlloc([{ amountFils: 150000, date: '2026-06-10' }]);
+ok('dues: an overpayment spills onto the next statement',
+  allocLib.duePaidFils(overpay, overpay.cardDues[0]) === 100000 &&
+  allocLib.duePaidFils(overpay, overpay.cardDues[1]) === 50000);
+
+const bothPaid = mkAlloc([
+  { amountFils: 100000, date: '2026-06-10' },
+  { amountFils: 100000, date: '2026-07-10' },
+]);
+ok('dues: two payments settle two statements',
+  allocLib.openDues(bothPaid, new Date(2026, 6, 20)).length === 0);
+
+// ── A blank transaction title must not auto-pay bills ──
+const billsLib = require('./build/bills');
+const blankTitled = [{
+  id: 'b1', type: 'expense', isTransfer: false, accountId: 'a1', amountFils: 20000,
+  date: '2026-07-05', category: 'utilities', title: '***', source: 'sms',
+}];
+ok('bills: a row whose title normalizes to nothing never marks a bill paid',
+  billsLib.billsForMonth(
+    [{ id: 'bill1', title: 'DEWA', amountFils: 20000, dueDay: 10, paidMonths: [] }],
+    blankTitled,
+    new Date(2026, 6, 6),
+  )[0].status !== 'paid');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

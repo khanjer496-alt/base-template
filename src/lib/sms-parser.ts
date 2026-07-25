@@ -475,25 +475,49 @@ const MONTH_NAMES: Record<string, number> = {
 // ADCB style: "due by Jul 19 2026"
 const MONTH_DATE_RE = /\b(?:on|by|before)\s+([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/i;
 
+/**
+ * ISO string for a date that actually exists. A day past the end of its month
+ * ("30/02") is rejected rather than emitted: `new Date('2026-02-30')` rolls
+ * forward to 2 March, which silently files the transaction in the wrong month
+ * and skews every monthly figure derived from it.
+ */
+function isoDate(y: number, month: number, day: number): string | null {
+  if (!(y >= 2000 && y <= 2100 && month >= 1 && month <= 12 && day >= 1)) return null;
+  const daysInMonth = new Date(Date.UTC(y, month, 0)).getUTCDate();
+  if (day > daysInMonth) return null;
+  return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Day/month from a numeric date, tolerating the US order when it's unambiguous. */
+function numericDate(d: string, m: string, yRaw: string): string | null {
+  const y = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
+  const first = Number(d);
+  const second = Number(m);
+  // The region writes DD/MM, so that reading is tried first. "12/25/2026" has
+  // no valid DD/MM reading, and its MM/DD reading is unambiguous — before,
+  // dates like this were dropped and the transaction silently took today.
+  return isoDate(y, second, first) ?? isoDate(y, first, second);
+}
+
 function extractDate(raw: string): string | null {
-  const dateMatch = raw.match(DATETIME_RE) ?? raw.match(DATE_RE);
-  if (dateMatch) {
-    const [, d, m, yRaw] = dateMatch;
-    const y = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
-    const day = Number(d);
-    const month = Number(m);
-    if (y >= 2000 && y <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-    return null;
+  // Each format falls through to the next: a numeric date that matched but
+  // could not be resolved must not stop the named-month form from being read.
+  const withTime = raw.match(DATETIME_RE);
+  if (withTime) {
+    const iso = numericDate(withTime[1], withTime[2], withTime[3]);
+    if (iso) return iso;
+  }
+  const numeric = raw.match(DATE_RE);
+  if (numeric) {
+    const iso = numericDate(numeric[1], numeric[2], numeric[3]);
+    if (iso) return iso;
   }
   const named = raw.match(MONTH_DATE_RE);
   if (named) {
     const month = MONTH_NAMES[named[1].slice(0, 3).toLowerCase()];
-    const day = Number(named[2]);
-    const y = Number(named[3]);
-    if (month && y >= 2000 && y <= 2100 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (month) {
+      const iso = isoDate(Number(named[3]), month, Number(named[2]));
+      if (iso) return iso;
     }
   }
   return null;

@@ -327,9 +327,11 @@ function BudgetsSection({ state, period }: { state: AppState; period: Period }) 
                 {formatAED(budget.limitFils, { decimals: false })}
               </ThemedText>
             </View>
+            {/* Matches the Budgets tab: the bar encodes budget health, never
+                the category's identity color. */}
             <ProgressBar
               ratio={ratio}
-              color={ratio >= 1 ? theme.expense : ratio >= 0.85 ? theme.warning : meta.color}
+              color={ratio >= 1 ? theme.expense : ratio >= 0.85 ? theme.warning : theme.primary}
               height={5}
             />
           </View>

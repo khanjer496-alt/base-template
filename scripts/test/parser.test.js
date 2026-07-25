@@ -657,5 +657,30 @@ t('generic trading shop classifies as shopping',
   'Purchase of AED 95.00 at AL NOOR GENERAL TRADING with Debit Card ending 1234',
   { category: 'shopping' });
 
+// ── Dates: a wrong date files a transaction in the wrong month ──
+t('impossible calendar date is rejected, not rolled into the next month',
+  'Purchase of AED 90.00 with Credit Card ending 4499 at LULU on 30/02/2026',
+  { date: null });
+
+t('unresolvable numeric date still falls through to the named-month form',
+  'Your ADCB Credit Card 1234 statement. Total amount due AED 1,500.00. Generated on 30/13/2026. Please pay by Jul 19 2026.',
+  { date: '2026-07-19' });
+
+t('US-style MM/DD resolves when it has no DD/MM reading',
+  'Purchase of AED 250.00 with Credit Card ending 4499 at CARREFOUR on 12/25/2026',
+  { date: '2026-12-25' });
+
+t('DD/MM still wins when both readings are valid',
+  'Purchase of AED 250.00 with Credit Card ending 4499 at CARREFOUR on 05/06/2026',
+  { date: '2026-06-05' });
+
+t('leap day parses',
+  'Purchase of AED 10.00 with Credit Card ending 4499 at LULU on 29/02/2024',
+  { date: '2024-02-29' });
+
+t('29 Feb in a non-leap year is rejected',
+  'Purchase of AED 10.00 with Credit Card ending 4499 at LULU on 29/02/2025',
+  { date: null });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
