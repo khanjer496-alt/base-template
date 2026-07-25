@@ -578,5 +578,68 @@ ok('bills: a row whose title normalizes to nothing never marks a bill paid',
     new Date(2026, 6, 6),
   )[0].status !== 'paid');
 
+// ── Bundled brand marks ──
+const { brandMarkFor } = require('./build/brand-marks');
+
+// Matched against the title the PARSER produces, not the raw descriptor.
+for (const [title, mark] of [
+  ['Noon', 'n'], ['Tabby', 'tb'], ['YouTube Premium', 'yt'], ['Apple', 'ap'],
+  ['Steam', 'st'], ['Kokoro Qlub', 'ql'], ['Kitopi', 'kt'], ['Capital.com', 'cp'],
+  ['Name.com', 'dn'], ['Claude', 'cl'], ['ChatGPT', 'ai'], ['Exinity Me Ltd', 'ex'],
+  ['Road & Transport Auth', 'rta'], ['% Arabica', '%'], ['Carrefour', 'cf'],
+]) {
+  ok(`brand mark: ${title} → ${mark}`, brandMarkFor(title)?.mark === mark);
+}
+
+// Unknown merchants must fall through to the category glyph, and near-misses
+// must not borrow a brand they only share letters with.
+for (const title of [
+  'Al Nimar Al Abyadh', 'Account debit', 'Pineapple Cafe', 'Dubai Families',
+  'ATM withdrawal', 'Transfer to Mohammad Nazem', '',
+]) {
+  ok(`brand mark: "${title}" has none`, brandMarkFor(title) === null);
+}
+
+// Every mark must be short enough for the avatar's three size steps, and no
+// two brands may share a colour AND a mark (they'd be indistinguishable).
+const seenMarks = new Map();
+let markShapeOk = true;
+let markClash = '';
+for (const title of [
+  'Noon', 'Tabby', 'Tamara', 'Amazon', 'AliExpress', 'Shein', 'Temu', 'Namshi',
+  'IKEA', 'Sharaf DG', 'Dubizzle', 'Decathlon', 'Nike', 'Adidas', 'GMG Consumer',
+  'Al Shaya', 'Virgin Megastore', 'Carrefour', 'Lulu', 'Spinneys', 'Union Coop',
+  'Choithram', 'Nesto', 'InstaShop', 'Talabat', 'Deliveroo', 'Kokoro Qlub',
+  'Kitopi', 'Starbucks', 'Tim Hortons', 'Costa', 'McDonalds', 'KFC', 'Pizza Hut',
+  'Dominos', 'Subway', '% Arabica', 'Careem', 'Uber', 'Salik', 'RTA', 'ADNOC',
+  'ENOC', 'Emarat', 'Emirates', 'flydubai', 'Etihad', 'Air Arabia', 'Booking',
+  'Airbnb', 'DragonPass', 'DEWA', 'SEWA', 'Etisalat', 'Du', 'Apple',
+  'YouTube Premium', 'Netflix', 'Spotify', 'Anghami', 'Shahid', 'OSN+', 'Disney+',
+  'Steam', 'PlayStation Plus', 'Xbox Game Pass', 'ChatGPT', 'Claude', 'OpenRouter',
+  'Perplexity', 'Cursor', 'GitHub', 'Notion', 'Canva', 'Adobe', 'Microsoft 365',
+  'LinkedIn', 'Dropbox', 'Fiverr', 'Google One', 'Hetzner', 'Vercel', 'Namecheap',
+  'Kickresume', 'Mailsuite', 'eToro', 'Capital.com', 'Binance', 'Crypto.com',
+  'Exinity', 'Ziina', 'VOX Cinemas', 'Reel Cinemas', 'Novo Cinemas', 'Zomato',
+  'Discord', 'Telegram Premium', 'Audible', 'Real-Debrid', 'AllDebrid',
+]) {
+  const b = brandMarkFor(title);
+  if (!b) { markShapeOk = false; markClash ||= `${title} resolved to nothing`; continue; }
+  if (b.mark.length < 1 || b.mark.length > 3) {
+    markShapeOk = false;
+    markClash ||= `${title} mark "${b.mark}" is not 1-3 chars`;
+  }
+  if (!/^#[0-9A-Fa-f]{6}$/.test(b.color)) {
+    markShapeOk = false;
+    markClash ||= `${title} color "${b.color}" is not a 6-digit hex`;
+  }
+  const key = `${b.mark}|${b.color}`;
+  if (seenMarks.has(key)) {
+    markShapeOk = false;
+    markClash ||= `${title} is indistinguishable from ${seenMarks.get(key)}`;
+  }
+  seenMarks.set(key, title);
+}
+ok(`brand marks: every mark is 1-3 chars, hex-coloured and distinguishable${markClash ? ` (${markClash})` : ''}`, markShapeOk);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
