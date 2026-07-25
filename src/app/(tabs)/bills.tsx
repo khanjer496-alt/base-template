@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -12,6 +11,7 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CardDetailSheet } from '@/components/card-detail-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Icon } from '@/components/ui/icon';
@@ -34,13 +34,12 @@ import {
   type Subscription,
 } from '@/lib/subscriptions';
 import { useStore } from '@/lib/store';
-import type { CategoryId } from '@/lib/types';
+import type { Account, CategoryId } from '@/lib/types';
 
 type Segment = 'subscriptions' | 'cards' | 'utilities';
 
 export default function BillsScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { state, addBill, deleteBill, markBillPaid, setNotSubscription, payCardDue } = useStore();
 
   const now = useMemo(() => new Date(), []);
@@ -49,6 +48,8 @@ export default function BillsScreen() {
 
   const [segment, setSegment] = useState<Segment>('subscriptions');
   const [detail, setDetail] = useState<Subscription | null>(null);
+  // A due is a question about one card, not a reason to leave the Bills tab.
+  const [cardDetail, setCardDetail] = useState<Account | null>(null);
   const [showStopped, setShowStopped] = useState(false);
   const [adderVisible, setAdderVisible] = useState(false);
   const [title, setTitle] = useState('');
@@ -344,9 +345,7 @@ export default function BillsScreen() {
                   // no way to see what it is made of is just a number.
                   <Pressable
                     key={due.id}
-                    onPress={() =>
-                      router.push({ pathname: '/cards', params: { card: due.accountId } })
-                    }
+                    onPress={() => setCardDetail(account ?? null)}
                     style={[
                       styles.dueRow,
                       i > 0 && {
@@ -782,6 +781,7 @@ export default function BillsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <CardDetailSheet account={cardDetail} onClose={() => setCardDetail(null)} />
     </ThemedView>
   );
 }

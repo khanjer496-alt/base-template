@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CardDetailSheet } from '@/components/card-detail-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BankAvatar } from '@/components/ui/bank-avatar';
@@ -34,29 +35,6 @@ export default function CardsScreen() {
     if (target) setDetail(target);
   }, [cardParam, state.accounts]);
 
-  /**
-   * Everything about the tapped card that lives outside the tile: its
-   * statements newest-first, and the payments made against it. Both come from
-   * data already on device — statements from cardDues, payments from the
-   * transfers the importer records when a card payment is detected.
-   */
-  const detailData = useMemo(() => {
-    if (!detail) return null;
-    const statements = state.cardDues
-      .filter((d) => d.accountId === detail.id)
-      .slice()
-      .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
-    // Every transfer on a credit card is a payment INTO it — you cannot spend
-    // out of a card by transfer. Filtering on type === 'income' was wrong:
-    // the importer records a settlement as an expense with transferHint (the
-    // money left an account), so a card with four payments against it reported
-    // "no payment detected yet".
-    const payments = state.transactions
-      .filter((t) => t.accountId === detail.id && t.isTransfer)
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
-    const paidTotal = payments.reduce((s, t) => s + t.amountFils, 0);
-    return { statements, payments, paidTotal };
-  }, [detail, state.cardDues, state.transactions]);
 
   const cards = useMemo(
     () => state.accounts.filter((a) => a.kind === 'card' || a.cardType),
@@ -293,124 +271,7 @@ export default function CardsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Statements and payments for one card. Tapping a tile used to do
-          nothing, so the pay-by date and what had actually been paid were
-          only ever visible as a single line on the Bills tab. */}
-      <Modal
-        visible={detail !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetail(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setDetail(null)}>
-          <Pressable
-            style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
-            onPress={() => {}}>
-            <View style={[styles.grabber, { backgroundColor: theme.cardBorder }]} />
-
-            {detail && detailData && (
-              <>
-                <View style={styles.sheetHeader}>
-                  <BankAvatar name={detail.bankName ?? detail.name} color={detail.color} size={40} />
-                  <View style={styles.sheetTitle}>
-                    <ThemedText type="heading" numberOfLines={1}>
-                      {detail.bankName ?? detail.name}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" tabular>
-                      {detail.cardType === 'credit' ? 'Credit' : 'Debit'}
-                      {detail.last4 ? ` ·· ${detail.last4}` : ''}
-                    </ThemedText>
-                  </View>
-                  <Pressable onPress={() => setDetail(null)} hitSlop={8}>
-                    <Icon name="close" size={20} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-
-                <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
-                  {/* Statements, newest first: the pay-by date the user asked for. */}
-                  <ThemedText type="micro" themeColor="textSecondary">
-                    STATEMENTS
-                  </ThemedText>
-                  {detailData.statements.length === 0 ? (
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.sheetEmpty}>
-                      No statement message has arrived for this card yet.
-                    </ThemedText>
-                  ) : (
-                    detailData.statements.map((d, i) => {
-                      const settled = !!d.settledAt || d.paidFils >= d.totalDueFils;
-                      return (
-                        <View
-                          key={d.id}
-                          style={[
-                            styles.sheetRow,
-                            i > 0 && {
-                              borderTopWidth: StyleSheet.hairlineWidth,
-                              borderTopColor: theme.cardBorder,
-                            },
-                          ]}>
-                          <View style={styles.sheetRowText}>
-                            <ThemedText type="smallBold" tabular>
-                              Due {shortDate(d.dueDate)}
-                            </ThemedText>
-                            <ThemedText type="micro" themeColor="textSecondary" tabular>
-                              min {formatAED(d.minDueFils, { decimals: false })}
-                            </ThemedText>
-                          </View>
-                          <View style={styles.sheetRowRight}>
-                            <ThemedText type="smallBold" tabular>
-                              {formatAED(d.totalDueFils, { decimals: false })}
-                            </ThemedText>
-                            <ThemedText
-                              type="micro"
-                              style={{ color: settled ? theme.income : theme.expense }}>
-                              {settled ? 'Settled' : 'Open'}
-                            </ThemedText>
-                          </View>
-                        </View>
-                      );
-                    })
-                  )}
-
-                  {/* Payments made against the card. */}
-                  <View style={styles.sheetSection}>
-                    <View style={styles.sheetSectionHead}>
-                      <ThemedText type="micro" themeColor="textSecondary">
-                        PAYMENTS MADE
-                      </ThemedText>
-                      <ThemedText type="micro" themeColor="textSecondary" tabular>
-                        {formatAED(detailData.paidTotal, { decimals: false })} total
-                      </ThemedText>
-                    </View>
-                    {detailData.payments.length === 0 ? (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.sheetEmpty}>
-                        No payment to this card has been detected yet.
-                      </ThemedText>
-                    ) : (
-                      detailData.payments.slice(0, 24).map((p, i) => (
-                        <View
-                          key={p.id}
-                          style={[
-                            styles.sheetRow,
-                            i > 0 && {
-                              borderTopWidth: StyleSheet.hairlineWidth,
-                              borderTopColor: theme.cardBorder,
-                            },
-                          ]}>
-                          <ThemedText type="small" tabular style={styles.sheetRowText}>
-                            {shortDate(p.date)}
-                          </ThemedText>
-                          <ThemedText type="smallBold" tabular style={{ color: theme.income }}>
-                            {formatAED(p.amountFils, { decimals: false })}
-                          </ThemedText>
-                        </View>
-                      ))
-                    )}
-                  </View>
-                </ScrollView>
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <CardDetailSheet account={detail} onClose={() => setDetail(null)} />
     </ThemedView>
   );
 }
