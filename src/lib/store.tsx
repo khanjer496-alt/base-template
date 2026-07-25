@@ -139,7 +139,10 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, transactions: sortTxs([action.transaction, ...state.transactions]) };
     case 'editTransaction': {
       const transactions = sortTxs(
-        state.transactions.map((t) => (t.id === action.id ? { ...t, ...action.patch } : t)),
+        state.transactions.map((t) =>
+          // userEdited pins the row: nothing re-parsed may overwrite it later.
+          t.id === action.id ? { ...t, ...action.patch, userEdited: true } : t,
+        ),
       );
       return { ...state, transactions };
     }
@@ -263,7 +266,11 @@ function reducer(state: AppState, action: Action): AppState {
       const merchantOverrides = { ...state.merchantOverrides, [key]: action.category };
       const transactions = action.applyToExisting
         ? state.transactions.map((t) =>
-            t.title.trim().toLowerCase() === key ? { ...t, category: action.category } : t,
+            // Bulk recategorisation is a user decision too, so these rows are
+            // pinned against re-parsing exactly like a single edit.
+            t.title.trim().toLowerCase() === key
+              ? { ...t, category: action.category, userEdited: true }
+              : t,
           )
         : state.transactions;
       return { ...state, merchantOverrides, transactions };
@@ -509,6 +516,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (parsed.marketId) setActiveMarket(parsed.marketId);
             parsed.transactions = parsed.transactions.flatMap((t) => {
               if (!t.raw || t.source !== 'sms') return [t];
+              // A hand-corrected row is the user's answer, not the parser's.
+              if (t.userEdited) return [t];
               const p = parseSms(t.raw, parsed.merchantOverrides);
               if (!p) return []; // no longer a transaction at all
               if (p.kind === 'billDue' || p.kind === 'cardStatement') return []; // was a reminder

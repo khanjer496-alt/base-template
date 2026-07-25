@@ -530,6 +530,27 @@ ok('dues: the June payment still covers June',
 ok('dues: July stays open after June is marked paid',
   allocLib.openDues(markPaidState, new Date(2026, 6, 20)).length === 1);
 
+// ── A hand-corrected row survives re-parsing ──
+// buildImportPlan heals rows the parser now reads better. A row the user
+// corrected must be exempt, or every rescan silently undoes their work.
+const healLib = require('./build/sms-parser');
+const healPrior = {
+  id: 'tx1', type: 'expense', amountFils: 5000, category: 'other', accountId: 'a1',
+  title: 'Card purchase', date: '2026-07-10', source: 'sms', smsKey: 's1752100000000-5000',
+  raw: 'Purchase of AED 50.00 at CARREFOUR with Credit Card ending 1234',
+};
+const healParsed = healLib.parseSms(healPrior.raw);
+// This is what makes the guard matter: without it, re-parsing WOULD rewrite
+// this row's title and category on the next launch.
+ok('heal: re-parsing a stored row does produce a different title and category',
+  healParsed.merchant === 'Carrefour' &&
+  healParsed.categoryGuess === 'groceries' &&
+  healParsed.merchant !== healPrior.title &&
+  healParsed.categoryGuess !== healPrior.category);
+// NOTE: the userEdited short-circuit itself lives in auto-import.ts and
+// store.tsx, neither of which the harness can load (native module imports,
+// JSX). Covering it needs the heal decision extracted into a pure module.
+
 // ── A blank transaction title must not auto-pay bills ──
 const billsLib = require('./build/bills');
 const blankTitled = [{

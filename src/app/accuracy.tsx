@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { unreadFormats } from '@/lib/accuracy';
 import { formatAED } from '@/lib/format';
 import { t } from '@/lib/i18n';
 import { getCategory } from '@/lib/categories';
@@ -28,25 +29,10 @@ export default function AccuracyScreen() {
   const router = useRouter();
   const { state } = useStore();
 
-  const rows = useMemo(() => {
-    const byRaw = new Map<string, { raw: string; title: string; category: string; count: number; amountFils: number }>();
-    for (const tx of state.transactions) {
-      if (!tx.raw) continue;
-      const key = tx.raw.replace(/\d/g, '#'); // same format, different figures → one entry
-      const cur = byRaw.get(key);
-      if (cur) cur.count += 1;
-      else {
-        byRaw.set(key, {
-          raw: tx.raw,
-          title: tx.title,
-          category: getCategory(tx.category).label,
-          count: 1,
-          amountFils: tx.amountFils,
-        });
-      }
-    }
-    return [...byRaw.values()].sort((a, b) => b.count - a.count);
-  }, [state.transactions]);
+  const rows = useMemo(
+    () => unreadFormats(state.transactions, (id) => getCategory(id).label),
+    [state.transactions],
+  );
 
   const shareAll = () => {
     const body = rows

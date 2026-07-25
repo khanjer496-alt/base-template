@@ -63,6 +63,13 @@ export interface Transaction {
   /** Credit-card payments etc — excluded from spending/income analytics. */
   isTransfer?: boolean;
   /**
+   * The user changed this row by hand. Re-parsing on launch and on rescan
+   * must leave it alone: a correction that gets overwritten by the next
+   * launch is worse than no correction at all, because the user cannot tell
+   * their edit was undone.
+   */
+  userEdited?: boolean;
+  /**
    * Raw SMS body, kept ONLY when the parser wasn't confident (generic title
    * or fallback category) so the user can report unrecognized formats from
    * Settings → Improve accuracy. Never leaves the device unless shared.

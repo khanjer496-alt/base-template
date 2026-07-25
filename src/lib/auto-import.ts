@@ -174,6 +174,9 @@ export function buildImportPlan(
   const healFromReparse = (smsKey: string | undefined, p: ScannedSms) => {
     const prior = smsKey ? priorBySmsKey.get(smsKey) : undefined;
     if (!prior) return;
+    // Never re-heal a row the user corrected by hand — a rescan that undoes
+    // their edit teaches them that correcting anything is pointless.
+    if (prior.userEdited) return;
     const patch: TxHealUpdate = { id: prior.id };
     // Retitle rows whose old title was generic OR whose category never got
     // past "other" (that combination is where garbage titles live) — but

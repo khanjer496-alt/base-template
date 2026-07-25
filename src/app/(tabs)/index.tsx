@@ -40,6 +40,7 @@ import { billsForMonth } from '@/lib/bills';
 import { openDues } from '@/lib/cards';
 import { getCategory } from '@/lib/categories';
 import { formatAED, formatCompactAED, greetingForHour, shortDate } from '@/lib/format';
+import { REPORT_PROMPT_THRESHOLD, unreadFormatCount } from '@/lib/accuracy';
 import { buildInsights, spentInMonthForCategory, summarizeMonth } from '@/lib/insights';
 import { isProActive } from '@/lib/purchases';
 import { requestNotificationPermission, syncPaymentReminders } from '@/lib/notifications';
@@ -246,6 +247,46 @@ function SubscriptionsLine({ subs, now }: { subs: Subscription[]; now: Date }) {
 }
 
 /* ── Upcoming bills (live month only) ─────────────────────────────────── */
+
+/**
+ * The parser only improves if the formats it misreads come back to us, and
+ * the report screen was buried in Settings where nobody found it. This
+ * surfaces once enough distinct formats have piled up to be worth a tap, and
+ * says how many rows it would fix so the ask is concrete rather than a chore.
+ */
+function UnreadFormatsPrompt({ state }: { state: AppState }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const formats = useMemo(() => unreadFormatCount(state), [state]);
+  if (formats < REPORT_PROMPT_THRESHOLD) return null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Report ${formats} unrecognised bank message formats`}
+      onPress={() => router.push('/accuracy')}
+      style={({ pressed }) => [
+        styles.reportRow,
+        {
+          borderColor: theme.cardBorder,
+          backgroundColor: pressed ? theme.backgroundSelected : 'transparent',
+        },
+      ]}>
+      <View style={[styles.reportIcon, { backgroundColor: `${theme.warning}1f` }]}>
+        <Icon name="search" size={16} color={theme.warning} strokeWidth={1.9} />
+      </View>
+      <View style={styles.reportText}>
+        <ThemedText type="smallBold">
+          {formats} message {formats === 1 ? 'format' : 'formats'} we couldn&apos;t read
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Send them over and they get recognised next release. Digits are masked.
+        </ThemedText>
+      </View>
+      <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+    </Pressable>
+  );
+}
 
 function BillsSection({ state, now }: { state: AppState; now: Date }) {
   const theme = useTheme();
@@ -515,6 +556,8 @@ export default function HomeScreen() {
 
           <SubscriptionsLine subs={subs} now={now} />
 
+          <UnreadFormatsPrompt state={state} />
+
           {live && <BillsSection state={state} now={now} />}
           {period.mode === 'month' && <BudgetsSection state={state} period={period} />}
 
@@ -639,6 +682,25 @@ const styles = StyleSheet.create({
   lineAmount: {
     minWidth: 84,
     textAlign: 'right',
+  },
+  reportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    padding: Spacing.three,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  reportIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportText: {
+    flex: 1,
+    gap: 1,
   },
   insightScroll: {
     gap: Spacing.two,
