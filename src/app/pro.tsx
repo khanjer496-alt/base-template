@@ -73,9 +73,22 @@ export default function ProScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
-            <View style={[styles.crown, { backgroundColor: `${theme.gold}22` }]}>
+            {/* Founder unlock: long-press the diamond (side-load builds). */}
+            <Pressable
+              delayLongPress={700}
+              onLongPress={() => {
+                const next = !state.pro;
+                setPro(next);
+                Alert.alert(
+                  next ? 'Founder mode' : 'Founder mode off',
+                  next
+                    ? 'Wafra Pro unlocked on this device.'
+                    : 'Wafra Pro disabled on this device.',
+                );
+              }}
+              style={[styles.crown, { backgroundColor: `${theme.gold}22` }]}>
               <Icon name="diamond" size={30} color={theme.gold} strokeWidth={1.8} />
-            </View>
+            </Pressable>
             <ThemedText type="title">Wafra Pro</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.heroText}>
               {state.pro
