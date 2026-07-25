@@ -14,6 +14,8 @@ export const Colors = {
     backgroundElement: '#F0F0F3',
     backgroundSelected: '#E0E1E6',
     textSecondary: '#60646C',
+    /** Accent used for links. 5.7:1 against `background` (WCAG AA). */
+    link: '#0B62D0',
   },
   dark: {
     text: '#ffffff',
@@ -21,6 +23,8 @@ export const Colors = {
     backgroundElement: '#212225',
     backgroundSelected: '#2E3135',
     textSecondary: '#B0B4BA',
+    /** Accent used for links. 8.5:1 against `background` (WCAG AAA). */
+    link: '#5EA8FF',
   },
 } as const;
 

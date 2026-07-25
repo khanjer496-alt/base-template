@@ -6,9 +6,16 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
+/**
+ * The resolved theme name. `useColorScheme()` can also report `unspecified`
+ * (native) or `null` (react-native-web before the media query resolves); both
+ * fall back to light so callers never have to handle an absent scheme.
+ */
+export function useThemeName(): 'light' | 'dark' {
+  return useColorScheme() === 'dark' ? 'dark' : 'light';
+}
 
-  return Colors[theme];
+/** The color palette for the active theme. */
+export function useTheme() {
+  return Colors[useThemeName()];
 }
