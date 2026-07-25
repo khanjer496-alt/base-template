@@ -169,45 +169,51 @@ export default function CardsScreen() {
                     )}
                   </View>
 
-                  <View style={styles.tileMiddle}>
-                    <ThemedText type="micro" themeColor="textSecondary">
-                      {outstanding !== null ? 'OUTSTANDING' : 'SPENT THIS MONTH'}
-                    </ThemedText>
-                    <ThemedText type="title" tabular>
-                      {formatAED(outstanding ?? spent, { decimals: false })}
-                    </ThemedText>
-                    {outstanding !== null && spent > 0 && (
-                      <ThemedText type="small" themeColor="textSecondary" tabular>
-                        {formatAED(spent, { decimals: false })} spent this month
-                      </ThemedText>
-                    )}
-                  </View>
-
-                  {/* Headroom is what people actually check before spending, so
-                      it sits on the tile rather than as a caption underneath.
-                      Only "limit left" is ever quoted in SMS — the total limit
-                      is unknown, so this stays a figure and not a gauge. */}
-                  {limitLeft !== null ? (
-                    <View style={styles.tileFooterRow}>
+                  {/* One row, not three stacked blocks. The figure and its
+                      label sit together, and headroom sits beside it rather
+                      than in a footer of its own — eleven cards at the old
+                      height was five screens of scrolling to compare two of
+                      them. */}
+                  <View style={styles.tileFigures}>
+                    <View style={styles.figure}>
                       <ThemedText type="micro" themeColor="textSecondary">
-                        LIMIT LEFT
+                        {outstanding !== null ? 'OUTSTANDING' : 'SPENT'}
                       </ThemedText>
-                      <ThemedText type="smallBold" tabular>
-                        {formatAED(limitLeft, { decimals: false })}
+                      <ThemedText type="subtitle" tabular>
+                        {formatAED(outstanding ?? spent, { decimals: false })}
                       </ThemedText>
                     </View>
-                  ) : (
-                    lastUsed && (
-                      <View style={styles.tileFooterRow}>
+                    {limitLeft !== null ? (
+                      <View style={[styles.figure, styles.figureRight]}>
                         <ThemedText type="micro" themeColor="textSecondary">
-                          {t('lastUsed').toUpperCase()}
+                          LIMIT LEFT
                         </ThemedText>
-                        <ThemedText type="smallBold" tabular>
-                          {shortDate(lastUsed)}
+                        <ThemedText type="subtitle" tabular themeColor="textSecondary">
+                          {formatAED(limitLeft, { decimals: false })}
                         </ThemedText>
                       </View>
-                    )
-                  )}
+                    ) : outstanding !== null && spent > 0 ? (
+                      <View style={[styles.figure, styles.figureRight]}>
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          SPENT
+                        </ThemedText>
+                        <ThemedText type="subtitle" tabular themeColor="textSecondary">
+                          {formatAED(spent, { decimals: false })}
+                        </ThemedText>
+                      </View>
+                    ) : (
+                      lastUsed && (
+                        <View style={[styles.figure, styles.figureRight]}>
+                          <ThemedText type="micro" themeColor="textSecondary">
+                            {t('lastUsed').toUpperCase()}
+                          </ThemedText>
+                          <ThemedText type="small" tabular themeColor="textSecondary">
+                            {shortDate(lastUsed)}
+                          </ThemedText>
+                        </View>
+                      )
+                    )}
+                  </View>
                 </Pressable>
 
                 {due && (
@@ -308,8 +314,8 @@ const styles = StyleSheet.create({
   tile: {
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.four,
-    gap: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.three,
     overflow: 'hidden',
   },
   tileWash: {
@@ -337,14 +343,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
     borderRadius: Radius.full,
   },
-  tileMiddle: {
-    gap: 2,
-  },
-  tileFooterRow: {
+  tileFigures: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
+    gap: Spacing.four,
   },
+  figure: { gap: 1 },
+  figureRight: { alignItems: 'flex-end' },
   facts: {
     flexDirection: 'row',
     flexWrap: 'wrap',
