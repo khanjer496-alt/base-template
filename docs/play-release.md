@@ -96,6 +96,18 @@ collected. Do not model Wafra's documents on theirs: ours can claim far less
 because the app does far less, and that advantage only survives if the claims
 stay literally true.
 
+## If iOS ever comes up
+
+Worth knowing before it is planned: **iOS cannot do what Wafra does.** Apple
+gives no app access to the SMS inbox, so automatic tracking from bank alerts
+is not portable. FinArt's iOS app works around this with Apple Shortcuts
+automations and user-forwarded bank emails, and its policy states those
+messages are "sent to our server for transaction detection", retained 30 days.
+
+So an iOS version means either a materially weaker product (manual forwarding)
+or building the server Wafra deliberately does not have. Neither is a small
+change of scope — treat iOS as a separate product decision, not a port.
+
 ## Data safety form answers
 
 The app makes no network requests of its own, so the honest answers are the

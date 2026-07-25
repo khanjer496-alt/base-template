@@ -80,6 +80,42 @@ Google's own privacy policy.
 You can revoke any of these in Android Settings at any time. The app keeps
 working; it just stops recording new transactions automatically.
 
+## Automated processing
+
+Wafra reads your bank messages automatically and guesses a merchant and
+category for each transaction. That guess is a labelling convenience shown
+only to you. It is not a decision about you, it is not scored, profiled or
+shared, and it has no legal or financial effect. You can correct any of it,
+and your correction is what the app remembers.
+
+## Security incidents
+
+Wafra holds no user data on any server, so there is no central store to
+breach. The security of your data is the security of your device: keep it
+locked and up to date, and enable the in-app lock if you want a second layer.
+If we ever become aware of a vulnerability in the app itself that could expose
+your data, we will publish a fix and describe the issue in the release notes.
+
+## International transfers
+
+None. The app does not transmit your data, so it does not move it between
+countries.
+
+## Your rights
+
+Privacy law generally gives you rights to access, correct, export and delete
+your personal data. Because we hold none of it, you exercise those rights
+directly in the app: everything is visible in the app, editable in the app,
+exportable as JSON or CSV, and deleted when you clear your data or uninstall.
+There is no request to make of us and no copy of your data for us to return.
+
+## If the app changes hands
+
+If the app is ever sold or transferred, the data on your device stays on your
+device. It is not part of any such transfer, because we do not hold it. Any
+change to this policy under new ownership would be surfaced in the app before
+it took effect.
+
 ## Children
 
 Wafra is not directed at children and is not intended for anyone under 13.
