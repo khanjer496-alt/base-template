@@ -622,6 +622,24 @@ const riseFound = subsLib.detectSubscriptions(rise, [], new Date(2026, 6, 25));
 ok('recurring: a real price rise still reports',
   riseFound.length === 1 && riseFound[0].priceIncreased === true);
 
+// A tier upgrade is the new price, not an outlier. Google One went from
+// AED 7.99 to AED 76.99 and the app kept reporting 7 for months.
+const upgrade = ['2026-02-02','2026-03-02','2026-04-02','2026-05-02','2026-06-02','2026-07-02']
+  .map((d, i) => mkTx('Google One', 'entertainment', [799, 799, 799, 7699, 7699, 7699][i], d, i));
+const upFound = subsLib.detectSubscriptions(upgrade, [], new Date(2026, 6, 25));
+ok('recurring: an upgrade becomes the reported price',
+  upFound.length === 1 && upFound[0].avgAmountFils === 7699,
+  JSON.stringify(upFound[0] && upFound[0].avgAmountFils));
+ok('recurring: an upgrade reports as a price rise', upFound[0]?.priceIncreased === true);
+
+// ...but one bad parse among steady charges still must not set the price.
+const glitch = ['2026-03-18','2026-04-18','2026-05-18','2026-06-18','2026-07-18']
+  .map((d, i) => mkTx('Canva', 'entertainment', [5500, 5500, 1831300, 5500, 5500][i], d, i));
+const glitchFound = subsLib.detectSubscriptions(glitch, [], new Date(2026, 6, 25));
+ok('recurring: a single bad parse still does not set the price',
+  glitchFound.length === 1 && glitchFound[0].avgAmountFils === 5500,
+  JSON.stringify(glitchFound[0] && glitchFound[0].avgAmountFils));
+
 // ── Bundled brand marks ──
 const { brandMarkFor } = require('./build/brand-marks');
 

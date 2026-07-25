@@ -162,9 +162,22 @@ export function detectSubscriptions(
     // least two of them. A mean over one prorated first charge made every
     // steady subscription look like a price rise — Google One was flagged
     // "price up" in a month its price went down.
-    const priorAmounts = amounts.slice(0, -1).filter((a) => a >= mid / 3 && a <= mid * 3);
+    // The latest charge against the MEDIAN of every charge before it. Median
+    // rather than mean so one bad parse cannot move the bar, and unfiltered so
+    // a real upgrade is not hidden by the outlier guard — a tier change and a
+    // misparse look identical to that guard, and it silently prefers the past.
+    const priorAmounts = amounts.slice(0, -1);
     const priorTypical = priorAmounts.length ? median(priorAmounts) : last.amountFils;
-    const avg = Math.round(typical.reduce((s, a) => s + a, 0) / typical.length);
+    // What it costs NOW, not what it averaged over its life. A lifetime average
+    // reports a price the user no longer pays: Google One went from AED 7.99
+    // to AED 76.99 on a tier upgrade and the app kept showing 7, because the
+    // outlier guard below treats a genuine new price the same as a misparse.
+    //
+    // The median of the last three charges tracks an upgrade immediately —
+    // once two of the three are the new amount — while still absorbing a
+    // single bad parse, which is all the outlier guard was ever needed for.
+    const recent = amounts.slice(-3);
+    const avg = median(recent);
     const monthlyEquivalentFils =
       window.cadence === 'monthly'
         ? avg
