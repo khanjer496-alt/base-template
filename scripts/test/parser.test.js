@@ -814,6 +814,13 @@ t('saydaliya is a pharmacy',
   'Purchase of AED 45.00 with Debit Card ending 4733 at AL NOOR SAYDALIYA, SHARJAH. Avl Balance is AED 867.00.',
   { category: 'health' });
 
+// Money ARRIVING is income, never a transfer to be netted out. Marking
+// incoming transfers as transfers zeroed a real user's monthly income.
+const inbound = parseSms('AED 12,000.00 has been credited to your account XX9012 on 12/07/2026.');
+if (inbound && inbound.type === 'income' && inbound.transferHint === false) {
+  pass++; console.log('\u2713 an unnamed incoming transfer still counts as income');
+} else { fail++; console.log('\u2717 an unnamed incoming transfer still counts as income', JSON.stringify(inbound && { m: inbound.merchant, t: inbound.type, h: inbound.transferHint })); }
+
 // Third corpus, from the shipped build.
 t('Trip.com is travel, dot and all',
   'Purchase of GBP 37.6 with Debit Card ending 4733 at TRIP.COM, LONDON. Avl Balance is AED 43,415.07.',

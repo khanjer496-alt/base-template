@@ -1093,7 +1093,12 @@ export function parseSms(
   //
   // A transfer that DOES name a person keeps its "Transfer to <name>" title
   // and stays an expense, because that money really did leave.
-  if (merchant === 'Outgoing transfer' || merchant === 'Incoming transfer' || merchant === 'Bank transfer') {
+  //
+  // Outgoing only. Including incoming here was a mistake that zeroed a user's
+  // income: an unnamed transfer OUT is usually a self-move or a card
+  // settlement, but an unnamed transfer IN is real money arriving — a salary,
+  // someone paying you back — and excluding it is never right.
+  if (type === 'expense' && (merchant === 'Outgoing transfer' || merchant === 'Bank transfer')) {
     transferHint = true;
   }
 
