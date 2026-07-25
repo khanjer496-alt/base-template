@@ -47,6 +47,7 @@ export default function BillsScreen() {
 
   const [segment, setSegment] = useState<Segment>('subscriptions');
   const [detail, setDetail] = useState<Subscription | null>(null);
+  const [showStopped, setShowStopped] = useState(false);
   const [adderVisible, setAdderVisible] = useState(false);
   const [title, setTitle] = useState('');
   const [amountText, setAmountText] = useState('');
@@ -361,13 +362,26 @@ export default function BillsScreen() {
 
               {stopped.length > 0 && (
                 <View style={styles.commitBlock}>
-                  <ThemedText type="micro" themeColor="textSecondary">
-                    {t('stoppedSubs')}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {t('stoppedSubsHint')}
-                  </ThemedText>
-                  <View>{stopped.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                  <Pressable
+                    onPress={() => setShowStopped((v) => !v)}
+                    style={styles.collapseHeader}>
+                    <ThemedText type="micro" themeColor="textSecondary">
+                      {t('stoppedSubs')} ({stopped.length})
+                    </ThemedText>
+                    <Icon
+                      name={showStopped ? 'chevron-down' : 'chevron-right'}
+                      size={14}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                  {showStopped && (
+                    <>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {t('stoppedSubsHint')}
+                      </ThemedText>
+                      <View>{stopped.map((sub, i) => renderRecurringRow(sub, i))}</View>
+                    </>
+                  )}
                 </View>
               )}
 
@@ -760,6 +774,12 @@ const styles = StyleSheet.create({
   commitBlock: {
     marginTop: Spacing.four,
     gap: Spacing.one,
+  },
+  collapseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.one,
   },
   row: {
     flexDirection: 'row',

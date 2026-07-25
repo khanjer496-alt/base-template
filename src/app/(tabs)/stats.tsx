@@ -22,6 +22,7 @@ import { Icon } from '@/components/ui/icon';
 import { MerchantAvatar } from '@/components/ui/merchant-avatar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import {
   categoryMovers,
   categoryTrend,
@@ -101,8 +102,8 @@ export default function StatsScreen() {
     () => buildInsights(state.transactions, state.budgets, period, now, state.notSubscriptions),
     [state.transactions, state.budgets, period, now, state.notSubscriptions],
   );
-  const merchants = useMemo(() => topMerchants(state.transactions, period), [state.transactions, period]);
-  const movers = useMemo(() => categoryMovers(state.transactions, period), [state.transactions, period]);
+  const merchants = useMemo(() => topMerchants(state.transactions, period).slice(0, 5), [state.transactions, period]);
+  const movers = useMemo(() => categoryMovers(state.transactions, period).slice(0, 3), [state.transactions, period]);
   const weekSpend = useMemo(() => dayOfWeekSpend(state.transactions, period), [state.transactions, period]);
   const netWorth = useMemo(() => netWorthSeries(state), [state]);
   const drillTrend = useMemo(
@@ -175,7 +176,7 @@ export default function StatsScreen() {
                 <Icon name="chevron-down" size={14} color={theme.textSecondary} />
               </View>
               <ThemedText type="small" themeColor="textSecondary">
-                Tap to change period
+                {t('tapToChangePeriod')}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -300,7 +301,7 @@ export default function StatsScreen() {
             <View style={[styles.statDivider, { backgroundColor: theme.cardBorder }]} />
             <View style={styles.statItem}>
               <ThemedText type="micro" themeColor="textSecondary">
-                {live ? 'Projected' : 'Spent'}
+                {live ? t('projected') : t('spentLabel')}
               </ThemedText>
               <ThemedText type="smallBold" tabular>
                 {formatAED(projected, { decimals: false })}
@@ -322,7 +323,7 @@ export default function StatsScreen() {
           {movers.length > 0 && (
             <Animated.View entering={FadeInDown.delay(100).duration(350)} style={styles.sectionBlock}>
               <ThemedText type="smallBold">
-                Biggest changes vs {prev ? periodLabel(prev) : 'before'}
+                {t('biggestChangesVs')} {prev ? periodLabel(prev) : '—'}
               </ThemedText>
               {movers.map((m) => {
                 const meta = getCategory(m.category);
@@ -348,7 +349,7 @@ export default function StatsScreen() {
           {/* Top merchants */}
           {merchants.length > 0 && (
             <Animated.View entering={FadeInDown.delay(140).duration(350)} style={styles.sectionBlock}>
-              <ThemedText type="smallBold">Where the money went</ThemedText>
+              <ThemedText type="smallBold">{t('whereMoneyWent')}</ThemedText>
               {merchants.map((m) => (
                 <MerchantLine key={m.title} {...m} />
               ))}
@@ -358,7 +359,7 @@ export default function StatsScreen() {
           {/* Day-of-week pattern (tap a bar for the exact amount) */}
           <Animated.View entering={FadeInDown.delay(180).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
-              <ThemedText type="smallBold">Spending by weekday</ThemedText>
+              <ThemedText type="smallBold">{t('spendingByWeekday')}</ThemedText>
               {selectedDay !== null && (
                 <ThemedText type="smallBold" tabular style={{ color: theme.primary }}>
                   {DAY_FULL[selectedDay]} · {formatAED(weekSpend[selectedDay], { decimals: false })}
@@ -404,7 +405,7 @@ export default function StatsScreen() {
           {/* Net worth trend */}
           <Animated.View entering={FadeInDown.delay(220).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
-              <ThemedText type="smallBold">Net worth · 6 months</ThemedText>
+              <ThemedText type="smallBold">{t('netWorth6mo')}</ThemedText>
               <ThemedText type="smallBold" tabular style={{ color: theme.primary }}>
                 {formatAED(netWorth[netWorth.length - 1]?.fils ?? 0, { decimals: false })}
               </ThemedText>
@@ -436,7 +437,7 @@ export default function StatsScreen() {
           {/* Income vs expense trend */}
           <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.sectionBlock}>
             <View style={styles.sectionTitleRow}>
-              <ThemedText type="smallBold">Cashflow · 6 months</ThemedText>
+              <ThemedText type="smallBold">{t('cashflow6mo')}</ThemedText>
               <View style={styles.trendLegend}>
                 <View style={[styles.legendDot, { backgroundColor: theme.income }]} />
                 <ThemedText type="micro" themeColor="textSecondary">In</ThemedText>
@@ -460,8 +461,7 @@ export default function StatsScreen() {
               }}
             />
             <ThemedText type="micro" themeColor="textSecondary">
-              Peak spend {formatCompactAED(Math.max(...trend.map((m) => m.expense)))} AED · tap a
-              month to open it
+              {t('tapMonthToOpen')}
             </ThemedText>
           </Animated.View>
 
@@ -470,7 +470,7 @@ export default function StatsScreen() {
             <View style={styles.sectionTitleRow}>
               <View style={styles.titleWithIcon}>
                 <Icon name="spark" size={17} color={theme.gold} />
-                <ThemedText type="smallBold">What the numbers say</ThemedText>
+                <ThemedText type="smallBold">{t('whatNumbersSay')}</ThemedText>
               </View>
             </View>
             <View style={styles.insightList}>

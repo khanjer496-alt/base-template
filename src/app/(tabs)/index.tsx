@@ -117,9 +117,10 @@ function Hero({
   const theme = useTheme();
   const router = useRouter();
   const caption =
-    (netFils >= 0 ? 'Saved' : 'Overspent') +
-    (live ? ' so far this month' : period.mode === 'all' ? ' all time' : ` in ${periodLabel(period)}`) +
-    ' · in minus out';
+    (netFils >= 0 ? t('saved') : t('overspent')) +
+    ' ' +
+    (live ? t('soFarThisMonth') : period.mode === 'all' ? t('allTime') : `${t('inWord')} ${periodLabel(period)}`) +
+    ` · ${t('inMinusOut')}`;
 
   return (
     <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
@@ -184,7 +185,7 @@ function DuesSection({ state, now }: { state: AppState; now: Date }) {
   const dues = useMemo(() => openDues(state, now), [state, now]);
   if (dues.length === 0) return null;
   return (
-    <Section title="Card payments" action="Wallet" onAction={() => router.push('/wallet')} delay={60}>
+    <Section title={t('cardPayments')} action={t('tabWallet')} onAction={() => router.push('/wallet')} delay={60}>
       {dues.slice(0, 2).map(({ due, status, daysLeft, remainingFils }) => {
         const account = state.accounts.find((a) => a.id === due.accountId);
         const urgent = status === 'urgent' || status === 'overdue';
@@ -230,7 +231,7 @@ function SubscriptionsLine({ subs, now }: { subs: Subscription[]; now: Date }) {
       <Pressable onPress={() => router.push('/bills')} style={styles.subsRow}>
         <Icon name="repeat" size={14} color={theme.textSecondary} />
         <ThemedText type="small">
-          {subs.length} subscription{subs.length === 1 ? '' : 's'}
+          {subs.length} {subs.length === 1 ? t('subscriptionWord') : t('subscriptionsWord')}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.subsNext}>
           {next ? `${next.s.title} in ${next.d}d` : ''}
@@ -257,7 +258,7 @@ function BillsSection({ state, now }: { state: AppState; now: Date }) {
   );
   if (upcoming.length === 0) return null;
   return (
-    <Section title="Upcoming bills" action="Manage" onAction={() => router.push('/bills')} delay={180}>
+    <Section title={t('upcomingBills')} action={t('manage')} onAction={() => router.push('/bills')} delay={180}>
       {upcoming.map(({ bill, status, daysLeft }) => (
         <Pressable key={bill.id} onPress={() => router.push('/bills')} style={styles.lineRow}>
           <View style={styles.lineTitle}>
@@ -309,7 +310,7 @@ function BudgetsSection({ state, period }: { state: AppState; period: Period }) 
   );
   if (top.length === 0) return null;
   return (
-    <Section title="Budgets" action="Manage" onAction={() => router.push('/budgets')} delay={220}>
+    <Section title={t('budgetsSection')} action={t('manage')} onAction={() => router.push('/budgets')} delay={220}>
       {top.map(({ budget, spent }) => {
         const meta = getCategory(budget.category);
         const ratio = spent / budget.limitFils;
@@ -492,9 +493,9 @@ export default function HomeScreen() {
 
           {insights.length > 0 && (
             <Section
-              title="Insights"
+              title={t('insightsSection')}
               icon="spark"
-              action="All"
+              action={t('allWord')}
               onAction={() => router.push('/stats')}
               delay={100}>
               <ScrollView
@@ -514,8 +515,8 @@ export default function HomeScreen() {
           {period.mode === 'month' && <BudgetsSection state={state} period={period} />}
 
           <Section
-            title="Recent activity"
-            action="See all"
+            title={t('recentActivity')}
+            action={t('seeAll')}
             onAction={() => router.push('/transactions')}
             delay={260}>
             <View>

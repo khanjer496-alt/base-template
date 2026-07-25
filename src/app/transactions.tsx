@@ -18,6 +18,7 @@ import { TransactionRow } from '@/components/transaction-row';
 import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
 import { formatAED, friendlyDate, monthKey, shiftMonthKey, toISODate } from '@/lib/format';
 import { inPeriod, periodLabel } from '@/lib/period';
@@ -166,7 +167,7 @@ export default function TransactionsScreen() {
             style={[styles.backBtn, { backgroundColor: theme.backgroundSelected }]}>
             <Icon name="chevron-left" size={18} color={theme.text} />
           </Pressable>
-          <ThemedText type="heading">Transactions</ThemedText>
+          <ThemedText type="heading">{t('transactionsTitle')}</ThemedText>
           <Pressable
             onPress={() => setSheetVisible(true)}
             style={[

@@ -10,6 +10,7 @@ import { BankAvatar } from '@/components/ui/bank-avatar';
 import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { accountLastActivityISO, isInactiveAccount, openDues } from '@/lib/cards';
 import { formatAED, monthKey, shortDate } from '@/lib/format';
 import { accountBalanceFils, useStore } from '@/lib/store';
@@ -149,7 +150,7 @@ export default function CardsScreen() {
                 <View style={styles.facts}>
                   {lastUsed && (
                     <ThemedText type="small" themeColor="textSecondary">
-                      Last used {shortDate(lastUsed)}
+                      {t('lastUsed')} {shortDate(lastUsed)}
                     </ThemedText>
                   )}
                   {limitLeft !== null && (
@@ -188,7 +189,7 @@ export default function CardsScreen() {
                   onPress={() => setShowInactive((v) => !v)}
                   style={[styles.inactiveHeader, { borderColor: theme.cardBorder }]}>
                   <ThemedText type="smallBold" themeColor="textSecondary">
-                    Inactive cards ({inactiveCards.length})
+                    {t('inactiveCards')} ({inactiveCards.length})
                   </ThemedText>
                   <Icon
                     name={showInactive ? 'chevron-down' : 'chevron-right'}

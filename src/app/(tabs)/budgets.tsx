@@ -18,6 +18,7 @@ import { Icon } from '@/components/ui/icon';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { t } from '@/lib/i18n';
 import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
 import { daysInMonth, formatAED, monthKey, monthLabel, parseAmountToFils } from '@/lib/format';
 import { spentInMonthForCategory } from '@/lib/insights';
@@ -79,7 +80,7 @@ export default function BudgetsScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View>
-              <ThemedText style={styles.title}>Budgets</ThemedText>
+              <ThemedText style={styles.title}>{t('budgetsTitle')}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {monthLabel(key)}
                 {live ? ` · ${Math.round(monthProgress * 100)}% of the month gone` : ' · full month'}

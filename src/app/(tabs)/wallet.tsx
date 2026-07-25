@@ -389,9 +389,6 @@ export default function WalletScreen() {
                 </ThemedText>
               )}
             </View>
-            <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
-              {t('longPressHint')}
-            </ThemedText>
           </View>
 
           {/* Inactive: expired/unused cards and accounts */}
@@ -484,11 +481,6 @@ export default function WalletScreen() {
             {state.goals.length === 0 && (
               <ThemedText type="small" themeColor="textSecondary">
                 Save toward something with + New goal.
-              </ThemedText>
-            )}
-            {state.goals.length > 0 && (
-              <ThemedText type="micro" themeColor="textSecondary" style={styles.hint}>
-                Tap a goal to add AED 100 · long-press to delete
               </ThemedText>
             )}
           </View>

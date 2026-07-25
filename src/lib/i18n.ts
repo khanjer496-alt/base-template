@@ -126,6 +126,47 @@ const S = {
   getStarted: { en: 'Get started', ar: 'ابدأ الآن' },
   exploreSample: { en: 'Explore with sample data', ar: 'جرّب ببيانات تجريبية' },
 
+  // Hero caption
+  saved: { en: 'Saved', ar: 'المدخر' },
+  overspent: { en: 'Overspent', ar: 'تجاوزت' },
+  soFarThisMonth: { en: 'so far this month', ar: 'حتى الآن هذا الشهر' },
+  allTime: { en: 'all time', ar: 'كل الفترات' },
+  inWord: { en: 'in', ar: 'في' },
+  inMinusOut: { en: 'in minus out', ar: 'الدخل ناقص المصروف' },
+
+  // Insights (stats) screen
+  tapToChangePeriod: { en: 'Tap to change period', ar: 'اضغط لتغيير الفترة' },
+  projected: { en: 'Projected', ar: 'متوقع' },
+  spentLabel: { en: 'Spent', ar: 'المصروف' },
+  biggestChangesVs: { en: 'Biggest changes vs', ar: 'أكبر التغيرات مقابل' },
+  whereMoneyWent: { en: 'Where the money went', ar: 'أين ذهبت الأموال' },
+  spendingByWeekday: { en: 'Spending by weekday', ar: 'الصرف حسب أيام الأسبوع' },
+  netWorth6mo: { en: 'Net worth · 6 months', ar: 'صافي الثروة · ٦ أشهر' },
+  cashflow6mo: { en: 'Cashflow · 6 months', ar: 'التدفق النقدي · ٦ أشهر' },
+  whatNumbersSay: { en: 'What the numbers say', ar: 'ماذا تقول الأرقام' },
+  tapMonthToOpen: { en: 'Tap a month to open it', ar: 'اضغط على شهر لفتحه' },
+
+  // Other screens
+  transactionsTitle: { en: 'Transactions', ar: 'العمليات' },
+  budgetsTitle: { en: 'Budgets', ar: 'الميزانيات' },
+  cardsTitle: { en: 'Cards', ar: 'البطاقات' },
+  inactiveCards: { en: 'Inactive cards', ar: 'بطاقات غير نشطة' },
+  lastUsed: { en: 'Last used', ar: 'آخر استخدام' },
+  addTransactionTitle: { en: 'Add transaction', ar: 'إضافة عملية' },
+  expenseLabel: { en: 'Expense', ar: 'مصروف' },
+  incomeLabel: { en: 'Income', ar: 'دخل' },
+
+  // Home sections
+  cardPayments: { en: 'Card payments', ar: 'دفعات البطاقات' },
+  upcomingBills: { en: 'Upcoming bills', ar: 'فواتير قادمة' },
+  budgetsSection: { en: 'Budgets', ar: 'الميزانيات' },
+  recentActivity: { en: 'Recent activity', ar: 'أحدث العمليات' },
+  insightsSection: { en: 'Insights', ar: 'ملاحظات' },
+  subscriptionWord: { en: 'subscription', ar: 'اشتراك' },
+  subscriptionsWord: { en: 'subscriptions', ar: 'اشتراكات' },
+  nextWord: { en: 'next', ar: 'التالي' },
+  allWord: { en: 'All', ar: 'الكل' },
+
   // Import screen
   importTitle: { en: 'Import from SMS', ar: 'استيراد من الرسائل' },
   scanFullInbox: { en: 'Scan full inbox', ar: 'فحص كل الرسائل' },
