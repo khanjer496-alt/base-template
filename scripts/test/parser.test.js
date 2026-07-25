@@ -814,6 +814,20 @@ t('saydaliya is a pharmacy',
   'Purchase of AED 45.00 with Debit Card ending 4733 at AL NOOR SAYDALIYA, SHARJAH. Avl Balance is AED 867.00.',
   { category: 'health' });
 
+// Third corpus, from the shipped build.
+t('Trip.com is travel, dot and all',
+  'Purchase of GBP 37.6 with Debit Card ending 4733 at TRIP.COM, LONDON. Avl Balance is AED 43,415.07.',
+  { category: 'travel' });
+t('an ISO-3 country code is not part of the merchant',
+  'Credit Card Purchase \nCard No XXXX4711 \nQAR 34.00 \nQDF CONCOURSE A DOHA QAT \n28/06/25 06:58',
+  { merchant: 'Qdf Concourse A Doha' });
+t('a trailing phone number is not part of the merchant',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 132.99 \nMUZZ LTD +····1111 GBR \n21/02/25 20:17',
+  { merchant: 'Muzz Ltd' });
+t('an inline trailing phone number is stripped too',
+  'Purchase of AED 30.00 with Credit Card ending 4722 at SHEETWA, +····4074. Avl Cr. Limit is AED 20,677.34',
+  { merchant: 'Sheetwa' });
+
 // Categories that had no entry at all.
 t('YouTube Premium is entertainment',
   'Purchase of AED 23.99 with Debit Card ending 4744 at GOOGLE*YOUTUBEPREMIUM, G.CO HELPPAY#. Avl Balance is AED 1,154.47.',

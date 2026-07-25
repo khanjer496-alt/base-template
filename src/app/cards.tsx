@@ -46,8 +46,13 @@ export default function CardsScreen() {
       .filter((d) => d.accountId === detail.id)
       .slice()
       .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+    // Every transfer on a credit card is a payment INTO it — you cannot spend
+    // out of a card by transfer. Filtering on type === 'income' was wrong:
+    // the importer records a settlement as an expense with transferHint (the
+    // money left an account), so a card with four payments against it reported
+    // "no payment detected yet".
     const payments = state.transactions
-      .filter((t) => t.accountId === detail.id && t.isTransfer && t.type === 'income')
+      .filter((t) => t.accountId === detail.id && t.isTransfer)
       .sort((a, b) => (a.date < b.date ? 1 : -1));
     const paidTotal = payments.reduce((s, t) => s + t.amountFils, 0);
     return { statements, payments, paidTotal };
