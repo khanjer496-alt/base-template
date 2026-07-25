@@ -218,6 +218,16 @@ const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/emirates(?!\s*(?:nbd|islamic|coop))|flydubai|etihad|air arabia|airline|airways|\bhotel\b|rotana|marriott|hilton|hyatt|radisson|movenpick|sheraton|ibis\b|novotel|booking|airbnb|agoda|expedia|almosafer|musafir|wego\b|cleartrip|wizz|visa fee|travel|resort|oberoi|chedi|meridien|fairmont|loungekey|dragonpass|airport companion|dayuse|trip ?(?:dot ?)?com|viator|makemytrip|airasia|hoteltonight/i, 'travel'],
   [/playstation|\bpsn\b|xbox|steam|nintendo|app store|google play|itunes|cinema|vox\b|reel\b|novo\b|roxy\b|imax|netflix|spotify|anghami|shahid|osn\b|starz|game\b|gaming|arcade|bowling|magic planet|kidzania|global village|ferrari world|yas island|img world|wild wadi|aquaventure|dubai parks|adventure|entertainment|theme park|water ?park|playground|palyground|ball talent|openai|chat\s*gpt|anthropic|\bclaude\b|alldebrid|real-?debrid|getresponse|domain\.com|godaddy|namecheap|hostinger|\bhosting\b|museum|prison island|x ?strike|billiard|\bgolf\b|shooting|leisure|theentertainer|little fox|g2a\b|cdkeys|oculus|stadia|al futtaim cin|\bcin\b|bounce\b/i, 'entertainment'],
   [/donat|charity|zakat|sadaqah|dubai cares|red crescent|beit al khair|dar al ber|gofundme/i, 'charity'],
+  // Developer and AI tooling billed per seat — a whole spending family the
+  // vocabulary had no entry for, so every one of them landed in "other".
+  [/\bcursor\b|\blovable\b|\bcluely\b|\brork\b|\bloopcv\b|skywork|beautiful\.ai|resume-?now|\brezi\b|bettercv|nanonoble|hostgator|namecheap|vercel|netlify|supabase|railway\.app|replit|midjourney|perplexity|elevenlabs|runway\b/i, 'entertainment'],
+  // Food-delivery and restaurant-tech processors: these are meals, whatever
+  // the descriptor says.
+  [/grubtech|\botter\b|carriage|deliveryhero|delivery hero|talabat|maxzigoodfood|alsafadi|wardt alsham|al tahadi|la barra|brass monkey|si italiano|tareeq al khalidiah|new star families|aseer time/i, 'dining'],
+  // AliPay / WeChat descriptors are marketplace purchases.
+  [/\balp\*|weixin\*|taobao|otherretail|guangdong|personalservices/i, 'shopping'],
+  // Brokerages and crypto on-ramps are moving money, not spending it.
+  [/etoro|capital\.com|bfinity|bitfi|binance|crypto\.com|interactive brokers|saxo/i, 'other'],
   // Government sits AFTER transport/utilities so traffic fines, RTA and SEWA
   // keep their more specific buckets.
   [/smart dubai|smartdxbgov|digital sharjah|sharjah finance|govt of|government|ministry|ministries|municipality|sharjah police|dubai police|abu dhabi police|noqodi|ica smart|vfs global|\bukvi\b|tasheel|amer cent|federal authority|immigration|dubai courts|al etihad credit|tahseel|dubai pay|\bmoi\b|\bmofa\b|emirates id|residency|prosecution|notary|\bgdrfa\b|economic depart|\bded\b/i, 'government'],
@@ -538,6 +548,9 @@ export function parseSms(
   // Telecom rate cards ("Make local calls for 5 AED/Minute") read like
   // purchases; a biller's own AutoPay receipt duplicates the bank-side SMS.
   if (/\d\s*(?:aed|dhs|sar)\s*\/\s*min(?:ute)?|roaming minutes/i.test(raw)) return null;
+  // Fee schedules quote a price without charging it: "Branch Teller Services
+  // are charged at AED 52.5 per transaction. Enjoy free banking at 430 ATMs".
+  if (/\bare charged at\b|\bis charged at\b|\bper transaction\b/i.test(raw)) return null;
   if (/autopay service/i.test(raw)) return null;
   // BNPL / tabby previews of TOMORROW's charge — the real charge arrives as
   // its own bank SMS, so importing these double-counts every instalment.
@@ -636,6 +649,73 @@ export function parseSms(
         snapshotFils,
         snapshotKind,
         categoryGuess: 'other',
+        raw,
+      };
+    }
+  }
+
+  // Bill-pay through the bank: "Your payment instructions of AED 313.95 to
+  // fbinter for consumer number 4026 has been processed".
+  //
+  // "for consumer number" is the tell, and it is decisive: this is a
+  // registered biller, so the payment is a bill. The payee is a nickname the
+  // user chose when they set the biller up (fbinter, nazemhome, Emphome,
+  // Fishbasket), which means no vocabulary can ever classify it and adding
+  // names to a list would be endless. The structure is what we recognise;
+  // the name becomes the title, and one correction from the user pins the
+  // category for that payee forever.
+  const billerPay = raw.match(
+    /payment\s+instructions?\s+of\s+(?:[A-Z]{3}|Dhs?)?\s*[\d,.]+\s+to\s+(.+?)\s+for\s+consumer\s+number/i,
+  );
+  if (billerPay) {
+    const amountFils = amountWithFx(raw, false);
+    if (!amountFils) return null;
+    const payee = billerPay[1].trim().replace(/\s{2,}/g, ' ');
+    const merchant = normalizeServiceName(payee) ?? titleCase(payee);
+    return {
+      kind: 'transaction',
+      type: 'expense',
+      amountFils,
+      merchant,
+      date,
+      dueDay: null,
+      minDueFils: null,
+      card,
+      transferHint: false,
+      snapshotFils,
+      snapshotKind,
+      // A named biller beats the default; "Du" should still read as telecom.
+      categoryGuess: guessCategory(payee, 'expense', overrides, merchant) === 'other'
+        ? 'utilities'
+        : guessCategory(payee, 'expense', overrides, merchant),
+      raw,
+    };
+  }
+
+  // Utility direct debits name the biller before the account: "AED 1,938.41
+  // has been debited from your account no. 095-XXX11XXX-01 SEWA NO.-8765".
+  // Without this the row title fell back to the generic "Card purchase".
+  const billerRef = raw.match(/\b([A-Z][A-Z ]{2,20}?)\s+NO\.?\s*[-:]\s*[\dX·]/);
+  if (billerRef) {
+    const amountFils = amountWithFx(raw, false);
+    if (amountFils) {
+      const payee = billerRef[1].trim();
+      const merchant = normalizeServiceName(payee) ?? titleCase(payee);
+      return {
+        kind: 'transaction',
+        type: CREDIT_WORDS.test(raw) && !DEBIT_WORDS.test(raw) ? 'income' : 'expense',
+        amountFils,
+        merchant,
+        date,
+        dueDay: null,
+        minDueFils: null,
+        card,
+        transferHint: false,
+        snapshotFils,
+        snapshotKind,
+        categoryGuess: guessCategory(payee, 'expense', overrides, merchant) === 'other'
+          ? 'utilities'
+          : guessCategory(payee, 'expense', overrides, merchant),
         raw,
       };
     }
@@ -812,7 +892,12 @@ export function parseSms(
                     ? 'Outgoing transfer'
                     : 'Card purchase');
   } else {
-    merchant = normalizeServiceName(merchant) ?? titleCase(merchant);
+    // Payment processors prefix their own descriptor: "ALP*Taobao",
+    // "EIG*Hostgator.com", "V*bettercv.com", "GOOGLE*GOOGLE ONE". The prefix
+    // is the acquirer, never the merchant, and it made identical shops read
+    // as different ones.
+    const unprefixed = merchant.replace(/^(?:alp|eig|sq|tap|web|v|paypal|google|gpay|apl|amzn|pos)\*\s*/i, '');
+    merchant = normalizeServiceName(merchant) ?? titleCase(unprefixed || merchant);
   }
   // ATM messages usually name a location; the row is still a cash withdrawal.
   if (!isBillDue && type === 'expense' && !transferHint && ATM_RE.test(raw)) {

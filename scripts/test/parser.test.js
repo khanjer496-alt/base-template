@@ -657,6 +657,45 @@ t('generic trading shop classifies as shopping',
   'Purchase of AED 95.00 at AL NOOR GENERAL TRADING with Debit Card ending 1234',
   { category: 'shopping' });
 
+// ── Structural families from the user's real corpus ──
+// Bank bill-pay. The payee is a nickname the user registered, so the FORMAT
+// is what gets recognised, never the name.
+t('bill-pay payee becomes the title, not a generic fallback',
+  'Dear Customer, Your payment instructions of AED 313.95 to fbinter for consumer number 1234026 has been processed on 13/07/2026 22:01',
+  { merchant: 'Fbinter', category: 'utilities', type: 'expense' });
+
+t('bill-pay to an unguessable nickname still lands in a sane bucket',
+  'Dear Customer, Your payment instructions of AED 7416.0 to Fishbasket for consumer number 1234036 has been processed on 04/05/2026 01:15',
+  { merchant: 'Fishbasket', category: 'utilities' });
+
+t('a named biller keeps its own category over the bill-pay default',
+  'Dear Customer, Your payment instructions of AED 417.9 to Du for consumer number 1238865 has been processed on 21/10/2022 17:03',
+  { merchant: 'Du', category: 'telecom' });
+
+t('utility direct debit names the biller instead of "Card purchase"',
+  'AED 1,938.41 has been debited from your account no. 095-XXX11XXX-01 SEWA NO.-8765. The available balance is AED 10,206.68.',
+  { merchant: 'SEWA', category: 'utilities', type: 'expense' });
+
+t('etisalat direct debit reads as telecom',
+  'AED 681.45 has been debited from your account no. 095-XXX11XXX-01 ETISALAT NO.-1849. The available balance is AED 2,499.11.',
+  { merchant: 'Etisalat', category: 'telecom' });
+
+t('a fee schedule is not a transaction',
+  'Branch Teller Services are charged at AED 52.5 per transaction. Enjoy free banking at 430 ATMs across the UAE, including 190 CDMs.',
+  null);
+
+t('acquirer prefixes are stripped from the merchant',
+  'Purchase of CNY 62.2 with Credit Card ending 8575 at ALP*Taobao, Shanghai. Avl Cr. Limit is AED 15,136.25.',
+  { merchant: 'Taobao', category: 'shopping' });
+
+t('restaurant-tech processors are dining, not "other"',
+  'Purchase of AED 313.95 with Debit Card ending 1354 at WWW GRUBTECH COM, DUBAI. Avl Balance is AED 49,575.29.',
+  { merchant: 'Grubtech', category: 'dining' });
+
+t('developer tooling has a home instead of falling to "other"',
+  'Purchase of USD 20.00 with Debit Card ending 1354 at CURSOR, AI POWERED IDE, +9715504. Avl Balance is AED 18,898.98.',
+  { merchant: 'Cursor', category: 'entertainment' });
+
 // ── Dates: a wrong date files a transaction in the wrong month ──
 t('impossible calendar date is rejected, not rolled into the next month',
   'Purchase of AED 90.00 with Credit Card ending 4499 at LULU on 30/02/2026',
