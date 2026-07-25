@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
@@ -20,7 +21,7 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
 import { CATEGORIES, EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
-import { formatAED, friendlyDate, monthKey, shiftMonthKey, toISODate } from '@/lib/format';
+import { formatAED, friendlyDate, monthKey, shiftMonthKey, shortDate, toISODate } from '@/lib/format';
 import { inPeriod, periodLabel } from '@/lib/period';
 import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
@@ -92,6 +93,8 @@ export default function TransactionsScreen() {
     type: typeParam === 'income' || typeParam === 'expense' ? typeParam : null,
   }));
   const [sheetVisible, setSheetVisible] = useState(false);
+  /** Which end of the custom range is currently open in the native picker. */
+  const [picking, setPicking] = useState<'dateFrom' | 'dateTo' | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
 
   const todayISO = toISODate(new Date());
@@ -390,30 +393,58 @@ export default function TransactionsScreen() {
                     <ThemedText type="micro" themeColor="textSecondary">
                       {field === 'dateFrom' ? 'From' : 'To'}
                     </ThemedText>
-                    <TextInput
-                      value={filters[field] ?? ''}
-                      onChangeText={(v) => {
-                        // Typed a digit at a time, so the value is only applied
-                        // once it is a complete date — otherwise "2026-0" would
-                        // filter everything away mid-keystroke.
-                        const cleaned = v.replace(/[^\d-]/g, '').slice(0, 10);
-                        setFilters({
-                          ...filters,
-                          [field]: /^\d{4}-\d{2}-\d{2}$/.test(cleaned) ? cleaned : cleaned || null,
-                        });
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={theme.textSecondary}
-                      keyboardType="numbers-and-punctuation"
-                      maxLength={10}
-                      style={[
-                        styles.rangeInput,
-                        { color: theme.text, backgroundColor: theme.backgroundSelected },
-                      ]}
-                    />
+                    <Pressable
+                      onPress={() => setPicking(field)}
+                      style={[styles.rangeInput, { backgroundColor: theme.backgroundSelected }]}>
+                      <ThemedText
+                        type="small"
+                        themeColor={filters[field] ? 'text' : 'textSecondary'}>
+                        {filters[field] ? shortDate(filters[field]!) : 'Any'}
+                      </ThemedText>
+                    </Pressable>
                   </View>
                 ))}
+                {filters.dateFrom || filters.dateTo ? (
+                  <Pressable
+                    onPress={() => setFilters({ ...filters, dateFrom: null, dateTo: null })}
+                    style={{ justifyContent: 'flex-end', paddingBottom: Spacing.two }}
+                    hitSlop={8}>
+                    <ThemedText type="small" style={{ color: theme.primary }}>
+                      Clear
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
               </View>
+            )}
+            {picking !== null && (
+              <DateTimePicker
+                mode="date"
+                display="calendar"
+                // Opening on the value already chosen, or today when unset, so
+                // the wheel never starts in 1970.
+                value={
+                  filters[picking] ? new Date(`${filters[picking]}T12:00:00`) : new Date()
+                }
+                // Bounds keep the range coherent from the picker itself: the
+                // start cannot be after the end, and neither can be in the
+                // future, because no transaction ever is.
+                minimumDate={
+                  picking === 'dateTo' && filters.dateFrom
+                    ? new Date(`${filters.dateFrom}T12:00:00`)
+                    : undefined
+                }
+                maximumDate={
+                  picking === 'dateFrom' && filters.dateTo
+                    ? new Date(`${filters.dateTo}T12:00:00`)
+                    : new Date()
+                }
+                onChange={(event, picked) => {
+                  const field = picking;
+                  setPicking(null);
+                  if (event.type !== 'set' || !picked || !field) return;
+                  setFilters((f) => ({ ...f, [field]: toISODate(picked) }));
+                }}
+              />
             )}
 
             <ThemedText type="micro" themeColor="textSecondary">Account</ThemedText>
@@ -658,9 +689,8 @@ const styles = StyleSheet.create({
   rangeInput: {
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
+    paddingVertical: Spacing.two + 2,
+    justifyContent: 'center',
   },
   chipRow: {
     flexDirection: 'row',
