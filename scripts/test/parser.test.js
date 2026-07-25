@@ -147,10 +147,12 @@ if (maskedDebit && maskedDebit.transferHint === true && !/[*Xx]{2,}/.test(masked
   pass++; console.log('✓ debit leg toward a masked card is a transfer, PAN never a merchant');
 } else { fail++; console.log('✗ debit leg toward a masked card is a transfer, PAN never a merchant', JSON.stringify(maskedDebit && { t: maskedDebit.transferHint, m: maskedDebit.merchant })); }
 
+// No card in the message means no card purchase — it is an account debit, and
+// it must still not be mistaken for a payment INTO a card.
 const unknownDebit = parseSms('AED 250.00 was debited from your account XX9012 on 12/07/2026.');
-if (unknownDebit && unknownDebit.merchant === 'Card purchase' && unknownDebit.transferHint === false) {
-  pass++; console.log('✓ unknown-merchant debit titled Card purchase, not Card payment');
-} else { fail++; console.log('✗ unknown-merchant debit titled Card purchase', JSON.stringify(unknownDebit && { m: unknownDebit.merchant, t: unknownDebit.transferHint })); }
+if (unknownDebit && unknownDebit.merchant === 'Account debit' && unknownDebit.transferHint === false) {
+  pass++; console.log('✓ unknown-merchant account debit titled Account debit, not Card payment');
+} else { fail++; console.log('✗ unknown-merchant account debit titled Account debit', JSON.stringify(unknownDebit && { m: unknownDebit.merchant, t: unknownDebit.transferHint })); }
 
 // ── amount sanity + credit-card forcing ──
 const absurd = parseSms('AED 100,181,428,624.00 was debited from your account XX9012.');
@@ -717,7 +719,81 @@ t('rent received is income',
 
 t('a bare article never becomes the merchant',
   'Dear Customer, Your payment to the account number 122543 has been processed. Amount Due: AED 408.45 Amount Paid: AED 408.45',
-  { merchant: 'Card purchase' });
+  { merchant: 'Payment to •2543', amountFils: 40845 });
+
+// ── The second corpus from the user's phone ──
+
+// Masked figures. The bank redacts leading digits; what is left is a fragment,
+// and reading it invented a 32,031.55 purchase out of a card number.
+t('a masked amount is not a transaction',
+  'Credit Card Purchase \nCard No XXXX8722 \nUSD .00 \nen.dragonpass.com.cn Manchester GBR \n22/03/23 17:43 \nAvailable Balance AED ····0200.77',
+  null);
+t('a masked amount is not a transaction (local currency)',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED ····0000.00 \neToro ME LTD etoro ARE \n26/01/26 10:58 \nAvl Bal AED 3582.39',
+  null);
+const maskedBal = parseSms(
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 267.00 \nOFF PRICE GENERAL TRAD SHARJAH ARE \n11/07/26 19:38 \nAvl Bal AED ····9235.93',
+);
+if (maskedBal && maskedBal.amountFils === 26700 && maskedBal.snapshotFils === null) {
+  pass++; console.log('✓ a masked balance is not reported as a balance');
+} else { fail++; console.log('✗ a masked balance is not reported as a balance', JSON.stringify(maskedBal && { a: maskedBal.amountFils, s: maskedBal.snapshotFils })); }
+
+// qlub is the UAE QR table-payment platform: it appends itself to the venue's
+// own name, so every descriptor carrying it is a restaurant bill.
+t('a qlub descriptor is a restaurant bill',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 722.67 \nKokoro qlub, sharjah sharjah ARE \n15/05/26 18:45 \nAvl Bal AED 6587.91',
+  { merchant: 'Kokoro Qlub', category: 'dining', amountFils: 72267 });
+t('qlub glued to the venue name still reads as dining',
+  'Purchase of AED 456.93 with Debit Card ending 1354 at LaBoheme-Muntazahqlub, Sharjah. Avl Balance is AED 19,796.59.',
+  { category: 'dining', amountFils: 45693 });
+
+// Descriptors the merchant used to be thrown away from entirely.
+t('a leading % is part of the brand',
+  'Purchase of AED 40.00 with Debit Card ending 1354 at % ARABICA, DUBAI. Avl Balance is AED 7,476.59.',
+  { merchant: '% Arabica', category: 'dining' });
+t('an acquirer terminal ID is not part of the shop name',
+  'Purchase of AED 86.10 with Debit Card ending 8783 at BLOOMFIELD TREAT-····5814, JLT DUBAI. Avl Balance is AED 8,946.97.',
+  { merchant: 'Bloomfield Treat', amountFils: 8610 });
+t('a padded location block is not part of the shop name',
+  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX8421 \nUSD 200.00 \nEXINITY ME LTD        Dubai           AE \n06/10/25 17:51',
+  { merchant: 'Exinity Me Ltd' });
+t('a descriptor containing PURCHASE keeps its merchant',
+  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX8335 \nAED 379.00 \nWL *STEAM PURCHASE    425-889-9642 WA US \n09/09/25 08:55',
+  { merchant: 'Steam', category: 'entertainment', amountFils: 37900 });
+t('a glued emirate suffix does not split one shop into two',
+  'Your credit card xxx2518 was used for AED 150.00 on 18/07/2026 20:07:52 at AL NIMAR AL ABYADHdSHARJAH- AE. Available credit limit is now AED 2189.45.',
+  { merchant: 'Al Nimar Al Abyadh', amountFils: 15000 });
+t('a payment-link gateway is not the merchant',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 250.00 \nZiina  *qasr al zain m Sharjah ARE \n29/05/26 12:39',
+  { merchant: 'Qasr Al Zain M' });
+t('a .com merchant keeps its domain',
+  'Purchase of USD 84.00 with Debit Card ending 1354 at Name.com, Inc, 720-2374. Avl Balance is AED 19,422.45.',
+  { merchant: 'Name.com' });
+
+// Transfer rails name the rail, not a shop.
+t('a FastPay transfer names the person',
+  'Dear Naser Naze, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Mohammad Nazem. If this is not you; contact us immediately.',
+  { merchant: 'Transfer to Mohammad Nazem', amountFils: 75000 });
+t('a mobile-banking IBAN transfer is a bank transfer',
+  'AED 36.00 has been debited from your account no. 095XXX11XXX01 MOBILE BANKING TRANSFER TO AE····0021XXX85XXX01. The available balance is AED 35,716.17.',
+  { merchant: 'Bank transfer', amountFils: 3600 });
+t('an in-app fund transfer is an outgoing transfer',
+  'Dear Customer, AED 50.00 has been deducted from your account 2501 for Fund Transfer through Liv app.',
+  { merchant: 'Outgoing transfer', amountFils: 5000 });
+
+// Categories that had no entry at all.
+t('YouTube Premium is entertainment',
+  'Purchase of AED 23.99 with Debit Card ending 8783 at GOOGLE*YOUTUBEPREMIUM, G.CO HELPPAY#. Avl Balance is AED 1,393.79.',
+  { merchant: 'YouTube Premium', category: 'entertainment' });
+t('the full RTA name is transport',
+  'Purchase of AED 10.50 with Debit Card ending 9417 at ROAD & TRANSPORT AUTH, DUBAI. Avl Balance is AED 218.49.',
+  { category: 'transport' });
+t('an Apple bill is entertainment',
+  'Payment of AED 3.99 to APPLE.COM/BILL with Credit Card ending 8917. Avl Cr. Limit is AED 20,371.82.',
+  { merchant: 'Apple', category: 'entertainment' });
+t('dietary supplements are health',
+  'Purchase of AED 13.04 with Debit Card ending 1354 at PUZZLE DIETARY SUPP BR, SHARJAH. Avl Balance is AED 28,112.95.',
+  { category: 'health' });
 
 t('SPRM is a supermarket',
   'Purchase of AED 10.00 with Debit Card ending 8783 at NEW STAR FAMILIES SPRM, DUBAI. Avl Balance is AED 6,747.70.',
