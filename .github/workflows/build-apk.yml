@@ -47,34 +47,72 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
 
-      # Sign releases with the Play upload key from the WAFRA_KEYSTORE_B64
-      # repo secret (base64 of wafra-upload.jks). Until the secret is added,
-      # a fresh throwaway key is generated so builds stay green — side-load
-      # updates then need uninstall/reinstall, and Play uploads need the
-      # real key.
+      # Sign releases with the Play upload key. Required repo secrets:
+      #
+      #   WAFRA_KEYSTORE_B64        base64 of wafra-upload.jks (base64 -w0)
+      #   WAFRA_KEYSTORE_PASSWORD   its store password
+      #   WAFRA_KEY_PASSWORD        key password (optional; defaults to store)
+      #   WAFRA_KEY_ALIAS           key alias   (optional; defaults to wafra)
+      #
+      # Credentials reach Gradle as ORG_GRADLE_PROJECT_* properties, so they
+      # are never written into build.gradle or any other file in the
+      # workspace. Without the keystore secret a throwaway key is generated
+      # with a random per-run password so builds stay green; those APKs
+      # cannot update a side-loaded install (uninstall/reinstall) and cannot
+      # be uploaded to Play.
       - name: Configure release signing
         env:
           KEYSTORE_B64: ${{ secrets.WAFRA_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WAFRA_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.WAFRA_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.WAFRA_KEY_ALIAS }}
         run: |
+          set -euo pipefail
+          alias_name="${KEY_ALIAS:-wafra}"
+
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > android/app/wafra-upload.jks
-            echo "Using the real upload keystore from secrets."
+            if [ -z "$KEYSTORE_PASSWORD" ]; then
+              echo "::error::WAFRA_KEYSTORE_B64 is set but WAFRA_KEYSTORE_PASSWORD is not."
+              exit 1
+            fi
+            printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > android/app/wafra-upload.jks
+            store_password="$KEYSTORE_PASSWORD"
+            key_password="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            # Fail here with something actionable rather than deep inside Gradle.
+            if ! keytool -list -keystore android/app/wafra-upload.jks \
+                 -storepass "$store_password" -alias "$alias_name" >/dev/null 2>&1; then
+              echo "::error::Keystore did not open with WAFRA_KEYSTORE_PASSWORD, or it has no '$alias_name' alias. Check the secrets (WAFRA_KEY_ALIAS overrides the alias)."
+              exit 1
+            fi
+            echo "Signing with the upload keystore from secrets (alias: $alias_name)."
           else
+            store_password="$(openssl rand -base64 24)"
+            key_password="$store_password"
+            echo "::add-mask::$store_password"
             keytool -genkeypair -v -keystore android/app/wafra-upload.jks \
-              -alias wafra -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass wafra-upload-2026 -keypass wafra-upload-2026 \
+              -alias "$alias_name" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$store_password" -keypass "$key_password" \
               -dname "CN=Wafra, OU=Wafra, O=Wafra, L=Dubai, C=AE"
-            echo "::warning::WAFRA_KEYSTORE_B64 secret not set - signed with a throwaway key."
+            echo "::warning::WAFRA_KEYSTORE_B64 not set - signed with a throwaway key. Not installable as an update, not uploadable to Play."
           fi
+
+          # Gradle reads ORG_GRADLE_PROJECT_<name> as project property <name>.
+          echo "::add-mask::$key_password"
+          {
+            echo "ORG_GRADLE_PROJECT_wafraStorePassword=$store_password"
+            echo "ORG_GRADLE_PROJECT_wafraKeyPassword=$key_password"
+            echo "ORG_GRADLE_PROJECT_wafraKeyAlias=$alias_name"
+          } >> "$GITHUB_ENV"
+
           cat >> android/app/build.gradle <<'EOG'
 
           android {
               signingConfigs {
                   upload {
                       storeFile file('wafra-upload.jks')
-                      storePassword 'wafra-upload-2026'
-                      keyAlias 'wafra'
-                      keyPassword 'wafra-upload-2026'
+                      storePassword project.property('wafraStorePassword')
+                      keyAlias project.property('wafraKeyAlias')
+                      keyPassword project.property('wafraKeyPassword')
                   }
               }
               buildTypes {

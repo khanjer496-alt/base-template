@@ -62,6 +62,22 @@ scan → transactions appearing.
 - [x] Unique applicationId: app.wafra.android (versionCode 1 in app.json)
 - [x] Signed releases: keystore/wafra-upload.jks (upload key; CI signs both
       APK and AAB — replaceable in Play Console if ever compromised)
+      - CI reads the key from repo secrets; nothing about it is committed:
+
+        | secret | required | meaning |
+        | --- | --- | --- |
+        | `WAFRA_KEYSTORE_B64` | yes | `base64 -w0 wafra-upload.jks` |
+        | `WAFRA_KEYSTORE_PASSWORD` | yes | store password |
+        | `WAFRA_KEY_PASSWORD` | no | key password (defaults to the store one) |
+        | `WAFRA_KEY_ALIAS` | no | key alias (defaults to `wafra`) |
+
+      - They reach Gradle as `ORG_GRADLE_PROJECT_*` properties, so no
+        password is written into build.gradle or any workspace file.
+      - With no keystore secret the build still succeeds, signed with a
+        throwaway key on a random per-run password. Those artifacts cannot
+        update a side-loaded install and cannot be uploaded to Play.
+      - The build fails early, with a message naming the secret at fault, if
+        the keystore does not open or lacks the alias.
 - [x] Play **AAB** built by CI as the wafra-aab artifact every push
 - [x] Privacy policy written (landing page section; host on real domain)
 - [x] i18n: English + Arabic UI with RTL; auto-detected, Settings override
