@@ -136,15 +136,15 @@ ok('groups: trueSubscriptions excludes rent/utilities',
 
 // Recurring payments in non-subscription categories are commitments, not subscriptions
 const supplier = subsLib.detectSubscriptions([
-  subTx('Fishbasket', '2026-05-03', 1070000, 'business'),
-  subTx('Fishbasket', '2026-06-03', 1070000, 'business'),
-  subTx('Fishbasket', '2026-07-03', 1070000, 'business'),
+  subTx('Villabill', '2026-05-03', 1070000, 'business'),
+  subTx('Villabill', '2026-06-03', 1070000, 'business'),
+  subTx('Villabill', '2026-07-03', 1070000, 'business'),
   subTx('Maid Salary', '2026-05-28', 250000, 'other'),
   subTx('Maid Salary', '2026-06-28', 250000, 'other'),
   subTx('Maid Salary', '2026-07-28', 250000, 'other'),
 ]);
 ok('groups: business supplier is a commitment, not a subscription',
-  supplier.find(s => s.title === 'Fishbasket')?.group === 'commitment');
+  supplier.find(s => s.title === 'Villabill')?.group === 'commitment');
 ok('groups: recurring other-category payment is a commitment',
   supplier.find(s => s.title === 'Maid Salary')?.group === 'commitment');
 ok('groups: commitments never count in trueSubscriptions',
@@ -428,7 +428,7 @@ const saBank = markets.bankFromSender('AlRajhi');
 ok('market: Saudi bank recognized with logo domain',
   saBank && saBank.name === 'Al Rajhi' && saBank.domain === 'alrajhibank.com.sa');
 const saUsd = mparser.parseSms(
-  'USD 20.00 charged on Credit Card ending 4499 - OPENAI CHATGPT SUBSCRIPTION');
+  'USD 20.00 charged on Credit Card ending 4833 - OPENAI CHATGPT SUBSCRIPTION');
 ok('market: USD converts into SAR under the SA pack',
   saUsd && saUsd.amountFils === 7500); // 20 * 3.75 * 100
 ok('market: STC categorized as telecom in SA',
@@ -639,7 +639,7 @@ for (const [title, mark] of [
 // must not borrow a brand they only share letters with.
 for (const title of [
   'Al Nimar Al Abyadh', 'Account debit', 'Pineapple Cafe', 'Dubai Families',
-  'ATM withdrawal', 'Transfer to Mohammad Nazem', '',
+  'ATM withdrawal', 'Transfer to Khalid Rashid', '',
 ]) {
   ok(`brand mark: "${title}" has none`, brandMarkFor(title) === null);
 }

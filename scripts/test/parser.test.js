@@ -35,11 +35,11 @@ t('OTP messages are skipped entirely',
   null);
 
 t('balance amount is not mistaken for purchase (balance first)',
-  'Avl Bal AED 19,053.20. Purchase of AED 190.53 at PLAYSTATION NETWORK on 15/07/2026',
+  'Avl Bal AED 14,045.84. Purchase of AED 190.53 at PLAYSTATION NETWORK on 15/07/2026',
   { merchant: 'Playstation Network', amountFils: 19053, category: 'entertainment' });
 
 t('balance amount skipped when it comes after',
-  'Purchase of AED 187.50 with Debit Card ending 1234 at CARREFOUR MALL OF EMIRATES, DUBAI on 17/07/2026. Avl balance AED 12,345.67',
+  'Purchase of AED 187.50 with Debit Card ending 1234 at CARREFOUR MALL OF EMIRATES, DUBAI on 17/07/2026. Avl balance AED 9,149.34',
   { merchant: 'Carrefour Mall Of Emirates', amountFils: 18750, date: '2026-07-17' });
 
 // ── Regression coverage ──
@@ -71,7 +71,7 @@ t('refund is income',
   { type: 'income', amountFils: 8900 });
 
 t('atm withdrawal',
-  'AED 1,000.00 withdrawn from your account at ENBD ATM DEIRA on 12/07/2026. Available balance AED 4,210.11',
+  'AED 1,000.00 withdrawn from your account at ENBD ATM DEIRA on 12/07/2026. Available balance AED 3,210.38',
   { amountFils: 100000, type: 'expense' });
 
 t('acronym kept in titlecase', 'Purchase of AED 30.00 at KFC with card ending 22',
@@ -132,17 +132,17 @@ if (normalSpend && normalSpend.transferHint === false) { pass++; console.log('�
 else { fail++; console.log('✗ normal purchase not flagged as transfer'); }
 
 // ── masked PANs and "has been paid" settlements (real-device formats) ──
-const maskedPaid = parseSms('Your Credit Card 4782********4499 Has Been Paid AED 10,700.00. Thank you for banking with us.');
-if (maskedPaid && maskedPaid.kind === 'cardPayment' && maskedPaid.card && maskedPaid.card.last4 === '4499' && maskedPaid.transferHint === true) {
+const maskedPaid = parseSms('Your Credit Card 4782********4833 Has Been Paid AED 10,700.00. Thank you for banking with us.');
+if (maskedPaid && maskedPaid.kind === 'cardPayment' && maskedPaid.card && maskedPaid.card.last4 === '4833' && maskedPaid.transferHint === true) {
   pass++; console.log('✓ masked-PAN "has been paid" is a card payment');
 } else { fail++; console.log('✗ masked-PAN "has been paid" is a card payment', JSON.stringify(maskedPaid && { k: maskedPaid.kind, c: maskedPaid.card, m: maskedPaid.merchant })); }
 
-const maskedPaid2 = parseSms('Payment of AED 7,663.00 has been received on your Credit Card 5492********3749.');
-if (maskedPaid2 && maskedPaid2.kind === 'cardPayment' && maskedPaid2.card && maskedPaid2.card.last4 === '3749') {
+const maskedPaid2 = parseSms('Payment of AED 7,663.00 has been received on your Credit Card 5492********4711.');
+if (maskedPaid2 && maskedPaid2.kind === 'cardPayment' && maskedPaid2.card && maskedPaid2.card.last4 === '4711') {
   pass++; console.log('✓ masked-PAN payment-received keeps the LAST four digits');
 } else { fail++; console.log('✗ masked-PAN payment-received keeps the LAST four digits', JSON.stringify(maskedPaid2 && maskedPaid2.card)); }
 
-const maskedDebit = parseSms('AED 10,700.00 debited from your a/c XX9012 towards Credit Card 4782********4499 payment.');
+const maskedDebit = parseSms('AED 10,700.00 debited from your a/c XX9012 towards Credit Card 4782********4833 payment.');
 if (maskedDebit && maskedDebit.transferHint === true && !/[*Xx]{2,}/.test(maskedDebit.merchant)) {
   pass++; console.log('✓ debit leg toward a masked card is a transfer, PAN never a merchant');
 } else { fail++; console.log('✗ debit leg toward a masked card is a transfer, PAN never a merchant', JSON.stringify(maskedDebit && { t: maskedDebit.transferHint, m: maskedDebit.merchant })); }
@@ -188,11 +188,11 @@ t('amount BEFORE currency parses',
   'Your account XX9012 has been debited with 1,234.56 AED at CARREFOUR MALL OF EMIRATES on 15/07/2026',
   { amountFils: 123456, merchant: 'Carrefour Mall Of Emirates', category: 'groceries' });
 
-const sfxBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 12,500.00 AED');
+const sfxBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 9,262.00 AED');
 if (sfxBal && sfxBal.amountFils === 25000) { pass++; console.log('✓ suffix amount skips suffix balance'); }
 else { fail++; console.log('✗ suffix amount skips suffix balance', JSON.stringify(sfxBal && sfxBal.amountFils)); }
 
-const atm = parseSms('AED 500.00 cash withdrawal from ATM at ENBD BRANCH DEIRA. Avl Bal AED 8,200.00');
+const atm = parseSms('AED 500.00 cash withdrawal from ATM at ENBD BRANCH DEIRA. Avl Bal AED 6,123.00');
 if (atm && atm.merchant === 'ATM withdrawal' && atm.type === 'expense') { pass++; console.log('✓ ATM withdrawal titled correctly'); }
 else { fail++; console.log('✗ ATM withdrawal titled correctly', JSON.stringify(atm && atm.merchant)); }
 
@@ -248,8 +248,8 @@ if (snapLimit && snapLimit.snapshotKind === 'limit' && snapLimit.snapshotFils ==
   pass++; console.log('✓ available-limit snapshot captured (amount untouched)');
 } else { fail++; console.log('✗ available-limit snapshot captured', JSON.stringify(snapLimit && { k: snapLimit.snapshotKind, f: snapLimit.snapshotFils, a: snapLimit.amountFils })); }
 
-const snapBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 12,500.00 AED');
-if (snapBal && snapBal.snapshotKind === 'balance' && snapBal.snapshotFils === 1250000) {
+const snapBal = parseSms('Your a/c XX9012 is debited with 250.00 AED. Avl bal 9,262.00 AED');
+if (snapBal && snapBal.snapshotKind === 'balance' && snapBal.snapshotFils === 926200) {
   pass++; console.log('✓ balance snapshot captured in suffix form');
 } else { fail++; console.log('✗ balance snapshot captured in suffix form', JSON.stringify(snapBal && { k: snapBal.snapshotKind, f: snapBal.snapshotFils })); }
 
@@ -293,8 +293,8 @@ if (canvasShop && canvasShop.merchant !== 'Canva') {
 
 // ── multi-line FAB-style format: header kind, own-line merchant, Avl Bal on credit = limit ──
 const FAB_ALLDEBRID =
-  'Credit Card Purchase\nCard No XXXX3749\nEUR 2.99\nALLDEBRID.COM MONTROUGE FRA\n' +
-  '03/07/26 05:53\nAvl Bal AED 13107.74\nJuly statement due on 27/07/2026';
+  'Credit Card Purchase\nCard No XXXX4711\nEUR 2.99\nALLDEBRID.COM MONTROUGE FRA\n' +
+  '03/07/26 05:53\nAvl Bal AED 9705.65\nJuly statement due on 27/07/2026';
 const ad = parseSms(FAB_ALLDEBRID);
 {
   const errs = [];
@@ -302,10 +302,10 @@ const ad = parseSms(FAB_ALLDEBRID);
   else {
     if (ad.kind !== 'transaction') errs.push(`kind ${ad.kind} != transaction (statement-due footer misfired)`);
     if (ad.merchant !== 'AllDebrid') errs.push(`merchant "${ad.merchant}" != AllDebrid`);
-    if (!ad.card || ad.card.last4 !== '3749' || ad.card.kind !== 'credit')
-      errs.push(`card ${JSON.stringify(ad.card)} != credit 3749`);
+    if (!ad.card || ad.card.last4 !== '4711' || ad.card.kind !== 'credit')
+      errs.push(`card ${JSON.stringify(ad.card)} != credit 4711`);
     if (ad.snapshotKind !== 'limit') errs.push(`snapshotKind ${ad.snapshotKind} != limit (Avl Bal on credit is headroom)`);
-    if (ad.snapshotFils !== 1310774) errs.push(`snapshotFils ${ad.snapshotFils} != 1310774`);
+    if (ad.snapshotFils !== 970565) errs.push(`snapshotFils ${ad.snapshotFils} != 970565`);
     if (ad.amountFils !== 1292) errs.push(`amount ${ad.amountFils} != 1292 (EUR 2.99 converted)`);
     if (ad.date !== '2026-07-03') errs.push(`date ${ad.date} != 2026-07-03 (txn datetime beats due footer)`);
   }
@@ -314,12 +314,12 @@ const ad = parseSms(FAB_ALLDEBRID);
 }
 
 t('multi-line local-currency purchase names the merchant line',
-  'Credit Card Purchase\nCard No XXXX3749\nAED 16.00\nMawgif DUBAI ARE\n03/07/26 15:51\nAvl Bal AED 13091.74\nJuly statement due on 27/07/2026',
+  'Credit Card Purchase\nCard No XXXX4711\nAED 16.00\nMawgif DUBAI ARE\n03/07/26 15:51\nAvl Bal AED 9693.97\nJuly statement due on 27/07/2026',
   { merchant: 'Mawgif', amountFils: 1600, category: 'transport', date: '2026-07-03' });
 
 // ── multi-bank corpus: each UAE bank speaks its own SMS dialect ──
 t('ENBD style: Avl Cr. Limit is a limit snapshot, merchant before comma',
-  'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00',
+  'Purchase of AED 89.50 with Credit Card ending 4844 at CARREFOUR, DUBAI. Avl Cr. Limit AED 14,671.30',
   { merchant: 'Carrefour', amountFils: 8950, category: 'groceries' });
 
 t('Liv style: "You spent ... on your debit card" parses',
@@ -331,7 +331,7 @@ t('Mashreq style: "debited from account ... for" names the payee',
   { amountFils: 25000, category: 'telecom' });
 
 t('ADCB style: transaction with available balance suffix',
-  'Your Debit Card XXX4499 was used for AED 132.75 at LULU HYPERMARKET AL BARSHA on 19/07/2026. Available Balance AED 8,432.10',
+  'Your Debit Card XXX4833 was used for AED 132.75 at LULU HYPERMARKET AL BARSHA on 19/07/2026. Available Balance AED 6,292.43',
   { merchant: 'Lulu Hypermarket Al Barsha', amountFils: 13275, category: 'groceries' });
 
 t('DIB style: Dhs alias amount parses',
@@ -379,12 +379,12 @@ t('older-style zone parking also parses',
   { merchant: 'Parking', amountFils: 400, category: 'transport' });
 
 t('VAT micro-debit is a VAT fee, not a card purchase',
-  'AED 0.05 has been debited from your account no. 095-XXX11XXX-01 Value Added Tax(VAT) @5%:O12348070. The available balance is AED 1,621.02.',
+  'AED 0.05 has been debited from your account no. 095-XXX11XXX-01 Value Added Tax(VAT) @5%:O12348070. The available balance is AED 1,320.34.',
   { merchant: 'VAT fee', amountFils: 5 });
 
 const payInstr = parseSms(
-  'Dear Customer, Your payment instructions of AED 7,663.94 to 5492********3749 has been processed on 10/07/2026 01:19');
-if (payInstr && payInstr.merchant === 'Card •3749 payment' && payInstr.transferHint === true &&
+  'Dear Customer, Your payment instructions of AED 7,663.94 to 5492********4711 has been processed on 10/07/2026 01:19');
+if (payInstr && payInstr.merchant === 'Card •4711 payment' && payInstr.transferHint === true &&
     payInstr.amountFils === 766394 && payInstr.card && payInstr.card.kind === 'credit') {
   pass++; console.log('✓ payment instructions to masked PAN is a card-payment transfer');
 } else {
@@ -393,11 +393,11 @@ if (payInstr && payInstr.merchant === 'Card •3749 payment' && payInstr.transfe
 }
 
 t('payment instructions to a named biller keeps the biller name',
-  'Dear Customer, Your payment instructions of AED 313.95 to fbinter for consumer number 5554026 has been processed on 13/07/2026 22:01',
-  { merchant: 'Fbinter', amountFils: 31395 });
+  'Dear Customer, Your payment instructions of AED 313.95 to homeinet for consumer number 5554026 has been processed on 13/07/2026 22:01',
+  { merchant: 'Homeinet', amountFils: 31395 });
 
 const towardsCard = parseSms(
-  'AED 1,027.60 has been deducted from your account 095XXX11XXX01 towards payment of your Credit Card ending 8917.');
+  'AED 1,027.60 has been deducted from your account 095XXX11XXX01 towards payment of your Credit Card ending 4722.');
 if (towardsCard && towardsCard.transferHint === true) {
   pass++; console.log('✓ "towards payment of your Credit Card" is a transfer');
 } else {
@@ -406,7 +406,7 @@ if (towardsCard && towardsCard.transferHint === true) {
 }
 
 const fabDue = parseSms(
-  'Dear Customer, the payment due date of your FAB Credit Card ending with 4499 is 06-07-2026. The total amount due is AED 8,144.40 and the Minimum due amount is AED 407.22. Please ignore the message, if already paid.');
+  'Dear Customer, the payment due date of your FAB Credit Card ending with 4833 is 06-07-2026. The total amount due is AED 8,144.40 and the Minimum due amount is AED 407.22. Please ignore the message, if already paid.');
 if (fabDue && fabDue.kind === 'cardStatement' && fabDue.amountFils === 814440 &&
     fabDue.minDueFils === 40722 && fabDue.date === '2026-07-06') {
   pass++; console.log('✓ FAB due-date reminder is a card statement, not a fake expense');
@@ -416,7 +416,7 @@ if (fabDue && fabDue.kind === 'cardStatement' && fabDue.amountFils === 814440 &&
 }
 
 const tt = parseSms(
-  'From HSBC: 20MAR25 TT Payment to 041-339***-001 AED 1,108.00+ Your available balance is AED 1,108.87');
+  'From HSBC: 20MAR25 TT Payment to 041-339***-001 AED 1,108.00+ Your available balance is AED 946.48');
 if (tt && tt.merchant === 'Bank transfer' && tt.transferHint === true && tt.type === 'income' && tt.amountFils === 110800) {
   pass++; console.log('✓ HSBC TT payment is a bank transfer, not a garbage-titled expense');
 } else {
@@ -441,11 +441,11 @@ t('YAP cash withdrawal is an ATM withdrawal',
   { merchant: 'ATM withdrawal', amountFils: 20000 });
 
 t('instant transfer is titled Outgoing transfer',
-  'Dear Customer, AED 1,176.00 has been debited from your account 095XXX11XXX01 towards instant transfer. The available balance is AED 24,189.79.',
+  'Dear Customer, AED 1,176.00 has been debited from your account 095XXX11XXX01 towards instant transfer. The available balance is AED 17,795.55.',
   { merchant: 'Outgoing transfer', amountFils: 117600 });
 
 t('FAB multi-line Keeta purchase ignores the instalment promo footer',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 76.50 \nTAP*Keeta Dubai ARE \n15/12/25 22:34 \nAvailable Balance AED 10600.89\nYour December statement payment due date is 26/12/2025\n0% instalments up to 12 months, NO fees on international purchases. bit.ly/4nR8uHP Conditions apply.',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 76.50 \nTAP*Keeta Dubai ARE \n15/12/25 22:34 \nAvailable Balance AED 7875.65\nYour December statement payment due date is 26/12/2025\n0% instalments up to 12 months, NO fees on international purchases. bit.ly/4nR8uHP Conditions apply.',
   { merchant: 'Keeta', amountFils: 7650, category: 'dining', date: '2025-12-15' });
 
 t('telecom roaming rate card is not a transaction',
@@ -457,31 +457,31 @@ t('biller AutoPay receipt is skipped (bank side already counted)',
   null);
 
 t('ChatGPT via Google descriptor categorizes as entertainment',
-  'Purchase of AED 76.99 with Debit Card ending 1354 at Google ChatGPT, 650-5550000. Avl Balance is AED 15,021.77.  Pls refer stmt for exact amt.',
+  'Purchase of AED 76.99 with Debit Card ending 4733 at Google ChatGPT, 650-5550000. Avl Balance is AED 11,102.89.  Pls refer stmt for exact amt.',
   { merchant: 'ChatGPT', category: 'entertainment' });
 
 t('grab.com purchase names Grab and categorizes transport',
-  'Purchase of AED 16.92 with Debit Card ending 8783 at WWW.GRAB.COM, BANGKOK. Avl Balance is AED 35,848.02.  Pls refer stmt for exact amt.',
+  'Purchase of AED 16.92 with Debit Card ending 4744 at WWW.GRAB.COM, BANGKOK. Avl Balance is AED 26,306.05.  Pls refer stmt for exact amt.',
   { merchant: 'Grab', category: 'transport' });
 
 t('foodstuff trader categorizes as groceries',
-  'Purchase of AED 244.00 with Credit Card ending 8917 at TOROUS FOODSTUFF LLC, SHARJAH. Avl Cr. Limit is AED 19,374.45',
+  'Purchase of AED 244.00 with Credit Card ending 4722 at TOROUS FOODSTUFF LLC, SHARJAH. Avl Cr. Limit is AED 14,280.35',
   { category: 'groceries' });
 
 t('local market categorizes as groceries',
-  'Purchase of AED 258.10 with Credit Card ending 8917 at AFAMIA MARKET, SHARJAH. Avl Cr. Limit is AED 19,900.17',
+  'Purchase of AED 258.10 with Credit Card ending 4722 at AFAMIA MARKET, SHARJAH. Avl Cr. Limit is AED 14,664.12',
   { category: 'groceries' });
 
 t('padel court categorizes as health',
-  'Purchase of AED 93.00 with Debit Card ending 8783 at OLE PADEL FOR SPORTS P, AJMAN. Avl Balance is AED 35,007.57.',
+  'Purchase of AED 93.00 with Debit Card ending 4744 at OLE PADEL FOR SPORTS P, AJMAN. Avl Balance is AED 25,692.53.',
   { category: 'health' });
 
 t('vending machine categorizes as groceries',
-  'Purchase of AED 2.00 with Debit Card ending 8783 at THE BLUE BOX VENDING 4, DUBAI. Avl Balance is AED 34,793.70.',
+  'Purchase of AED 2.00 with Debit Card ending 4744 at THE BLUE BOX VENDING 4, DUBAI. Avl Balance is AED 25,536.40.',
   { category: 'groceries' });
 
 t('Liv ATM with empty location still an ATM withdrawal',
-  'Cash Withdrawal of AED 5,000.00 with Debit Card ending 8783 at , SHARJAH. Avl Bal is AED 4,500.40.Most Liv. users enjoy going cashless and pay with their debit card.',
+  'Cash Withdrawal of AED 5,000.00 with Debit Card ending 4744 at , SHARJAH. Avl Bal is AED 3,422.29.Most Liv. users enjoy going cashless and pay with their debit card.',
   { merchant: 'ATM withdrawal', amountFils: 500000 });
 
 // ── round-2 corpus (user-shared formats) ──
@@ -495,7 +495,7 @@ if (ttIssue && ttIssue.merchant === 'Telegraphic transfer' && ttIssue.transferHi
 }
 
 const outward = parseSms(
-  'Outward Remittance \nDebit \nAccount XXXX0002 \nAED 7000.00\nValue Date 06/05/25  \nAvailable Balance AED 6493.85');
+  'Outward Remittance \nDebit \nAccount XXXX0002 \nAED 7000.00\nValue Date 06/05/25  \nAvailable Balance AED 4877.51');
 if (outward && outward.merchant === 'Outward remittance' && outward.transferHint === true && outward.amountFils === 700000) {
   pass++; console.log('✓ outward remittance multi-line is a transfer, not "Value Date"');
 } else {
@@ -547,19 +547,19 @@ t('real-estate ad with payment plan is skipped',
   null);
 
 t('refund is income, not another expense',
-  'Purchase amount of AED 3.78 at PAYPAL on your Debit Card has been refunded to your card account. Avl Bal is AED 5,290.31.',
+  'Purchase amount of AED 3.78 at PAYPAL on your Debit Card has been refunded to your card account. Avl Bal is AED 3,998.93.',
   { type: 'income', amountFils: 378 });
 
 t('HSBC embedded merchant before "Purchase from" is extracted',
-  'From HSBC: 02MAR23 DX BLENDS CAFE Purchase from 041-339***-001 AED 20.00- by Card Ending with 3081. Your available balance is AED 17,452.50',
+  'From HSBC: 02MAR23 DX BLENDS CAFE Purchase from 041-339***-001 AED 20.00- by Card Ending with 3081. Your available balance is AED 12,877.32',
   { merchant: 'Dx Blends Cafe', amountFils: 2000, category: 'dining' });
 
 t('merchant with slash parses fully (McDonalds drive-thru)',
-  'Purchase of AED 11.00 with Debit Card ending 8783 at MCDONALDS-ITTIHAD D/T, SHARJAH. Avl Balance is AED 7,885.70.',
+  'Purchase of AED 11.00 with Debit Card ending 4744 at MCDONALDS-ITTIHAD D/T, SHARJAH. Avl Balance is AED 5,893.56.',
   { merchant: 'Mcdonalds-ittihad D/t', category: 'dining' });
 
 t('parenthetical descriptor drops (noon Food)',
-  'Purchase of AED 46.80 with Debit Card ending 8783 at noon Food(Noon ECommerce), 5558888. Avl Balance is AED 7,078.32.',
+  'Purchase of AED 46.80 with Debit Card ending 4744 at noon Food(Noon ECommerce), 5558888. Avl Balance is AED 5,304.17.',
   { merchant: 'Noon Food', category: 'dining' });
 
 t('SEWA bill notice is a due reminder, not an expense',
@@ -567,15 +567,15 @@ t('SEWA bill notice is a due reminder, not an expense',
   { kind: 'billDue' });
 
 t('supermarket truncation SUPE categorizes as groceries',
-  'Purchase of AED 120.24 with Credit Card ending 8917 at ABDULLA AND NASIR SUPE, SHARJAH. Avl Cr. Limit is AED 20,098.38',
+  'Purchase of AED 120.24 with Credit Card ending 4722 at ABDULLA AND NASIR SUPE, SHARJAH. Avl Cr. Limit is AED 14,808.82',
   { category: 'groceries' });
 
 t('restaurant suffix categorizes as dining',
-  'Purchase of AED 35.00 with Debit Card ending 1354 at BUKHARI AL KHALEEJ RES, Sharjah. Avl Balance is AED 22,517.79.',
+  'Purchase of AED 35.00 with Debit Card ending 4733 at BUKHARI AL KHALEEJ RES, Sharjah. Avl Balance is AED 16,574.99.',
   { category: 'dining' });
 
 t('insurance truncation categorizes as health',
-  'Purchase of AED 866.25 with Debit Card ending 1354 at DUBAI NATIONAL INSURAN, DUBAI. Avl Balance is AED 13,100.21.',
+  'Purchase of AED 866.25 with Debit Card ending 4733 at DUBAI NATIONAL INSURAN, DUBAI. Avl Balance is AED 9,700.15.',
   { category: 'health' });
 
 t('colon-style parking confirmation also parses as Parking',
@@ -583,20 +583,20 @@ t('colon-style parking confirmation also parses as Parking',
   { merchant: 'Parking', amountFils: 200, category: 'transport' });
 
 t('Smart Dubai fee categorizes as government',
-  'Purchase of AED 30.00 with Debit Card ending 8783 at Smart Dubai Government, Dubai. Avl Balance is AED 6,549.04.',
+  'Purchase of AED 30.00 with Debit Card ending 4744 at Smart Dubai Government, Dubai. Avl Balance is AED 4,917.80.',
   { merchant: 'Smart Dubai Government', category: 'government' });
 
 t('Ministry of Interior categorizes as government',
-  'Credit Card Purchase \nCard No XXXX9960 \nAED 353.00 \nMinistry of Interior AUH ARE \n20/02/25 20:37 \nAvailable Balance AED 3285.23 Your February statement payment due date is 26/02/2025',
+  'Credit Card Purchase \nCard No XXXX9960 \nAED 353.00 \nMinistry of Interior AUH ARE \n20/02/25 20:37 \nAvailable Balance AED 2535.22 Your February statement payment due date is 26/02/2025',
   { category: 'government' });
 
 t('hotel resort categorizes as travel',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 300.00 \nTHE OBEROI BEACH RESOR AJMAN ARE \n22/04/25 14:09 \nAvailable Balance AED 4116.98\nYour April statement payment due date is 26/04/2025',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 300.00 \nTHE OBEROI BEACH RESOR AJMAN ARE \n22/04/25 14:09 \nAvailable Balance AED 3142.40\nYour April statement payment due date is 26/04/2025',
   { category: 'travel' });
 
 const enbdSnap = parseSms(
-  'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00');
-if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1991000) {
+  'Purchase of AED 89.50 with Credit Card ending 4844 at CARREFOUR, DUBAI. Avl Cr. Limit AED 14,671.30');
+if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1467130) {
   pass++; console.log('✓ ENBD Avl Cr. Limit captured as limit snapshot');
 } else {
   fail++; console.log('✗ ENBD Avl Cr. Limit captured as limit snapshot',
@@ -605,7 +605,7 @@ if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1
 
 // ── foreign-currency fallback conversion ──
 t('USD-only subscription charge converts at the peg',
-  'Your Credit Card ending 4499 was used for USD 20.00 at OPENAI *CHATGPT',
+  'Your Credit Card ending 4833 was used for USD 20.00 at OPENAI *CHATGPT',
   { merchant: 'ChatGPT', amountFils: 7345 });
 
 t('AED figure always beats foreign conversion',
@@ -623,7 +623,7 @@ t('App Store / Google Play "bill" message is not a bill due',
 
 // ── known service anywhere in the message names the row ──
 t('service name found without an at/to/from clause',
-  'USD 20.00 charged on Credit Card ending 4499 - OPENAI CHATGPT SUBSCRIPTION',
+  'USD 20.00 charged on Credit Card ending 4833 - OPENAI CHATGPT SUBSCRIPTION',
   { merchant: 'ChatGPT', amountFils: 7345 });
 
 // ── real-world descriptor categorization (the "everything is Other" fix) ──
@@ -663,23 +663,23 @@ t('generic trading shop classifies as shopping',
 // Bank bill-pay. The payee is a nickname the user registered, so the FORMAT
 // is what gets recognised, never the name.
 t('bill-pay payee becomes the title, not a generic fallback',
-  'Dear Customer, Your payment instructions of AED 313.95 to fbinter for consumer number 1234026 has been processed on 13/07/2026 22:01',
-  { merchant: 'Fbinter', category: 'utilities', type: 'expense' });
+  'Dear Customer, Your payment instructions of AED 313.95 to homeinet for consumer number 1234026 has been processed on 13/07/2026 22:01',
+  { merchant: 'Homeinet', category: 'utilities', type: 'expense' });
 
 t('bill-pay to an unguessable nickname still lands in a sane bucket',
-  'Dear Customer, Your payment instructions of AED 7416.0 to Fishbasket for consumer number 1234036 has been processed on 04/05/2026 01:15',
-  { merchant: 'Fishbasket', category: 'utilities' });
+  'Dear Customer, Your payment instructions of AED 7416.0 to Villabill for consumer number 1234036 has been processed on 04/05/2026 01:15',
+  { merchant: 'Villabill', category: 'utilities' });
 
 t('a named biller keeps its own category over the bill-pay default',
   'Dear Customer, Your payment instructions of AED 417.9 to Du for consumer number 1238865 has been processed on 21/10/2022 17:03',
   { merchant: 'Du', category: 'telecom' });
 
 t('utility direct debit names the biller instead of "Card purchase"',
-  'AED 1,938.41 has been debited from your account no. 095-XXX11XXX-01 SEWA NO.-8765. The available balance is AED 10,206.68.',
+  'AED 1,938.41 has been debited from your account no. 095-XXX11XXX-01 SEWA NO.-8765. The available balance is AED 7,587.88.',
   { merchant: 'SEWA', category: 'utilities', type: 'expense' });
 
 t('etisalat direct debit reads as telecom',
-  'AED 681.45 has been debited from your account no. 095-XXX11XXX-01 ETISALAT NO.-1849. The available balance is AED 2,499.11.',
+  'AED 681.45 has been debited from your account no. 095-XXX11XXX-01 ETISALAT NO.-1849. The available balance is AED 1,961.35.',
   { merchant: 'Etisalat', category: 'telecom' });
 
 t('a fee schedule is not a transaction',
@@ -687,15 +687,15 @@ t('a fee schedule is not a transaction',
   null);
 
 t('acquirer prefixes are stripped from the merchant',
-  'Purchase of CNY 62.2 with Credit Card ending 8575 at ALP*Taobao, Shanghai. Avl Cr. Limit is AED 15,136.25.',
+  'Purchase of CNY 62.2 with Credit Card ending 4844 at ALP*Taobao, Shanghai. Avl Cr. Limit is AED 11,186.46.',
   { merchant: 'Taobao', category: 'shopping' });
 
 t('restaurant-tech processors are dining, not "other"',
-  'Purchase of AED 313.95 with Debit Card ending 1354 at WWW GRUBTECH COM, DUBAI. Avl Balance is AED 49,575.29.',
+  'Purchase of AED 313.95 with Debit Card ending 4733 at WWW GRUBTECH COM, DUBAI. Avl Balance is AED 36,326.96.',
   { merchant: 'Grubtech', category: 'dining' });
 
 t('developer tooling has a home instead of falling to "other"',
-  'Purchase of USD 20.00 with Debit Card ending 1354 at CURSOR, AI POWERED IDE, +9715504. Avl Balance is AED 18,898.98.',
+  'Purchase of USD 20.00 with Debit Card ending 4733 at CURSOR, AI POWERED IDE, +9715504. Avl Balance is AED 13,933.26.',
   { merchant: 'Cursor', category: 'entertainment' });
 
 // Direct-debit instalments to a bank are debt servicing, not "other".
@@ -718,21 +718,21 @@ t('rent received is income',
   { type: 'income' });
 
 t('a bare article never becomes the merchant',
-  'Dear Customer, Your payment to the account number 122543 has been processed. Amount Due: AED 408.45 Amount Paid: AED 408.45',
-  { merchant: 'Payment to •2543', amountFils: 40845 });
+  'Dear Customer, Your payment to the account number 124822 has been processed. Amount Due: AED 408.45 Amount Paid: AED 408.45',
+  { merchant: 'Payment to •4822', amountFils: 40845 });
 
 // ── The second corpus from the user's phone ──
 
 // Masked figures. The bank redacts leading digits; what is left is a fragment,
 // and reading it invented a 32,031.55 purchase out of a card number.
 t('a masked amount is not a transaction',
-  'Credit Card Purchase \nCard No XXXX8722 \nUSD .00 \nen.dragonpass.com.cn Manchester GBR \n22/03/23 17:43 \nAvailable Balance AED ····0200.77',
+  'Credit Card Purchase \nCard No XXXX4777 \nUSD .00 \nen.dragonpass.com.cn Manchester GBR \n22/03/23 17:43 \nAvailable Balance AED ····0200.77',
   null);
 t('a masked amount is not a transaction (local currency)',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED ····0000.00 \neToro ME LTD etoro ARE \n26/01/26 10:58 \nAvl Bal AED 3582.39',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED ····0000.00 \neToro ME LTD etoro ARE \n26/01/26 10:58 \nAvl Bal AED 2752.14',
   null);
 const maskedBal = parseSms(
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 267.00 \nOFF PRICE GENERAL TRAD SHARJAH ARE \n11/07/26 19:38 \nAvl Bal AED ····9235.93',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 267.00 \nOFF PRICE GENERAL TRAD SHARJAH ARE \n11/07/26 19:38 \nAvl Bal AED ····9235.93',
 );
 if (maskedBal && maskedBal.amountFils === 26700 && maskedBal.snapshotFils === null) {
   pass++; console.log('✓ a masked balance is not reported as a balance');
@@ -741,41 +741,41 @@ if (maskedBal && maskedBal.amountFils === 26700 && maskedBal.snapshotFils === nu
 // qlub is the UAE QR table-payment platform: it appends itself to the venue's
 // own name, so every descriptor carrying it is a restaurant bill.
 t('a qlub descriptor is a restaurant bill',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 722.67 \nKokoro qlub, sharjah sharjah ARE \n15/05/26 18:45 \nAvl Bal AED 6587.91',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 722.67 \nKokoro qlub, sharjah sharjah ARE \n15/05/26 18:45 \nAvl Bal AED 4946.17',
   { merchant: 'Kokoro Qlub', category: 'dining', amountFils: 72267 });
 t('qlub glued to the venue name still reads as dining',
-  'Purchase of AED 456.93 with Debit Card ending 1354 at LaBoheme-Muntazahqlub, Sharjah. Avl Balance is AED 19,796.59.',
+  'Purchase of AED 456.93 with Debit Card ending 4733 at LaBoheme-Muntazahqlub, Sharjah. Avl Balance is AED 14,588.51.',
   { category: 'dining', amountFils: 45693 });
 
 // Descriptors the merchant used to be thrown away from entirely.
 t('a leading % is part of the brand',
-  'Purchase of AED 40.00 with Debit Card ending 1354 at % ARABICA, DUBAI. Avl Balance is AED 7,476.59.',
+  'Purchase of AED 40.00 with Debit Card ending 4733 at % ARABICA, DUBAI. Avl Balance is AED 5,594.91.',
   { merchant: '% Arabica', category: 'dining' });
 t('an acquirer terminal ID is not part of the shop name',
-  'Purchase of AED 86.10 with Debit Card ending 8783 at BLOOMFIELD TREAT-····5814, JLT DUBAI. Avl Balance is AED 8,946.97.',
+  'Purchase of AED 86.10 with Debit Card ending 4744 at BLOOMFIELD TREAT-····5814, JLT DUBAI. Avl Balance is AED 6,668.29.',
   { merchant: 'Bloomfield Treat', amountFils: 8610 });
 t('a padded location block is not part of the shop name',
-  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX8421 \nUSD 200.00 \nEXINITY ME LTD        Dubai           AE \n06/10/25 17:51',
+  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX4799 \nUSD 200.00 \nEXINITY ME LTD        Dubai           AE \n06/10/25 17:51',
   { merchant: 'Exinity Me Ltd' });
 t('a descriptor containing PURCHASE keeps its merchant',
-  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX8335 \nAED 379.00 \nWL *STEAM PURCHASE    425-889-9642 WA US \n09/09/25 08:55',
+  'Debit Card Purchase \nDebit Account XXXX0002 \nCard XXXX4811 \nAED 379.00 \nWL *STEAM PURCHASE    425-889-9642 WA US \n09/09/25 08:55',
   { merchant: 'Steam', category: 'entertainment', amountFils: 37900 });
 t('a glued emirate suffix does not split one shop into two',
-  'Your credit card xxx2518 was used for AED 150.00 on 18/07/2026 20:07:52 at AL NIMAR AL ABYADHdSHARJAH- AE. Available credit limit is now AED 2189.45.',
+  'Your credit card xxx4766 was used for AED 150.00 on 18/07/2026 20:07:52 at AL NIMAR AL ABYADHdSHARJAH- AE. Available credit limit is now AED 2189.45.',
   { merchant: 'Al Nimar Al Abyadh', amountFils: 15000 });
 t('a payment-link gateway is not the merchant',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 250.00 \nZiina  *qasr al zain m Sharjah ARE \n29/05/26 12:39',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 250.00 \nZiina  *qasr al zain m Sharjah ARE \n29/05/26 12:39',
   { merchant: 'Qasr Al Zain M' });
 t('a .com merchant keeps its domain',
-  'Purchase of USD 84.00 with Debit Card ending 1354 at Name.com, Inc, 720-2374. Avl Balance is AED 19,422.45.',
+  'Purchase of USD 84.00 with Debit Card ending 4733 at Name.com, Inc, 720-2374. Avl Balance is AED 14,315.39.',
   { merchant: 'Name.com' });
 
 // Transfer rails name the rail, not a shop.
 t('a FastPay transfer names the person',
-  'Dear Naser Naze, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Mohammad Nazem. If this is not you; contact us immediately.',
-  { merchant: 'Transfer to Mohammad Nazem', amountFils: 75000 });
+  'Dear Ahmed Salem, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Khalid Rashid. If this is not you; contact us immediately.',
+  { merchant: 'Transfer to Khalid Rashid', amountFils: 75000 });
 t('a mobile-banking IBAN transfer is a bank transfer',
-  'AED 36.00 has been debited from your account no. 095XXX11XXX01 MOBILE BANKING TRANSFER TO AE····0021XXX85XXX01. The available balance is AED 35,716.17.',
+  'AED 36.00 has been debited from your account no. 095XXX11XXX01 MOBILE BANKING TRANSFER TO AE····0021XXX85XXX01. The available balance is AED 26,209.80.',
   { merchant: 'Bank transfer', amountFils: 3600 });
 t('an in-app fund transfer is an outgoing transfer',
   'Dear Customer, AED 50.00 has been deducted from your account 2501 for Fund Transfer through Liv app.',
@@ -798,45 +798,45 @@ if (legTransfer && legTransfer.merchant === 'Outgoing transfer' && legTransfer.t
 } else { fail++; console.log('✗ an unnamed outgoing transfer is a transfer', JSON.stringify(legTransfer && { m: legTransfer.merchant, t: legTransfer.transferHint })); }
 
 // ...but a transfer that names a person really did leave, so it stays an expense.
-const toPerson = parseSms('Dear Naser Naze, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Mohammad Nazem.');
-if (toPerson && toPerson.merchant === 'Transfer to Mohammad Nazem' && toPerson.transferHint === false) {
+const toPerson = parseSms('Dear Ahmed Salem, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Khalid Rashid.');
+if (toPerson && toPerson.merchant === 'Transfer to Khalid Rashid' && toPerson.transferHint === false) {
   pass++; console.log('✓ a transfer naming a person stays an expense');
 } else { fail++; console.log('✗ a transfer naming a person stays an expense', JSON.stringify(toPerson && { m: toPerson.merchant, t: toPerson.transferHint })); }
 
 // Transliterated Arabic trade words: translations, not guesses about shops.
 t('aseer is juice, so it is dining',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 12.00 \nAL ASEER AL MALAKI FO SHARJAH ARE \n07/07/26 18:42',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 12.00 \nAL ASEER AL MALAKI FO SHARJAH ARE \n07/07/26 18:42',
   { category: 'dining' });
 t('thimar is fruit, so it is groceries',
-  'Credit Card Purchase \nCard No XXXX3749 \nAED 5.00 \nAL THIMAR AL LIBNANIA SHARJAH ARE \n09/07/26 19:16',
+  'Credit Card Purchase \nCard No XXXX4711 \nAED 5.00 \nAL THIMAR AL LIBNANIA SHARJAH ARE \n09/07/26 19:16',
   { category: 'groceries' });
 t('saydaliya is a pharmacy',
-  'Purchase of AED 45.00 with Debit Card ending 1354 at AL NOOR SAYDALIYA, SHARJAH. Avl Balance is AED 1,000.00.',
+  'Purchase of AED 45.00 with Debit Card ending 4733 at AL NOOR SAYDALIYA, SHARJAH. Avl Balance is AED 867.00.',
   { category: 'health' });
 
 // Categories that had no entry at all.
 t('YouTube Premium is entertainment',
-  'Purchase of AED 23.99 with Debit Card ending 8783 at GOOGLE*YOUTUBEPREMIUM, G.CO HELPPAY#. Avl Balance is AED 1,393.79.',
+  'Purchase of AED 23.99 with Debit Card ending 4744 at GOOGLE*YOUTUBEPREMIUM, G.CO HELPPAY#. Avl Balance is AED 1,154.47.',
   { merchant: 'YouTube Premium', category: 'entertainment' });
 t('the full RTA name is transport',
-  'Purchase of AED 10.50 with Debit Card ending 9417 at ROAD & TRANSPORT AUTH, DUBAI. Avl Balance is AED 218.49.',
+  'Purchase of AED 10.50 with Debit Card ending 4755 at ROAD & TRANSPORT AUTH, DUBAI. Avl Balance is AED 296.50.',
   { category: 'transport' });
 t('an Apple bill is entertainment',
-  'Payment of AED 3.99 to APPLE.COM/BILL with Credit Card ending 8917. Avl Cr. Limit is AED 20,371.82.',
+  'Payment of AED 3.99 to APPLE.COM/BILL with Credit Card ending 4722. Avl Cr. Limit is AED 15,008.43.',
   { merchant: 'Apple', category: 'entertainment' });
 t('dietary supplements are health',
-  'Purchase of AED 13.04 with Debit Card ending 1354 at PUZZLE DIETARY SUPP BR, SHARJAH. Avl Balance is AED 28,112.95.',
+  'Purchase of AED 13.04 with Debit Card ending 4733 at PUZZLE DIETARY SUPP BR, SHARJAH. Avl Balance is AED 20,659.45.',
   { category: 'health' });
 
 t('SPRM is a supermarket',
-  'Purchase of AED 10.00 with Debit Card ending 8783 at NEW STAR FAMILIES SPRM, DUBAI. Avl Balance is AED 6,747.70.',
+  'Purchase of AED 10.00 with Debit Card ending 4744 at NEW STAR FAMILIES SPRM, DUBAI. Avl Balance is AED 5,062.82.',
   { category: 'groceries' });
 
 // ── Guess rather than dump in "other" ──
 // Corrections are permanent now, so a wrong guess costs one tap while an
 // "other" row costs a cluttered bucket forever.
 const shop = (name, place) =>
-  `Purchase of AED 42.00 with Debit Card ending 8783 at ${name}, ${place}. Avl Balance is AED 972.01.`;
+  `Purchase of AED 42.00 with Debit Card ending 4744 at ${name}, ${place}. Avl Balance is AED 846.57.`;
 
 t('aseer time is a restaurant', shop('ASEER TIME', 'AJMAN'), { category: 'dining' });
 t('alpha flight service is airport catering', shop('ALPHA FLIGHT SERVICE', 'SHARJAH'), { category: 'dining' });
@@ -860,7 +860,7 @@ t('a roastery in City Walk is dining, not entertainment',
 
 // ── Dates: a wrong date files a transaction in the wrong month ──
 t('impossible calendar date is rejected, not rolled into the next month',
-  'Purchase of AED 90.00 with Credit Card ending 4499 at LULU on 30/02/2026',
+  'Purchase of AED 90.00 with Credit Card ending 4833 at LULU on 30/02/2026',
   { date: null });
 
 t('unresolvable numeric date still falls through to the named-month form',
@@ -868,19 +868,19 @@ t('unresolvable numeric date still falls through to the named-month form',
   { date: '2026-07-19' });
 
 t('US-style MM/DD resolves when it has no DD/MM reading',
-  'Purchase of AED 250.00 with Credit Card ending 4499 at CARREFOUR on 12/25/2026',
+  'Purchase of AED 250.00 with Credit Card ending 4833 at CARREFOUR on 12/25/2026',
   { date: '2026-12-25' });
 
 t('DD/MM still wins when both readings are valid',
-  'Purchase of AED 250.00 with Credit Card ending 4499 at CARREFOUR on 05/06/2026',
+  'Purchase of AED 250.00 with Credit Card ending 4833 at CARREFOUR on 05/06/2026',
   { date: '2026-06-05' });
 
 t('leap day parses',
-  'Purchase of AED 10.00 with Credit Card ending 4499 at LULU on 29/02/2024',
+  'Purchase of AED 10.00 with Credit Card ending 4833 at LULU on 29/02/2024',
   { date: '2024-02-29' });
 
 t('29 Feb in a non-leap year is rejected',
-  'Purchase of AED 10.00 with Credit Card ending 4499 at LULU on 29/02/2025',
+  'Purchase of AED 10.00 with Credit Card ending 4833 at LULU on 29/02/2025',
   { date: null });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -456,7 +456,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // Pre-onboarding builds stored data without the flag; count them as onboarded.
           if (parsed.onboarded === undefined) parsed.onboarded = true;
           // Repair rows imported before the masked-PAN parser fix: titles like
-          // "4782********4499 Has Bee..." are card settlements, not spending.
+          // "4782********4833 Has Bee..." are card settlements, not spending.
           if (parsed.transactions) {
             parsed.transactions = parsed.transactions
               .map((t) =>

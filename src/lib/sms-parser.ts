@@ -105,7 +105,7 @@ function ensureCurrencyPatterns(): void {
     `purchase|debit(?:ed)?|deducted|spent|paid|payment(?!\\s+(?:due|of\\s+(?:${CUR})[\\d,. ]+(?:is\\s+)?received))|withdraw(?:n|al)?|was used|charged`, 'i');
   const codes = Object.keys(UNITS_PER_USD).filter((c) => c !== m.currency.code).join('|');
   FX_PREFIX_RE = new RegExp(`\\b(${codes})[^\\S\\r\\n]*([\\d,]+(?:\\.\\d{1,2})?)`, 'i');
-  // Same line only. "Card No XXXX8722 \n USD .00" used to read the card's last
+  // Same line only. "Card No XXXX4777 \n USD .00" used to read the card's last
   // four digits as USD 8,722 and file a 32,031.55 purchase for a message whose
   // amount was masked out entirely.
   FX_SUFFIX_RE = new RegExp(`([\\d,]+(?:\\.\\d{1,2})?)[^\\S\\r\\n]*(${codes})\\b`, 'i');
@@ -113,7 +113,7 @@ function ensureCurrencyPatterns(): void {
 
 /**
  * Banks redact the leading digits of a figure: "Avl Bal AED ····9235.93",
- * "AED ····0000.00", "Card No XXXX8722". What survives is a FRAGMENT, not the
+ * "AED ····0000.00", "Card No XXXX4777". What survives is a FRAGMENT, not the
  * number. Reading it recorded a 9,235.93 balance for an account that might
  * hold 129,235.93, so any figure whose digits are preceded by a mask run is
  * unknowable and gets dropped rather than guessed.
@@ -161,7 +161,7 @@ const BALANCE_PREFIX_RE = /(?:bal(?:ance)?|avl|avail(?:able)?|limit|outstanding|
 const CARD_RE = /(credit|debit)?\s*card(?:\s*(?:no\.?|number))?\s*(?:ending(?:\s+(?:in|with))?|\.\.+|x+|\*+)?\s*(\d{4})\b/i;
 const ACCOUNT_RE =
   /a\/?c(?:count)?\s*(?:no\.?|number)?\s*(?:ending(?:\s+in)?|\.\.+|x+|\*+|[·•]+)?\s*(\d{4})\b/i;
-/** Fully masked PAN like "4782********4499" — the LAST four digits identify the card. */
+/** Fully masked PAN like "4782********4833" — the LAST four digits identify the card. */
 const MASKED_PAN_RE = /\b\d{4,6}[Xx*•]{2,}(\d{4})\b/;
 
 const MERCHANT_STOP =
@@ -192,7 +192,7 @@ const DEPOSIT_RE = /cash\s+deposit|\bcdm\b|deposit(?:ed)?\s+(?:in|into|to)\b/i;
 /**
  * Multi-line bank formats put the merchant on its own line with no
  * preposition at all:
- *   Credit Card Purchase / Card No XXXX3749 / EUR 2.99 /
+ *   Credit Card Purchase / Card No XXXX4711 / EUR 2.99 /
  *   ALLDEBRID.COM MONTROUGE FRA / 03/07/26 05:53 / Avl Bal AED 13107.74
  * The first line after the amount line that isn't a date, card, or balance
  * line is the merchant descriptor.
@@ -481,7 +481,7 @@ function extractMerchant(raw: string, re: RegExp): string {
     if (/^\d+$/.test(candidate)) continue; // bare digits are a card number, not a merchant
     if (/\d{4}[Xx*•]{2,}/.test(candidate) || /^\d{6,}/.test(candidate)) continue; // masked PANs
     if ((candidate.match(/[A-Za-z]/g) ?? []).length < 3) continue; // account numbers, "AED 1"
-    // "your payment to the account number 2543" stops at "account", leaving a
+    // "your payment to the account number 4822" stops at "account", leaving a
     // bare article as the merchant. A row titled "The" helps nobody.
     if (/^(?:the|this|that|your|our|an?|and|for|to)$/i.test(candidate)) continue;
     if (/^\d+\s+(?:month|day|week|year|hr|hour|min)/i.test(candidate)) continue; // "up to 12 months"
@@ -550,7 +550,7 @@ function extractSnapshot(raw: string): { fils: number; kind: SnapshotKind } | nu
 
 function extractCard(raw: string): ParsedCard | null {
   // Masked PANs first: CARD_RE would otherwise grab the FIRST four digits of
-  // "Credit Card 4782********4499" as the identity.
+  // "Credit Card 4782********4833" as the identity.
   const masked = raw.match(MASKED_PAN_RE);
   if (masked) {
     return { last4: masked[1], kind: /credit/i.test(raw) ? 'credit' : 'debit' };
@@ -559,7 +559,7 @@ function extractCard(raw: string): ParsedCard | null {
   if (cardMatch) {
     const kindWord = cardMatch[1]?.toLowerCase();
     // Multi-line formats say "Credit Card Purchase" in the header and
-    // "Card No XXXX3749" further down — when the number clause carries no
+    // "Card No XXXX4711" further down — when the number clause carries no
     // kind word, look at the whole message before assuming debit.
     const kind =
       kindWord === 'credit' || (!kindWord && /credit\s+card/i.test(raw))
@@ -723,7 +723,7 @@ export function parseSms(
   }
 
   // FAB-style card bill payment from the bank-account side:
-  //   "Your payment instructions of AED 7,663.94 to 5492********3749 has
+  //   "Your payment instructions of AED 7,663.94 to 5492********4711 has
   //    been processed" — a transfer onto the card, never spending.
   if (/payment\s+instructions?\s+of/i.test(raw)) {
     const masked = raw.match(MASKED_PAN_RE);
@@ -749,12 +749,12 @@ export function parseSms(
   }
 
   // Bill-pay through the bank: "Your payment instructions of AED 313.95 to
-  // fbinter for consumer number 4026 has been processed".
+  // homeinet for consumer number 4026 has been processed".
   //
   // "for consumer number" is the tell, and it is decisive: this is a
   // registered biller, so the payment is a bill. The payee is a nickname the
-  // user chose when they set the biller up (fbinter, nazemhome, Emphome,
-  // Fishbasket), which means no vocabulary can ever classify it and adding
+  // user chose when they set the biller up (homeinet, apthome, Offhome,
+  // Villabill), which means no vocabulary can ever classify it and adding
   // names to a list would be endless. The structure is what we recognise;
   // the name becomes the title, and one correction from the user pins the
   // category for that payee forever.
@@ -816,7 +816,7 @@ export function parseSms(
   }
 
   // Biller-portal receipt, sent as a labelled block:
-  //   Your payment to the account number ····2543 has been processed.
+  //   Your payment to the account number ····4822 has been processed.
   //   Amount Due: AED 408.45 / Amount Paid: AED 408.45 / Remaining Balance: 0
   // "Amount Paid" is the figure that moved; "Amount Due" only happens to equal
   // it when the bill was settled in full. Naming the account beats the generic
@@ -994,10 +994,10 @@ export function parseSms(
     if (svc) merchant = svc;
   }
   // Transfer rails name the rail, not a shop: "for a FastPay transfer to
-  // Mohammad Nazem", "MOBILE BANKING TRANSFER TO AE····0021...", "for Fund
+  // Khalid Rashid", "MOBILE BANKING TRANSFER TO AE····0021...", "for Fund
   // Transfer through Liv app". The money did leave, so these stay expenses —
   // but calling them "Card purchase" was wrong twice over, and a row that
-  // reads "Transfer to Mohammad Nazem" needs no category at all.
+  // reads "Transfer to Khalid Rashid" needs no category at all.
   let structuralMerchant = false;
   if (!isBillDue && type === 'expense') {
     const named = raw.match(
@@ -1085,7 +1085,7 @@ export function parseSms(
   // A transfer the bank never gave a payee for is money moving between your
   // own places, not spending. The bank sends BOTH legs of a card settlement —
   // "instant transfer AED 10,089" and "payment instructions ... to
-  // 5492****4499" — and with only the second leg flagged, the same 10,089 was
+  // 5492****4833" — and with only the second leg flagged, the same 10,089 was
   // counted once as a transfer and once as spending, on the same day.
   //
   // A transfer that DOES name a person keeps its "Transfer to <name>" title
