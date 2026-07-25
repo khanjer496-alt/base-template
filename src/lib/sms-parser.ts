@@ -283,6 +283,17 @@ const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   // "BreakbyMara-AlJqlub"). Every descriptor carrying it is a restaurant bill,
   // whatever the venue is called — nine of them sat in Other.
   [/qlub|grubtech|\botter\b|carriage|deliveryhero|delivery hero|talabat|maxzigoodfood|alsafadi|wardt alsham|al tahadi|la barra|brass monkey|si italiano|tareeq al khalidiah|aseer time|nightjar|alpha flight|kitopi|new star families(?! sprm)/i, 'dining'],
+  // Transliterated Arabic trade words. Half the descriptors on a UAE card
+  // statement are Arabic shop names in Latin letters, and an English-only
+  // vocabulary can never read them — which is why so much landed in Other.
+  //
+  // These are translations, not guesses about particular shops: aseer is
+  // juice, mataam is restaurant, makhbaz is bakery. The English equivalents
+  // (juice, restaurant, bakery) are already in the rules above; this is the
+  // same vocabulary written the way the acquirer prints it.
+  [/\baseer\b|\bmataam\b|\bmat3am\b|\bmakhbaz\b|\bmakhbz\b|\bfurn\b|hal[ae]w[iy]?[ay]{1,2}t|\bhalawa\b|\bqahwa\b|\bgahwa\b|\bmashawi\b|\bmeshwi\b|\bmashwi\b|\bfatayer\b|\bfattayer\b|\bsaj\b|\bmandi\b|\bmatbakh\b/i, 'dining'],
+  [/\bthimar\b|\bthimaar\b|\bkhudar\b|\bkhodar\b|\bkhudra\b|\blahm\b|\blahom\b|\bleham\b|\blahham\b|\bsamak\b|\bdajaj\b|\bdajaaj\b|\bbaqal\w*|\bbakal[ae]\b|\btamoor\b/i, 'groceries'],
+  [/\bsaydal\w*|\bsaidal\w*|\bsydal\w*/i, 'health'],
   // AliPay / WeChat descriptors are marketplace purchases.
   [/\balp\*|weixin\*|taobao|otherretail|guangdong|personalservices/i, 'shopping'],
   // Brokerages and crypto on-ramps are moving money, not spending it.
@@ -477,6 +488,18 @@ function extractMerchant(raw: string, re: RegExp): string {
     if (/^acc[\s/]|^a\/?c\b|^cr\.?\s*card/i.test(candidate)) continue; // "from Acc/Cr.Card ..."
     if (/^(?:aed|dhs|sar|usd|eur|gbp)\b/i.test(candidate)) continue;
     if (/^www\.?$/i.test(candidate)) continue; // "at WWW.GRAB.COM" stops at the dot
+    // Marketing sentences hide behind the same "to"/"for" the merchant uses:
+    // "log in to View Your Statement", "pay now to Avoid Charges". Rows
+    // titled "View Your Statement" and "Avoid Charges" were the result.
+    // A descriptor never opens with an imperative or names the reader.
+    if (
+      /^(?:avoid|view|check|see|click|visit|call|contact|update|verify|confirm|download|enjoy|get|earn|save|know|learn|read|use|pay|activate|renew|register|apply|explore|discover|manage|track|start|join|book|order|shop|win|claim|reply|dial|send|scan|tap|switch|upgrade|unlock|redeem|collect|refer|share|follow|subscribe|opt)\b/i.test(
+        candidate,
+      )
+    ) {
+      continue;
+    }
+    if (/\b(?:you|your|yours|which|whom|we|our|us|they|their)\b/i.test(candidate)) continue;
     if (candidate) return candidate;
     if (re.lastIndex === match.index) re.lastIndex++;
   }
@@ -939,7 +962,7 @@ export function parseSms(
   } else {
     merchant = extractMerchant(raw, MERCHANT_RE);
   }
-  const transferHint = !isBillDue && TRANSFER_HINT_RE.test(raw);
+  let transferHint = !isBillDue && TRANSFER_HINT_RE.test(raw);
   descriptor = merchant;
   merchant = merchant
     .replace(/\s*\([^)]*\)?\s*/g, ' ') // "noon Food(Noon ECommerce)" → "noon Food"
@@ -1058,6 +1081,17 @@ export function parseSms(
   // ATM messages usually name a location; the row is still a cash withdrawal.
   if (!isBillDue && type === 'expense' && !transferHint && ATM_RE.test(raw)) {
     merchant = 'ATM withdrawal';
+  }
+  // A transfer the bank never gave a payee for is money moving between your
+  // own places, not spending. The bank sends BOTH legs of a card settlement —
+  // "instant transfer AED 10,089" and "payment instructions ... to
+  // 5492****4499" — and with only the second leg flagged, the same 10,089 was
+  // counted once as a transfer and once as spending, on the same day.
+  //
+  // A transfer that DOES name a person keeps its "Transfer to <name>" title
+  // and stays an expense, because that money really did leave.
+  if (merchant === 'Outgoing transfer' || merchant === 'Incoming transfer' || merchant === 'Bank transfer') {
+    transferHint = true;
   }
 
   return {

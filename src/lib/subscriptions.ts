@@ -107,11 +107,31 @@ export function detectSubscriptions(
       else charges.push({ ...t });
     }
 
+    // A utility bill is recurring precisely BECAUSE it is a bill, and its
+    // amount is never stable — SEWA is 280 one month and 450 the next. The
+    // ±15% gate below is the right test for a subscription and the wrong one
+    // for a bill, and applying it to both left the Utilities tab empty for a
+    // user who pays four of them every month. For these, cadence alone is the
+    // evidence.
+    const billLike =
+      charges[charges.length - 1].category === 'utilities' ||
+      charges[charges.length - 1].category === 'telecom' ||
+      charges[charges.length - 1].category === 'rent' ||
+      charges[charges.length - 1].category === 'loan';
+
     const amounts = charges.map((c) => c.amountFils);
     const mid = median(amounts);
     if (mid <= 0) continue;
     const stable = amounts.every((a) => a >= mid * 0.85 && a <= mid * 1.15);
-    if (!stable && !known) continue;
+    if (!stable && !known && !billLike) continue;
+
+    // Known merchants skip the stability gate, which let a single misparsed
+    // charge set the price: one bad row put Canva on the list at AED 18,313 a
+    // month. The typical charge is what the subscription costs, so anything
+    // more than 3x or less than a third of the median is an outlier and takes
+    // no part in the average or the price-rise comparison.
+    const typical = amounts.filter((a) => a >= mid / 3 && a <= mid * 3);
+    if (typical.length === 0) continue;
 
     const gaps: number[] = [];
     for (let i = 1; i < charges.length; i++) {
@@ -134,15 +154,17 @@ export function detectSubscriptions(
     // Prime Video rental or a one-off app-store purchase, and an imaginary
     // monthly commitment is worse than a real one surfacing a cycle late.
     // Known merchants still get the easier bar: one interval rather than two.
-    const requiredIntervals = known ? 1 : 2;
+    const requiredIntervals = known || billLike ? 1 : 2;
     if (!window || gaps.length < requiredIntervals) continue;
 
     const last = charges[charges.length - 1];
-    const priorAmounts = amounts.slice(0, -1);
-    const priorAvg = priorAmounts.length
-      ? priorAmounts.reduce((s, a) => s + a, 0) / priorAmounts.length
-      : last.amountFils;
-    const avg = Math.round(amounts.reduce((s, a) => s + a, 0) / amounts.length);
+    // Compare against the MEDIAN of prior charges, and only once there are at
+    // least two of them. A mean over one prorated first charge made every
+    // steady subscription look like a price rise — Google One was flagged
+    // "price up" in a month its price went down.
+    const priorAmounts = amounts.slice(0, -1).filter((a) => a >= mid / 3 && a <= mid * 3);
+    const priorTypical = priorAmounts.length ? median(priorAmounts) : last.amountFils;
+    const avg = Math.round(typical.reduce((s, a) => s + a, 0) / typical.length);
     const monthlyEquivalentFils =
       window.cadence === 'monthly'
         ? avg
@@ -175,7 +197,7 @@ export function detectSubscriptions(
       lastChargedISO: last.date,
       nextExpectedISO: addDays(last.date, window.typicalDays),
       chargeCount: charges.length,
-      priceIncreased: priorAmounts.length > 0 && last.amountFils > priorAvg * 1.1,
+      priceIncreased: priorAmounts.length >= 2 && last.amountFils > priorTypical * 1.1,
       monthlyEquivalentFils,
     });
   }

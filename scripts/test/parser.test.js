@@ -781,6 +781,39 @@ t('an in-app fund transfer is an outgoing transfer',
   'Dear Customer, AED 50.00 has been deducted from your account 2501 for Fund Transfer through Liv app.',
   { merchant: 'Outgoing transfer', amountFils: 5000 });
 
+// Marketing sentences hide behind the same "to"/"for" the merchant uses.
+t('an imperative is never the merchant',
+  'AED 3,685.00 has been debited from your account. Pay now to Avoid Charges on your card.',
+  { merchant: 'Account debit' });
+t('a sentence naming the reader is never the merchant',
+  'AED 1,179.00 has been debited from your Emirates NBD account. Log in to View Your Statement.',
+  { merchant: 'Account debit' });
+
+// Both legs of a card settlement arrive as separate SMS. An unnamed transfer
+// is money moving between your own places, so it must not count as spending
+// on top of the card payment it pairs with.
+const legTransfer = parseSms('AED 10,089.00 instant transfer was debited from your account XX9012 on 12/07/2026.');
+if (legTransfer && legTransfer.merchant === 'Outgoing transfer' && legTransfer.transferHint === true) {
+  pass++; console.log('✓ an unnamed outgoing transfer is a transfer, not spending');
+} else { fail++; console.log('✗ an unnamed outgoing transfer is a transfer', JSON.stringify(legTransfer && { m: legTransfer.merchant, t: legTransfer.transferHint })); }
+
+// ...but a transfer that names a person really did leave, so it stays an expense.
+const toPerson = parseSms('Dear Naser Naze, AED 750.00 has been debited from your Saving Bank Account ending with 2501 for a FastPay transfer to Mohammad Nazem.');
+if (toPerson && toPerson.merchant === 'Transfer to Mohammad Nazem' && toPerson.transferHint === false) {
+  pass++; console.log('✓ a transfer naming a person stays an expense');
+} else { fail++; console.log('✗ a transfer naming a person stays an expense', JSON.stringify(toPerson && { m: toPerson.merchant, t: toPerson.transferHint })); }
+
+// Transliterated Arabic trade words: translations, not guesses about shops.
+t('aseer is juice, so it is dining',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 12.00 \nAL ASEER AL MALAKI FO SHARJAH ARE \n07/07/26 18:42',
+  { category: 'dining' });
+t('thimar is fruit, so it is groceries',
+  'Credit Card Purchase \nCard No XXXX3749 \nAED 5.00 \nAL THIMAR AL LIBNANIA SHARJAH ARE \n09/07/26 19:16',
+  { category: 'groceries' });
+t('saydaliya is a pharmacy',
+  'Purchase of AED 45.00 with Debit Card ending 1354 at AL NOOR SAYDALIYA, SHARJAH. Avl Balance is AED 1,000.00.',
+  { category: 'health' });
+
 // Categories that had no entry at all.
 t('YouTube Premium is entertainment',
   'Purchase of AED 23.99 with Debit Card ending 8783 at GOOGLE*YOUTUBEPREMIUM, G.CO HELPPAY#. Avl Balance is AED 1,393.79.',

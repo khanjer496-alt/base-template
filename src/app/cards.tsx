@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +24,15 @@ export default function CardsScreen() {
   const now = useMemo(() => new Date(), []);
   const [showInactive, setShowInactive] = useState(false);
   const [detail, setDetail] = useState<Account | null>(null);
+
+  // Opened from a due row on the Bills tab: land straight on that card's
+  // statements and payment history rather than on the grid.
+  const { card: cardParam } = useLocalSearchParams<{ card?: string }>();
+  useEffect(() => {
+    if (!cardParam) return;
+    const target = state.accounts.find((a) => a.id === cardParam);
+    if (target) setDetail(target);
+  }, [cardParam, state.accounts]);
 
   /**
    * Everything about the tapped card that lives outside the tile: its

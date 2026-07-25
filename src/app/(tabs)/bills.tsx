@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -39,6 +40,7 @@ type Segment = 'subscriptions' | 'cards' | 'utilities';
 
 export default function BillsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { state, addBill, deleteBill, markBillPaid, setNotSubscription, payCardDue } = useStore();
 
   const now = useMemo(() => new Date(), []);
@@ -337,8 +339,14 @@ export default function BillsScreen() {
                 const account = state.accounts.find((a) => a.id === due.accountId);
                 const urgent = status === 'urgent' || status === 'overdue';
                 return (
-                  <View
+                  // The whole row opens the card's statements and payment
+                  // history; only "Mark paid" is a separate target. A due with
+                  // no way to see what it is made of is just a number.
+                  <Pressable
                     key={due.id}
+                    onPress={() =>
+                      router.push({ pathname: '/cards', params: { card: due.accountId } })
+                    }
                     style={[
                       styles.dueRow,
                       i > 0 && {
@@ -367,6 +375,7 @@ export default function BillsScreen() {
                         {formatAED(remainingFils, { decimals: false })}
                       </ThemedText>
                       <Pressable
+                        hitSlop={8}
                         onPress={() =>
                           onPayDue(due.id, remainingFils, due.accountId, account?.name ?? 'Card')
                         }>
@@ -375,7 +384,7 @@ export default function BillsScreen() {
                         </ThemedText>
                       </Pressable>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
               {dues.length === 0 && (

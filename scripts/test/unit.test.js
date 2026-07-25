@@ -578,6 +578,50 @@ ok('bills: a row whose title normalizes to nothing never marks a bill paid',
     new Date(2026, 6, 6),
   )[0].status !== 'paid');
 
+// ── Recurring detection: bills vs subscriptions ──
+const mkTx = (title, category, amountFils, date, i) => ({
+  id: `r${title}${i}`, type: 'expense', isTransfer: false, accountId: 'a1',
+  amountFils, date, category, title, source: 'sms',
+});
+
+// A utility bill's amount is never stable — that IS what a utility bill is.
+// Requiring ±15% stability left the Utilities tab empty for someone paying
+// four of them a month.
+const sewa = ['2026-04-10', '2026-05-11', '2026-06-10', '2026-07-10'].map((d, i) =>
+  mkTx('SEWA', 'utilities', [28000, 45300, 31200, 52000][i], d, i));
+const sewaFound = subsLib.detectSubscriptions(sewa, [], new Date(2026, 6, 25));
+ok('recurring: a utility with swinging amounts is still detected',
+  sewaFound.length === 1 && sewaFound[0].group === 'utility');
+
+// ...but an unstable NON-bill merchant is still just repeat shopping.
+const shop = ['2026-04-10', '2026-05-11', '2026-06-10', '2026-07-10'].map((d, i) =>
+  mkTx('Corner Shop', 'groceries', [1200, 9800, 3100, 20400][i], d, i));
+ok('recurring: an unstable shop is not a subscription',
+  subsLib.detectSubscriptions(shop, [], new Date(2026, 6, 25)).length === 0);
+
+// One misparsed charge must not set the price. Canva appeared at AED 18,313/mo
+// because known merchants skipped the stability gate entirely.
+const canva = ['2026-03-18', '2026-04-18', '2026-05-18', '2026-06-18'].map((d, i) =>
+  mkTx('Canva', 'entertainment', [5500, 5500, 1831300, 5500][i], d, i));
+const canvaFound = subsLib.detectSubscriptions(canva, [], new Date(2026, 6, 25));
+ok('recurring: an outlier charge does not become the price',
+  canvaFound.length === 1 && canvaFound[0].avgAmountFils === 5500);
+
+// A single low first charge (proration) made every steady service read as a
+// price rise — Google One was flagged "price up" the month it went down.
+const gone = ['2026-04-02', '2026-05-02', '2026-06-02', '2026-07-02'].map((d, i) =>
+  mkTx('Google One', 'entertainment', [900, 2500, 2500, 2500][i], d, i));
+const goneFound = subsLib.detectSubscriptions(gone, [], new Date(2026, 6, 25));
+ok('recurring: a prorated first charge is not a price rise',
+  goneFound.length === 1 && goneFound[0].priceIncreased === false);
+
+// A real rise still reports.
+const rise = ['2026-04-02', '2026-05-02', '2026-06-02', '2026-07-02'].map((d, i) =>
+  mkTx('Netflix', 'entertainment', [4000, 4000, 4000, 5600][i], d, i));
+const riseFound = subsLib.detectSubscriptions(rise, [], new Date(2026, 6, 25));
+ok('recurring: a real price rise still reports',
+  riseFound.length === 1 && riseFound[0].priceIncreased === true);
+
 // ── Bundled brand marks ──
 const { brandMarkFor } = require('./build/brand-marks');
 
