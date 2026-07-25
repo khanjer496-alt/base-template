@@ -6,6 +6,7 @@
  * Every figure follows the app-wide reporting period; the 6-month trends stay
  * anchored to the selected month (or the current month in year/range/all).
  */
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -59,14 +60,16 @@ function MerchantLine({
   category,
   count,
   totalFils,
+  onPress,
 }: {
   title: string;
   category: CategoryId;
   count: number;
   totalFils: number;
+  onPress?: () => void;
 }) {
   return (
-    <View style={styles.merchantRow}>
+    <Pressable onPress={onPress} style={styles.merchantRow}>
       <MerchantAvatar title={title} category={category} size={34} />
       <ThemedText type="small" style={styles.merchantName} numberOfLines={1}>
         {title}
@@ -77,12 +80,14 @@ function MerchantLine({
       <ThemedText type="smallBold" tabular style={styles.merchantAmount}>
         {formatAED(totalFils, { decimals: false })}
       </ThemedText>
-    </View>
+      {onPress && <Icon name="chevron-right" size={14} color="#8a9a93" />}
+    </Pressable>
   );
 }
 
 export default function StatsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { state } = useStore();
   const now = useMemo(() => new Date(), []);
   const currentKey = monthKey(now);
@@ -283,8 +288,25 @@ export default function StatsScreen() {
                 period,
                 3,
               ).map((m) => (
-                <MerchantLine key={m.title} {...m} category={drillCategory} />
+                <MerchantLine
+                  key={m.title}
+                  {...m}
+                  category={drillCategory}
+                  onPress={() =>
+                    router.push({ pathname: '/transactions', params: { merchant: m.title } })
+                  }
+                />
               ))}
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: '/transactions', params: { category: drillCategory } })
+                }
+                style={styles.drillAllRow}>
+                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                  {t('seeAllCategoryTx')}
+                </ThemedText>
+                <Icon name="chevron-right" size={14} color={theme.primary} />
+              </Pressable>
             </Animated.View>
           )}
 
@@ -329,7 +351,12 @@ export default function StatsScreen() {
                 const meta = getCategory(m.category);
                 const up = m.deltaFils > 0;
                 return (
-                  <View key={m.category} style={styles.moverRow}>
+                  <Pressable
+                    key={m.category}
+                    onPress={() =>
+                      router.push({ pathname: '/transactions', params: { category: m.category } })
+                    }
+                    style={styles.moverRow}>
                     <View style={styles.titleWithIcon}>
                       <Icon name={meta.icon} size={14} color={meta.color} />
                       <ThemedText type="small">{meta.label}</ThemedText>
@@ -340,7 +367,7 @@ export default function StatsScreen() {
                       style={{ color: up ? theme.expense : theme.income }}>
                       {up ? '▲' : '▼'} {formatAED(Math.abs(m.deltaFils), { decimals: false })}
                     </ThemedText>
-                  </View>
+                  </Pressable>
                 );
               })}
             </Animated.View>
@@ -351,7 +378,13 @@ export default function StatsScreen() {
             <Animated.View entering={FadeInDown.delay(140).duration(350)} style={styles.sectionBlock}>
               <ThemedText type="smallBold">{t('whereMoneyWent')}</ThemedText>
               {merchants.map((m) => (
-                <MerchantLine key={m.title} {...m} />
+                <MerchantLine
+                  key={m.title}
+                  {...m}
+                  onPress={() =>
+                    router.push({ pathname: '/transactions', params: { merchant: m.title } })
+                  }
+                />
               ))}
             </Animated.View>
           )}
@@ -556,6 +589,12 @@ const styles = StyleSheet.create({
   drill: {
     gap: Spacing.two,
     paddingLeft: Spacing.two,
+  },
+  drillAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.one,
   },
   statBand: {
     flexDirection: 'row',

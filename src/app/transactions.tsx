@@ -19,7 +19,7 @@ import { Icon } from '@/components/ui/icon';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
-import { EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
+import { CATEGORIES, EXPENSE_CATEGORIES, getCategory } from '@/lib/categories';
 import { formatAED, friendlyDate, monthKey, shiftMonthKey, toISODate } from '@/lib/format';
 import { inPeriod, periodLabel } from '@/lib/period';
 import { usePeriod } from '@/lib/period-context';
@@ -58,15 +58,31 @@ export default function TransactionsScreen() {
   const router = useRouter();
   const { state } = useStore();
   const { period } = usePeriod();
-  const { source, type: typeParam } = useLocalSearchParams<{ source?: string; type?: string }>();
+  const {
+    source,
+    type: typeParam,
+    category: categoryParam,
+    merchant: merchantParam,
+  } = useLocalSearchParams<{
+    source?: string;
+    type?: string;
+    category?: string;
+    merchant?: string;
+  }>();
+  const deepCategory = CATEGORIES.find((c) => c.id === categoryParam)?.id ?? null;
 
   const [query, setQuery] = useState('');
+  // Insights merchant rows deep-link here scoped to that exact merchant.
+  const [merchantFilter, setMerchantFilter] = useState<string | null>(
+    typeof merchantParam === 'string' && merchantParam.trim() ? merchantParam.trim() : null,
+  );
   const [filters, setFilters] = useState<Filters>(() => ({
     ...DEFAULT_FILTERS,
-    categories: new Set(),
-    // reviewing an SMS import must show the new rows even if the app is
-    // scoped to a past period, so it starts unscoped
-    datePreset: source === 'sms' ? 'all' : 'selected',
+    // Insights category drill-down deep-links here pre-filtered
+    categories: deepCategory ? new Set<CategoryId>([deepCategory]) : new Set(),
+    // reviewing an SMS import (or a drill-down asking for ALL rows) must show
+    // everything even if the app is scoped to a past period, so start unscoped
+    datePreset: source === 'sms' || deepCategory || merchantParam ? 'all' : 'selected',
     // Home's In/Out figures deep-link here pre-filtered by type
     type: typeParam === 'income' || typeParam === 'expense' ? typeParam : null,
   }));
@@ -81,14 +97,17 @@ export default function TransactionsScreen() {
     (filters.accountId ? 1 : 0) +
     (filters.categories.size > 0 ? 1 : 0) +
     (filters.datePreset !== 'selected' ? 1 : 0) +
-    (filters.minFils ? 1 : 0);
+    (filters.minFils ? 1 : 0) +
+    (merchantFilter ? 1 : 0);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const lastKey = shiftMonthKey(currentKey, -1);
     const threeKey = shiftMonthKey(currentKey, -2);
+    const merchantKey = merchantFilter?.toLowerCase();
     let list = state.transactions.filter((t) => {
       if (source === 'sms' && t.source !== 'sms') return false;
+      if (merchantKey && t.title.trim().toLowerCase() !== merchantKey) return false;
       if (filters.type && t.type !== filters.type) return false;
       if (filters.accountId && t.accountId !== filters.accountId) return false;
       if (filters.categories.size > 0 && !filters.categories.has(t.category)) return false;
@@ -110,7 +129,7 @@ export default function TransactionsScreen() {
       list = [...list].reverse();
     }
     return list;
-  }, [state.transactions, query, filters, source, currentKey, period]);
+  }, [state.transactions, query, filters, source, merchantFilter, currentKey, period]);
 
   const totalShown = useMemo(
     () =>
@@ -148,7 +167,10 @@ export default function TransactionsScreen() {
     setFilters({ ...filters, categories: next });
   };
 
-  const clearFilters = () => setFilters({ ...DEFAULT_FILTERS, categories: new Set() });
+  const clearFilters = () => {
+    setMerchantFilter(null);
+    setFilters({ ...DEFAULT_FILTERS, categories: new Set() });
+  };
 
   const presetLabel: Record<DatePreset, string> = {
     selected: period.mode === 'all' ? 'Selected period' : periodLabel(period),
@@ -202,6 +224,19 @@ export default function TransactionsScreen() {
               </Pressable>
             )}
           </View>
+
+          {merchantFilter && (
+            <View style={styles.chipRow}>
+              <Pressable
+                onPress={() => setMerchantFilter(null)}
+                style={[styles.merchantChip, { backgroundColor: `${theme.primary}1c` }]}>
+                <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                  {merchantFilter}
+                </ThemedText>
+                <Icon name="close" size={13} color={theme.primary} />
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.summaryRow}>
             <ThemedText type="small" themeColor="textSecondary">
@@ -504,6 +539,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  merchantChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one + 1,
+    borderRadius: Radius.full,
   },
   summaryRight: {
     flexDirection: 'row',

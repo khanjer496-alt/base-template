@@ -55,6 +55,7 @@ const S = {
   subscriptionsSeg: { en: 'Subscriptions', ar: 'الاشتراكات' },
   remindersSeg: { en: 'Reminders', ar: 'التذكيرات' },
   cardsSeg: { en: 'Cards due', ar: 'مستحقات البطاقات' },
+  seeAllCategoryTx: { en: 'See all transactions', ar: 'عرض كل العمليات' },
   utilitiesSeg: { en: 'Utilities', ar: 'المرافق' },
   noCardDues: { en: 'No card payments due', ar: 'لا مستحقات على البطاقات' },
   noCardDuesText: {
