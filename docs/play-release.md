@@ -76,6 +76,26 @@ RECEIVE_WAP_PUSH`.
 - Policy reference:
   https://support.google.com/googleplay/android-developer/answer/10208820
 
+## Legal documents
+
+- [Privacy policy](./privacy-policy.md) — required by Play; needs a public URL
+- [Terms of use](./terms-of-use.md) — has two placeholders (legal entity,
+  jurisdiction) that must be filled before publishing
+
+Both are written against what the code actually does. Every claim in them is
+checkable, so re-read them whenever the app gains a network call, an account,
+or a cloud feature.
+
+A note on the comparison, since FinArt is the obvious model: their *marketing*
+says data never leaves the device, but their *privacy policy* states they
+collect SMS records, location, device ID, device name and model, and that
+"SMSes are also used to train our engine". That is a data-collecting product
+described accurately in the policy and loosely in the listing — which is why
+their Play Data safety card declares Personal info and Financial info
+collected. Do not model Wafra's documents on theirs: ours can claim far less
+because the app does far less, and that advantage only survives if the claims
+stay literally true.
+
 ## Data safety form answers
 
 The app makes no network requests of its own, so the honest answers are the
