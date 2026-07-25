@@ -320,6 +320,8 @@ export default function SettingsScreen() {
               {divider}
               {row('receipt', t('exportCsv'), exportCsv)}
               {divider}
+              {row('search', t('improveAccuracy'), () => router.push('/accuracy'))}
+              {divider}
               {row('spark', t('loadDemo'), () => confirmReset(true))}
               {divider}
               {row('trash', t('eraseAll'), () => confirmReset(false), true)}

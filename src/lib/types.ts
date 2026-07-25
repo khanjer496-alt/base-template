@@ -61,6 +61,12 @@ export interface Transaction {
   smsKey?: string;
   /** Credit-card payments etc — excluded from spending/income analytics. */
   isTransfer?: boolean;
+  /**
+   * Raw SMS body, kept ONLY when the parser wasn't confident (generic title
+   * or fallback category) so the user can report unrecognized formats from
+   * Settings → Improve accuracy. Never leaves the device unless shared.
+   */
+  raw?: string;
 }
 
 export interface Budget {

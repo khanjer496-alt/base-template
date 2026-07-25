@@ -86,6 +86,18 @@ const S = {
   outstanding: { en: 'outstanding', ar: 'مستحق' },
   perBankSms: { en: 'per bank SMS', ar: 'حسب رسالة البنك' },
   noBalanceYet: { en: 'no balance SMS yet', ar: 'لا رسالة رصيد بعد' },
+  improveAccuracy: { en: 'Improve accuracy', ar: 'تحسين الدقة' },
+  improveAccuracyHint: {
+    en: 'These bank messages could not be fully read — the merchant or category had to be guessed. Share the list with the developer and the next update will read them properly. Long account numbers are masked.',
+    ar: 'تعذّرت قراءة هذه الرسائل بالكامل — تم تخمين المتجر أو التصنيف. شارك القائمة مع المطوّر وسيقرأها التحديث القادم بشكل صحيح. الأرقام الطويلة مخفية.',
+  },
+  shareUnrecognized: { en: 'Share formats', ar: 'مشاركة الصيغ' },
+  readAs: { en: 'Read as', ar: 'قُرئت كـ' },
+  noUnrecognized: { en: 'Everything reads clean', ar: 'كل الرسائل مقروءة' },
+  noUnrecognizedText: {
+    en: 'No unrecognized bank formats in your data. Rows appear here after a scan when the parser has to guess.',
+    ar: 'لا توجد صيغ غير معروفة في بياناتك. تظهر الرسائل هنا بعد الفحص عندما يضطر التطبيق للتخمين.',
+  },
   spentThisMonthCaption: { en: 'spent this month', ar: 'مصروف هذا الشهر' },
   longPressHint: { en: 'Long-press a card or account to hide or remove it', ar: 'اضغط مطولاً على بطاقة أو حساب لإخفائه أو حذفه' },
 

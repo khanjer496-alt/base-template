@@ -247,6 +247,12 @@ export function buildImportPlan(
     if (seen.has(key) || (smsKey && seenSms.has(smsKey))) continue;
     seen.add(key);
     if (smsKey) seenSms.add(smsKey);
+    // Low-confidence rows keep their source text so the user can report
+    // unrecognized bank formats from Settings → Improve accuracy.
+    const lowConfidence =
+      !p.transferHint &&
+      p.type === 'expense' &&
+      (p.merchant === 'Card purchase' || p.categoryGuess === 'other');
     transactions.push({
       type: p.type,
       amountFils: p.amountFils,
@@ -257,6 +263,7 @@ export function buildImportPlan(
       source: 'sms',
       smsKey,
       isTransfer: p.transferHint || undefined,
+      raw: lowConfidence ? p.raw.slice(0, 300) : undefined,
     });
   }
 

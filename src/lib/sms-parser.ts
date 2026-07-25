@@ -349,7 +349,7 @@ function extractMerchant(raw: string, re: RegExp): string {
 }
 
 const SNAPSHOT_RE =
-  /(?:avl|avail(?:able)?|remaining|total)\s*(?:credit\s+)?(limit|bal(?:ance)?|outstanding)[^0-9-]{0,12}([\d,]+(?:\.\d{1,2})?)/i;
+  /(?:avl|avail(?:able)?|remaining|total)\.?\s*(?:cr(?:edit)?\.?\s+)?(limit|bal(?:ance)?|outstanding)[^0-9-]{0,12}([\d,]+(?:\.\d{1,2})?)/i;
 const MAX_SNAPSHOT_FILS = 1_000_000_000; // 10M in the local currency
 
 /** The balance / available-limit figure banks append to most alerts. */

@@ -315,6 +315,36 @@ t('multi-line local-currency purchase names the merchant line',
   'Credit Card Purchase\nCard No XXXX3749\nAED 16.00\nMawgif DUBAI ARE\n03/07/26 15:51\nAvl Bal AED 13091.74\nJuly statement due on 27/07/2026',
   { merchant: 'Mawgif', amountFils: 1600, category: 'transport', date: '2026-07-03' });
 
+// ── multi-bank corpus: each UAE bank speaks its own SMS dialect ──
+t('ENBD style: Avl Cr. Limit is a limit snapshot, merchant before comma',
+  'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00',
+  { merchant: 'Carrefour', amountFils: 8950, category: 'groceries' });
+
+t('Liv style: "You spent ... on your debit card" parses',
+  'You spent AED 45.00 on your Liv debit card 1354 at STARBUCKS DIFC on 20/07/2026',
+  { merchant: 'Starbucks Difc', amountFils: 4500, category: 'dining', date: '2026-07-20' });
+
+t('Mashreq style: "debited from account ... for" names the payee',
+  'AED 250.00 has been debited from your account XX1234 towards DU MONTHLY BILL on 18/07/2026',
+  { amountFils: 25000, category: 'telecom' });
+
+t('ADCB style: transaction with available balance suffix',
+  'Your Debit Card XXX4499 was used for AED 132.75 at LULU HYPERMARKET AL BARSHA on 19/07/2026. Available Balance AED 8,432.10',
+  { merchant: 'Lulu Hypermarket Al Barsha', amountFils: 13275, category: 'groceries' });
+
+t('DIB style: Dhs alias amount parses',
+  'Dhs 320.00 debited from your account for payment to SEWA on 16/07/2026',
+  { merchant: 'SEWA', amountFils: 32000, category: 'utilities' });
+
+const enbdSnap = parseSms(
+  'Purchase of AED 89.50 with Credit Card ending 8575 at CARREFOUR, DUBAI. Avl Cr. Limit AED 19,910.00');
+if (enbdSnap && enbdSnap.snapshotKind === 'limit' && enbdSnap.snapshotFils === 1991000) {
+  pass++; console.log('✓ ENBD Avl Cr. Limit captured as limit snapshot');
+} else {
+  fail++; console.log('✗ ENBD Avl Cr. Limit captured as limit snapshot',
+    JSON.stringify(enbdSnap && { k: enbdSnap.snapshotKind, f: enbdSnap.snapshotFils }));
+}
+
 // ── foreign-currency fallback conversion ──
 t('USD-only subscription charge converts at the peg',
   'Your Credit Card ending 4499 was used for USD 20.00 at OPENAI *CHATGPT',
