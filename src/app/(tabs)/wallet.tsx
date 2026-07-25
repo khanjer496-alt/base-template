@@ -281,8 +281,6 @@ export default function WalletScreen() {
                   // reconstruct one, so without a quote we show month spend.
                   const reliable = reliableBalanceFils(state, account);
                   const display = reliable !== null ? Math.abs(reliable) : null;
-                  const availableLimit =
-                    isCredit && account.snapshotKind === 'limit' ? (account.snapshotFils ?? null) : null;
                   const spent = monthSpendByAccount.get(account.id) ?? 0;
                   return (
                     <Pressable
@@ -300,16 +298,10 @@ export default function WalletScreen() {
                         <ThemedText type="default" numberOfLines={1}>
                           {account.name}
                         </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
+                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                           {account.bankName ? `${account.bankName} · ` : ''}
                           {isCredit ? 'Credit' : 'Debit'}
                           {account.last4 ? ` ••${account.last4}` : ''}
-                          {availableLimit !== null
-                            ? ` · ${formatAED(availableLimit, { decimals: false })} limit left`
-                            : ''}
-                          {display !== null && spent > 0
-                            ? ` · ${formatAED(spent, { decimals: false })} this month`
-                            : ''}
                         </ThemedText>
                       </View>
                       <View style={styles.accountRight}>

@@ -289,6 +289,32 @@ if (canvasShop && canvasShop.merchant !== 'Canva') {
   fail++; console.log('✗ CANVAS merchant does not become Canva', JSON.stringify(canvasShop && canvasShop.merchant));
 }
 
+// ── multi-line FAB-style format: header kind, own-line merchant, Avl Bal on credit = limit ──
+const FAB_ALLDEBRID =
+  'Credit Card Purchase\nCard No XXXX3749\nEUR 2.99\nALLDEBRID.COM MONTROUGE FRA\n' +
+  '03/07/26 05:53\nAvl Bal AED 13107.74\nJuly statement due on 27/07/2026';
+const ad = parseSms(FAB_ALLDEBRID);
+{
+  const errs = [];
+  if (!ad) errs.push('did not parse');
+  else {
+    if (ad.kind !== 'transaction') errs.push(`kind ${ad.kind} != transaction (statement-due footer misfired)`);
+    if (ad.merchant !== 'AllDebrid') errs.push(`merchant "${ad.merchant}" != AllDebrid`);
+    if (!ad.card || ad.card.last4 !== '3749' || ad.card.kind !== 'credit')
+      errs.push(`card ${JSON.stringify(ad.card)} != credit 3749`);
+    if (ad.snapshotKind !== 'limit') errs.push(`snapshotKind ${ad.snapshotKind} != limit (Avl Bal on credit is headroom)`);
+    if (ad.snapshotFils !== 1310774) errs.push(`snapshotFils ${ad.snapshotFils} != 1310774`);
+    if (ad.amountFils !== 1292) errs.push(`amount ${ad.amountFils} != 1292 (EUR 2.99 converted)`);
+    if (ad.date !== '2026-07-03') errs.push(`date ${ad.date} != 2026-07-03 (txn datetime beats due footer)`);
+  }
+  if (errs.length) { fail++; console.log(`✗ multi-line credit purchase (AllDebrid)\n    ${errs.join('\n    ')}`); }
+  else { pass++; console.log('✓ multi-line credit purchase (AllDebrid)'); }
+}
+
+t('multi-line local-currency purchase names the merchant line',
+  'Credit Card Purchase\nCard No XXXX3749\nAED 16.00\nMawgif DUBAI ARE\n03/07/26 15:51\nAvl Bal AED 13091.74\nJuly statement due on 27/07/2026',
+  { merchant: 'Mawgif', amountFils: 1600, category: 'transport', date: '2026-07-03' });
+
 // ── foreign-currency fallback conversion ──
 t('USD-only subscription charge converts at the peg',
   'Your Credit Card ending 4499 was used for USD 20.00 at OPENAI *CHATGPT',

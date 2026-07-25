@@ -138,10 +138,54 @@ const MERCHANT_RE = new RegExp(
 );
 
 const DATE_RE = /\b(?:on|by|before)\s+(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i;
+// "03/07/26 05:53" — a bare date WITH a time is the transaction timestamp and
+// beats any "statement due on <date>" footer later in the message.
+const DATETIME_RE = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\s+\d{1,2}:\d{2}\b/;
 
 const ATM_RE = /\batm\b|cash\s+withdrawal/i;
 const FEE_RE = /\bfees?\b|\bcharges?\s+(?:of|:)|service charge|\bvat\b|annual membership/i;
 const DEPOSIT_RE = /cash\s+deposit|\bcdm\b|deposit(?:ed)?\s+(?:in|into|to)\b/i;
+
+/**
+ * Multi-line bank formats put the merchant on its own line with no
+ * preposition at all:
+ *   Credit Card Purchase / Card No XXXX3749 / EUR 2.99 /
+ *   ALLDEBRID.COM MONTROUGE FRA / 03/07/26 05:53 / Avl Bal AED 13107.74
+ * The first line after the amount line that isn't a date, card, or balance
+ * line is the merchant descriptor.
+ */
+const LINE_NOISE_RE =
+  /\bcard\b|a\/?c\b|\bbal(?:ance)?\b|\blimit\b|statement|\bdue\b|payment|purchase|debit|credit|\botp\b|\bref(?:erence)?\b|\btxn\b|\bavl\b|avail/i;
+const LINE_DATE_RE = /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/;
+const TRAILING_PLACE_RE =
+  /\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE|FRA|USA|GBR|DEU|NLD|ESP|ITA|IRL|SGP|HKG|IND|SAU|KSA|LUX|CAN|AUS|CHE|SWE|POL|JPN|RIYADH|JEDDAH)$/i;
+
+function merchantFromLines(raw: string): string {
+  if (!raw.includes('\n')) return '';
+  const codes = [
+    ...Object.keys(UNITS_PER_USD),
+    ...getActiveMarket().currency.aliases,
+  ].join('|');
+  const amountLineRe = new RegExp(`\\b(?:${codes})\\.?\\s*[\\d,]+(?:\\.\\d{1,2})?`, 'i');
+  const lines = raw.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
+  const amountIdx = lines.findIndex((l) => amountLineRe.test(l));
+  if (amountIdx < 0) return '';
+  for (const line of lines.slice(amountIdx + 1)) {
+    if (LINE_DATE_RE.test(line)) continue;
+    if (LINE_NOISE_RE.test(line)) continue;
+    if (amountLineRe.test(line)) continue;
+    if ((line.match(/[A-Za-z]/g) ?? []).length < 3) continue;
+    let cleaned = line;
+    let prev = '';
+    while (prev !== cleaned) {
+      prev = cleaned;
+      cleaned = cleaned.replace(TRAILING_PLACE_RE, '');
+    }
+    cleaned = cleaned.replace(/(?:\s+COM|\.com)$/i, '').trim();
+    if (cleaned.length >= 2 && cleaned.length <= 48) return cleaned;
+  }
+  return '';
+}
 
 /** Debit messages that are actually transfers: paying a card bill, moving between own accounts. */
 const TRANSFER_HINT_RE =
@@ -150,7 +194,7 @@ const TRANSFER_HINT_RE =
 const CATEGORY_KEYWORDS: [RegExp, CategoryId][] = [
   [/carrefour|lulu|spinneys|union coop|choithram|grandiose|waitrose|nesto|al maya|west zone|viva supermarket|\bcoop\b|noon minutes|instashop|careem quik|talabat mart|hypermarket|supermarket|grocer|fresh market|baqala/i, 'groceries'],
   [/talabat|deliveroo|zomato|noon food|careem food|eateasy|restaurant|cafe|coffee|starbucks|costa|tim hortons|mcdonald|kfc|hardee|subway|shawarma|cafeteria|dining|bakery|pizza|burger|grill|chicken|broast|dunkin|krispy|baskin|papa john|pizza hut|domino|wingstop|five guys|shake shack|raising cane|jollibee|al ?baik|karak|chai|juice|catering|kitchen|bistro|donut|gelato|ice ?cream|sweets|pastr|foodcourt|food court|snack|falafel|biryani|mandi|machboos|kabab|kebab|hommus|manakish|allo beirut|wagamama|nando|chili|applebee|cheesecake|paul\b|shakespeare|arabian tea|barista|caribou|filli|karam|zaatar|maraheb|al safadi|automatic\b/i, 'dining'],
-  [/careem(?!\s*food)|uber|yango|bolt\b|udrive|ekar|taxi|\brta\b|\bnol\b|salik|darb|mawaqif|parkin\b|enoc|eppco|adnoc(?!\s*(?:oasis|coop))|emarat|petrol|fuel|tyre|tire|car wash|autopro|quicklube|oil change|metro|tram|parking|valet|careem bike/i, 'transport'],
+  [/careem(?!\s*food)|uber|yango|bolt\b|udrive|ekar|taxi|\brta\b|\bnol\b|salik|darb|mawaqif|mawgif|parkin\b|enoc|eppco|adnoc(?!\s*(?:oasis|coop))|emarat|petrol|fuel|tyre|tire|car wash|autopro|quicklube|oil change|metro|tram|parking|valet|careem bike/i, 'transport'],
   [/dewa|sewa|fewa|addc|aadc|empower|lootah|tabreed|btu\b|chilled water|electricity|water|cooling|utility|sewerage|\blpg\b|gas cylinder/i, 'utilities'],
   [/etisalat|\be&\b|eand\b|\bdu\b|virgin mobile|swyp|telecom|mobile recharge|internet|five telecom|wifi/i, 'telecom'],
   [/rent|ejari|landlord/i, 'rent'],
@@ -202,6 +246,7 @@ const SERVICE_NAMES: [RegExp, string][] = [
   [/openai|chat\s*gpt/i, 'ChatGPT'],
   [/anthropic|claude/i, 'Claude'],
   [/real-?debrid/i, 'Real-Debrid'],
+  [/all-?debrid/i, 'AllDebrid'],
   [/netflix/i, 'Netflix'],
   [/spotify/i, 'Spotify'],
   [/you\s*tube|yt\s*premium/i, 'YouTube Premium'],
@@ -340,10 +385,14 @@ function extractCard(raw: string): ParsedCard | null {
   const cardMatch = raw.match(CARD_RE);
   if (cardMatch) {
     const kindWord = cardMatch[1]?.toLowerCase();
-    return {
-      last4: cardMatch[2],
-      kind: kindWord === 'credit' ? 'credit' : kindWord === 'debit' ? 'debit' : 'debit',
-    };
+    // Multi-line formats say "Credit Card Purchase" in the header and
+    // "Card No XXXX3749" further down — when the number clause carries no
+    // kind word, look at the whole message before assuming debit.
+    const kind =
+      kindWord === 'credit' || (!kindWord && /credit\s+card/i.test(raw))
+        ? 'credit'
+        : 'debit';
+    return { last4: cardMatch[2], kind };
   }
   const accMatch = raw.match(ACCOUNT_RE);
   if (accMatch) return { last4: accMatch[1], kind: 'account' };
@@ -351,7 +400,7 @@ function extractCard(raw: string): ParsedCard | null {
 }
 
 function extractDate(raw: string): string | null {
-  const dateMatch = raw.match(DATE_RE);
+  const dateMatch = raw.match(DATETIME_RE) ?? raw.match(DATE_RE);
   if (!dateMatch) return null;
   const [, d, m, yRaw] = dateMatch;
   const y = yRaw.length === 2 ? 2000 + Number(yRaw) : Number(yRaw);
@@ -380,7 +429,10 @@ export function parseSms(
   const date = extractDate(raw);
   const snapshot = extractSnapshot(raw);
   const snapshotFils = snapshot?.fils ?? null;
-  const snapshotKind = snapshot?.kind ?? null;
+  let snapshotKind = snapshot?.kind ?? null;
+  // On a credit card, "Avl Bal" is available CREDIT (limit headroom), not
+  // money in an account — storing it as a balance made cards look rich.
+  if (snapshotKind === 'balance' && card?.kind === 'credit') snapshotKind = 'limit';
 
   // Card payment received (transfer into the card) — before debit detection,
   // since these messages also contain the word "payment". Only credit cards
@@ -406,7 +458,9 @@ export function parseSms(
   }
 
   // Credit-card statement with dues. Statements only exist for credit cards.
-  if (card && STATEMENT_RE.test(raw) && BILL_DUE_WORDS.test(raw)) {
+  // Purchase alerts often carry a "statement due on <date>" footer — debit
+  // language means this is a transaction, not the statement itself.
+  if (card && STATEMENT_RE.test(raw) && BILL_DUE_WORDS.test(raw) && !DEBIT_WORDS.test(raw)) {
     const amountFils = amountWithFx(raw, true);
     if (!amountFils) return null;
     const minMatch = raw.match(MIN_DUE_RE);
@@ -455,6 +509,11 @@ export function parseSms(
     .replace(/\s+(?:DXB|DUBAI|ABU DHABI|SHARJAH|AJMAN|ARE|UAE)$/i, '')
     .replace(/(?:\s+COM|\.com)$/i, '') // "NOON COM" / "noon.com" → "NOON"
     .trim();
+  // Multi-line formats: the merchant sits on its own line after the amount.
+  if (!merchant && !isBillDue && type === 'expense' && !transferHint) {
+    const lineMerchant = merchantFromLines(raw);
+    if (lineMerchant) merchant = lineMerchant;
+  }
   if (!merchant) {
     // No "at/to/from" clause — but a known service named ANYWHERE in the
     // message still identifies the row (many card descriptors put the
