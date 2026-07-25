@@ -242,7 +242,13 @@ function reducer(state: AppState, action: Action): AppState {
         d.id === action.id
           ? {
               ...d,
-              paidFils: d.paidFils + action.amountFils,
+              // "Mark paid" records a transfer AND used to add the same amount
+              // here, so the payment counted twice. Since the settled statement
+              // could only absorb it once, the surplus spilled onto the next
+              // statement and marked it paid without a real payment. The
+              // recorded transfer is the single source of truth; paidFils only
+              // moves when no transaction backs the payment.
+              paidFils: action.transaction ? d.paidFils : d.paidFils + action.amountFils,
               settledAt: action.settledAt ?? d.settledAt,
             }
           : d,
@@ -417,6 +423,8 @@ async function loadPersisted(): Promise<Partial<Omit<AppState, 'hydrated'>> | nu
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
   const prevChunkCount = useRef(0);
+  /** Last successfully written body per chunk, so unchanged ones are skipped. */
+  const prevChunks = useRef<string[]>([]);
 
   // Keep the native RTL flag in sync with the chosen language (takes effect
   // on the next app start — a React Native constraint).
@@ -561,11 +569,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         JSON.stringify(transactions.slice(i * TX_CHUNK_SIZE, (i + 1) * TX_CHUNK_SIZE)),
       ]);
     }
+    // Only chunks whose contents actually changed are rewritten. Every state
+    // change lands here — flipping a setting, editing a budget, dismissing a
+    // toast — and each one used to re-serialise and rewrite the entire
+    // transaction history.
+    const changed = chunks.filter(([, body], i) => prevChunks.current[i] !== body);
+
     (async () => {
       try {
         await AsyncStorage.multiSet([
           [STORAGE_KEY, JSON.stringify({ ...meta, txChunks: chunks.length })],
-          ...chunks,
+          ...changed,
         ]);
         if (prevChunkCount.current > chunks.length) {
           await AsyncStorage.multiRemove(
@@ -575,8 +589,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           );
         }
         prevChunkCount.current = chunks.length;
+        prevChunks.current = chunks.map(([, body]) => body);
       } catch {
         // Persistence is best-effort; the in-memory state stays authoritative.
+        // The cache is cleared so the next save rewrites every chunk rather
+        // than assuming a failed write landed.
+        prevChunks.current = [];
       }
     })();
   }, [state]);

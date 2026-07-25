@@ -509,6 +509,27 @@ const bothPaid = mkAlloc([
 ok('dues: two payments settle two statements',
   allocLib.openDues(bothPaid, new Date(2026, 6, 20)).length === 0);
 
+// ── "Mark paid" must settle its own statement only ──
+// The reducer records a transfer and leaves paidFils at 0, so the payment is
+// counted once. Previously it did both and the surplus settled the next month.
+const markPaidState = {
+  accounts: [allocAccount],
+  cardDues: [
+    { id: 'd_jun', accountId: 'c1', totalDueFils: 100000, minDueFils: 10000, dueDate: '2026-06-15', paidFils: 0, settledAt: '2026-06-20T10:00:00Z' },
+    { id: 'd_jul', accountId: 'c1', totalDueFils: 100000, minDueFils: 10000, dueDate: '2026-07-15', paidFils: 0 },
+  ],
+  transactions: [{
+    id: 'p1', type: 'income', isTransfer: true, accountId: 'c1', amountFils: 100000,
+    date: '2026-06-20', category: 'other', title: 'FAB payment', source: 'manual',
+  }],
+};
+ok('dues: marking June paid does not settle the July statement',
+  allocLib.duePaidFils(markPaidState, markPaidState.cardDues[1]) === 0);
+ok('dues: the June payment still covers June',
+  allocLib.duePaidFils(markPaidState, markPaidState.cardDues[0]) === 100000);
+ok('dues: July stays open after June is marked paid',
+  allocLib.openDues(markPaidState, new Date(2026, 6, 20)).length === 1);
+
 // ── A blank transaction title must not auto-pay bills ──
 const billsLib = require('./build/bills');
 const blankTitled = [{
