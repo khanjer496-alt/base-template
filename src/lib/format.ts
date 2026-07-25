@@ -130,6 +130,18 @@ export function friendlyDate(iso: string, todayISO: string): string {
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 
+/**
+ * Account name without its trailing card digits, e.g.
+ * "FAB Credit Card •3644" becomes "FAB Credit Card".
+ *
+ * Rows show the last 4 in their own meta line and the badge already carries
+ * the bank, so leaving the digits in the title only cost width and pushed the
+ * name into an ellipsis.
+ */
+export function cardTitle(name: string): string {
+  return name.replace(/\s*[•·*]+\s*\d{3,4}\s*$/, '').trim() || name;
+}
+
 export function greetingForHour(hour: number): string {
   if (hour < 12) return t('goodMorning');
   if (hour < 17) return t('goodAfternoon');

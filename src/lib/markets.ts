@@ -123,13 +123,39 @@ export function bankFromSender(
   return null;
 }
 
-/** Logo domain for a bank NAME shown in the UI (any market's pack). */
-export function bankDomainForName(name: string): string | null {
+/** Brand identity for a bank NAME shown in the UI (any market's pack). */
+export function bankBrandForName(
+  name: string,
+): { name: string; color: string; domain?: string } | null {
   const n = name.toLowerCase();
   for (const m of MARKETS) {
     for (const b of m.banks) {
-      if (b.domain && (n.includes(b.name.toLowerCase()) || b.re.test(name))) return b.domain;
+      if (n.includes(b.name.toLowerCase()) || b.re.test(name)) {
+        return { name: b.name, color: b.color, domain: b.domain };
+      }
     }
   }
   return null;
+}
+
+/** Logo domain for a bank NAME shown in the UI (any market's pack). */
+export function bankDomainForName(name: string): string | null {
+  return bankBrandForName(name)?.domain ?? null;
+}
+
+/**
+ * Up to four letters standing in for a bank, e.g. ADCB, FAB, NBD, LIV.
+ * Prefers an existing acronym in the name over generic initials.
+ */
+export function bankMonogram(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  const acronym = words.find((w) => /^[A-Z]{2,4}$/.test(w));
+  if (acronym) return acronym;
+  if (words.length === 1) return words[0].slice(0, 4).toUpperCase();
+  return words
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 4)
+    .toUpperCase();
 }

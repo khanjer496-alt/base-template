@@ -1,74 +1,67 @@
-import { Image } from 'expo-image';
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { useTheme } from '@/hooks/use-theme';
-import { bankDomainForName } from '@/lib/markets';
-import { merchantLogoUrl } from '@/lib/merchant-logos';
+import { Radius } from '@/constants/theme';
+import { bankBrandForName, bankMonogram } from '@/lib/markets';
 
 interface BankAvatarProps {
-  /** Bank name (or account name) used to resolve the logo. */
+  /** Bank name (or account name) used to resolve the brand. */
   name: string;
-  /** Account color for the fallback badge. */
+  /** Account color, used when the bank isn't in the registry. */
   color: string;
   icon?: IconName;
   size?: number;
 }
 
 /**
- * Bank logo badge for account/card rows. Fetches the bank's favicon at
- * runtime; until it loads (or when the bank is unknown / device offline)
- * the tinted icon badge shows instead, so nothing ever looks broken.
+ * Brand badge for account and card rows.
+ *
+ * Known banks render as a monogram in their own brand color; anything else
+ * falls back to a tinted icon. Both are drawn locally, so the badge is
+ * correct offline, needs no third-party favicon service (which leaked every
+ * account name to a logo host and returned marks that read as the wrong
+ * brand at this size), and stays on-theme instead of punching a white
+ * square into a dark screen.
  */
 export function BankAvatar({ name, color, icon = 'wallet', size = 42 }: BankAvatarProps) {
-  const theme = useTheme();
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  // Any market's bank registry first, then the merchant map.
-  const bankDomain = bankDomainForName(name);
-  const url = bankDomain
-    ? `https://www.google.com/s2/favicons?domain=${bankDomain}&sz=128`
-    : merchantLogoUrl(name);
+  const brand = bankBrandForName(name);
   const radius = Math.round(size * 0.31);
+  const tint = brand?.color ?? color;
 
-  const fallback = (
-    <View
-      style={[
-        styles.badge,
-        { width: size, height: size, borderRadius: radius, backgroundColor: `${color}22` },
-      ]}>
-      <Icon name={icon} size={Math.round(size * 0.48)} color={color} strokeWidth={1.8} />
-    </View>
-  );
+  const surface = {
+    width: size,
+    height: size,
+    borderRadius: radius,
+    backgroundColor: `${tint}1F`,
+    borderColor: `${tint}47`,
+  };
 
-  if (!url || failed) return fallback;
+  if (!brand) {
+    return (
+      <View style={[styles.badge, styles.bordered, surface]}>
+        <Icon name={icon} size={Math.round(size * 0.46)} color={tint} strokeWidth={1.8} />
+      </View>
+    );
+  }
+
+  const monogram = bankMonogram(brand.name);
+  // Longer monograms step down so ADCB and LIV both sit on the same optical weight.
+  const scale = monogram.length <= 2 ? 0.38 : monogram.length === 3 ? 0.31 : 0.25;
 
   return (
-    <View style={{ width: size, height: size }}>
-      {!loaded && fallback}
-      <View
-        style={[
-          styles.badge,
-          styles.logo,
-          loaded ? null : styles.hidden,
-          {
-            width: size,
-            height: size,
-            borderRadius: radius,
-            backgroundColor: '#FFFFFF',
-            borderColor: theme.cardBorder,
-          },
-        ]}>
-        <Image
-          source={{ uri: url }}
-          style={{ width: size * 0.6, height: size * 0.6 }}
-          contentFit="contain"
-          transition={150}
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-        />
-      </View>
+    <View style={[styles.badge, styles.bordered, surface]}>
+      <ThemedText
+        style={{
+          color: tint,
+          fontSize: Math.round(size * scale),
+          lineHeight: Math.round(size * scale * 1.15),
+          fontWeight: '800',
+          letterSpacing: 0.2,
+        }}>
+        {monogram}
+      </ThemedText>
     </View>
   );
 }
@@ -77,13 +70,10 @@ const styles = StyleSheet.create({
   badge: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logo: {
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  hidden: {
-    position: 'absolute',
-    opacity: 0,
+  bordered: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.sm,
   },
 });

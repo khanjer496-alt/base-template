@@ -102,28 +102,56 @@ export default function CardsScreen() {
                 style={inactive ? styles.inactiveTile : undefined}>
                 <Pressable
                   onLongPress={() => cardOptions(card)}
-                  style={[
+                  style={({ pressed }) => [
                     styles.tile,
-                    { backgroundColor: theme.card, borderColor: `${card.color}66` },
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: `${card.color}55`,
+                      transform: [{ scale: pressed ? 0.99 : 1 }],
+                    },
                   ]}>
-                  {/* Brand wash */}
-                  <View style={[styles.tileWash, { backgroundColor: `${card.color}1f` }]} />
-                  <View style={[styles.tileWashCorner, { backgroundColor: `${card.color}2e` }]} />
+                  {/* A flat brand wash. The old build stacked a 220px circle on
+                      top of it, which cropped to a hard arc across the tile. */}
+                  <View style={[styles.tileWash, { backgroundColor: `${card.color}14` }]} />
+                  <View style={[styles.tileEdge, { backgroundColor: card.color }]} />
 
                   <View style={styles.tileTop}>
-                    {/* Chip */}
-                    <View style={[styles.chip, { borderColor: `${theme.gold}88`, backgroundColor: `${theme.gold}22` }]} />
-                    <View style={styles.tileBank}>
-                      <ThemedText type="subtitle" style={{ color: card.color, fontWeight: '800' }}>
+                    <BankAvatar name={card.bankName ?? card.name} color={card.color} size={34} />
+                    <View style={styles.tileTopText}>
+                      <ThemedText type="smallBold" numberOfLines={1}>
                         {card.bankName ??
                           (card.name.replace(/\s*(?:credit|debit)?\s*card.*$/i, '').trim() || 'Card')}
                       </ThemedText>
-                      <BankAvatar
-                        name={card.bankName ?? card.name}
-                        color={card.color}
-                        size={28}
-                      />
+                      <ThemedText type="micro" themeColor="textSecondary" tabular>
+                        {isCredit ? 'CREDIT' : 'DEBIT'} ·· {card.last4 ?? '????'}
+                      </ThemedText>
                     </View>
+                    {due && (
+                      <View
+                        style={[
+                          styles.dueChip,
+                          {
+                            backgroundColor:
+                              due.status === 'overdue' || due.status === 'urgent'
+                                ? `${theme.expense}1f`
+                                : `${theme.warning}1f`,
+                          },
+                        ]}>
+                        <ThemedText
+                          type="micro"
+                          style={{
+                            color:
+                              due.status === 'overdue' || due.status === 'urgent'
+                                ? theme.expense
+                                : theme.warning,
+                            fontWeight: '700',
+                          }}>
+                          {due.status === 'overdue'
+                            ? 'OVERDUE'
+                            : `DUE ${shortDate(due.due.dueDate).toUpperCase()}`}
+                        </ThemedText>
+                      </View>
+                    )}
                   </View>
 
                   <View style={styles.tileMiddle}>
@@ -133,36 +161,42 @@ export default function CardsScreen() {
                     <ThemedText type="title" tabular>
                       {formatAED(outstanding ?? spent, { decimals: false })}
                     </ThemedText>
+                    {outstanding !== null && spent > 0 && (
+                      <ThemedText type="small" themeColor="textSecondary" tabular>
+                        {formatAED(spent, { decimals: false })} spent this month
+                      </ThemedText>
+                    )}
                   </View>
 
-                  <View style={styles.tileBottom}>
-                    <ThemedText type="subtitle" tabular style={styles.pan}>
-                      •••• {card.last4 ?? '????'}
-                    </ThemedText>
-                    <ThemedText type="micro" themeColor="textSecondary">
-                      {isCredit ? 'CREDIT' : 'DEBIT'}
-                    </ThemedText>
-                  </View>
+                  {/* Headroom is what people actually check before spending, so
+                      it sits on the tile rather than as a caption underneath.
+                      Only "limit left" is ever quoted in SMS — the total limit
+                      is unknown, so this stays a figure and not a gauge. */}
+                  {limitLeft !== null ? (
+                    <View style={styles.tileFooterRow}>
+                      <ThemedText type="micro" themeColor="textSecondary">
+                        LIMIT LEFT
+                      </ThemedText>
+                      <ThemedText type="smallBold" tabular>
+                        {formatAED(limitLeft, { decimals: false })}
+                      </ThemedText>
+                    </View>
+                  ) : (
+                    lastUsed && (
+                      <View style={styles.tileFooterRow}>
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          {t('lastUsed').toUpperCase()}
+                        </ThemedText>
+                        <ThemedText type="smallBold" tabular>
+                          {shortDate(lastUsed)}
+                        </ThemedText>
+                      </View>
+                    )
+                  )}
                 </Pressable>
 
-                {/* Facts under the tile */}
-                <View style={styles.facts}>
-                  {lastUsed && (
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {t('lastUsed')} {shortDate(lastUsed)}
-                    </ThemedText>
-                  )}
-                  {limitLeft !== null && (
-                    <ThemedText type="small" themeColor="textSecondary" tabular>
-                      {formatAED(limitLeft, { decimals: false })} limit left
-                    </ThemedText>
-                  )}
-                  {outstanding !== null && spent > 0 && (
-                    <ThemedText type="small" themeColor="textSecondary" tabular>
-                      {formatAED(spent, { decimals: false })} this month
-                    </ThemedText>
-                  )}
-                  {due && (
+                {due && (
+                  <View style={styles.facts}>
                     <ThemedText
                       type="smallBold"
                       tabular
@@ -172,10 +206,11 @@ export default function CardsScreen() {
                             ? theme.expense
                             : theme.warning,
                       }}>
-                      Pay {formatAED(due.remainingFils, { decimals: false })} by {shortDate(due.due.dueDate)}
+                      Pay {formatAED(due.remainingFils, { decimals: false })} by{' '}
+                      {shortDate(due.due.dueDate)}
                     </ThemedText>
-                  )}
-                </View>
+                  </View>
+                )}
               </Animated.View>
             );
           };
@@ -254,50 +289,44 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   tile: {
-    aspectRatio: 1.62,
-    borderRadius: Radius.xl,
-    borderWidth: 1.5,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.four,
-    justifyContent: 'space-between',
+    gap: Spacing.four,
     overflow: 'hidden',
   },
   tileWash: {
     ...StyleSheet.absoluteFillObject,
   },
-  tileWashCorner: {
+  /** A single brand stripe reads as identity; the old corner circle read as a crop artifact. */
+  tileEdge: {
     position: 'absolute',
-    top: -70,
-    right: -70,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
   },
   tileTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: Spacing.two + 2,
   },
-  tileBank: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
+  tileTopText: {
+    flex: 1,
+    gap: 1,
   },
-  chip: {
-    width: 38,
-    height: 27,
-    borderRadius: 6,
-    borderWidth: 1.5,
+  dueChip: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.full,
   },
   tileMiddle: {
     gap: 2,
   },
-  tileBottom: {
+  tileFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  pan: {
-    letterSpacing: 2,
   },
   facts: {
     flexDirection: 'row',

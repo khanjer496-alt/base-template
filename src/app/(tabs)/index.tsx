@@ -15,6 +15,8 @@ import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } fro
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useTabBarClearance } from '@/hooks/use-tab-bar-clearance';
+
 import { InsightCard } from '@/components/insight-card';
 import { PeriodSheet } from '@/components/period-sheet';
 import { ThemedText } from '@/components/themed-text';
@@ -54,7 +56,6 @@ import {
 } from '@/lib/subscriptions';
 import type { AppState } from '@/lib/types';
 
-const TAB_BAR_CLEARANCE = 110;
 
 // Once per app session: auto-import + notification sync.
 let autoImportRan = false;
@@ -342,6 +343,7 @@ function BudgetsSection({ state, period }: { state: AppState; period: Period }) 
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const tabBarClearance = useTabBarClearance();
   const router = useRouter();
   const toast = useToast();
   const { state, importBatch, undoBatch } = useStore();
@@ -441,7 +443,7 @@ export default function HomeScreen() {
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
@@ -563,7 +565,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.three,
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: Spacing.four,
   },
   hero: {

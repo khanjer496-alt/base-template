@@ -13,6 +13,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Polyline } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useTabBarClearance } from '@/hooks/use-tab-bar-clearance';
+
 import { InsightCard } from '@/components/insight-card';
 import { PeriodSheet } from '@/components/period-sheet';
 import { ThemedText } from '@/components/themed-text';
@@ -51,7 +53,6 @@ import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
-const TAB_BAR_CLEARANCE = 110;
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
 
@@ -87,6 +88,7 @@ function MerchantLine({
 
 export default function StatsScreen() {
   const theme = useTheme();
+  const tabBarClearance = useTabBarClearance();
   const router = useRouter();
   const { state } = useStore();
   const now = useMemo(() => new Date(), []);
@@ -158,7 +160,7 @@ export default function StatsScreen() {
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance }]} showsVerticalScrollIndicator={false}>
           {/* Period navigator: chevrons step months, the title opens the full picker */}
           <View style={styles.monthNav}>
             <Pressable
@@ -536,7 +538,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.three,
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: Spacing.four,
   },
   monthNav: {

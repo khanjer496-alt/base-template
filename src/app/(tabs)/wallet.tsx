@@ -13,6 +13,8 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useTabBarClearance } from '@/hooks/use-tab-bar-clearance';
+
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BankAvatar } from '@/components/ui/bank-avatar';
@@ -22,11 +24,10 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
 import { isInactiveAccount, openDues } from '@/lib/cards';
-import { formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
+import { cardTitle, formatAED, monthKey, parseAmountToFils, shortDate, toISODate } from '@/lib/format';
 import { netWorthFils, reliableBalanceFils, useStore } from '@/lib/store';
 import type { Account, AccountKind } from '@/lib/types';
 
-const TAB_BAR_CLEARANCE = 110;
 
 const KIND_META: Record<AccountKind, { label: string; icon: import('@/components/ui/icon').IconName }> = {
   bank: { label: 'Bank', icon: 'bank' },
@@ -43,6 +44,7 @@ const isIconName = (v: string): v is (typeof GOAL_ICONS)[number] =>
 
 export default function WalletScreen() {
   const theme = useTheme();
+  const tabBarClearance = useTabBarClearance();
   const router = useRouter();
   const { state, addAccount, editAccount, deleteAccount, payCardDue, addGoal, editGoal, deleteGoal } =
     useStore();
@@ -63,6 +65,10 @@ export default function WalletScreen() {
 
   const total = netWorthFils(state);
   const dues = useMemo(() => openDues(state, now), [state, now]);
+  const duesTotalFils = useMemo(
+    () => dues.reduce((sum, d) => sum + d.remainingFils, 0),
+    [dues],
+  );
 
   // Cards (auto-discovered from SMS or added manually) get their own section.
   // Expired/unused ones (silent 90+ days, or hidden) live in a drawer below.
@@ -197,7 +203,7 @@ export default function WalletScreen() {
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance }]} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View>
               <ThemedText type="title">{t('walletTitle')}</ThemedText>
@@ -222,18 +228,43 @@ export default function WalletScreen() {
           {/* Card dues */}
           {dues.length > 0 && (
             <View style={styles.section}>
-              <ThemedText type="micro" themeColor="textSecondary">{t('cardPaymentsDue')}</ThemedText>
-              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }) => {
+              <View style={styles.sectionHeader}>
+                <ThemedText type="micro" themeColor="textSecondary">{t('cardPaymentsDue')}</ThemedText>
+                <ThemedText type="micro" themeColor="textSecondary" tabular>
+                  {formatAED(duesTotalFils, { decimals: false })} total
+                </ThemedText>
+              </View>
+              {dues.map(({ due, status, daysLeft, remainingFils, belowMinimum }, i) => {
                 const account = state.accounts.find((a) => a.id === due.accountId);
                 const urgent = status === 'urgent' || status === 'overdue';
+                // Only the most pressing due is shouted in the alert color. A
+                // column of identical red rows reads as one alarm and hides
+                // which card actually needs paying first.
+                const leading = i === 0 && urgent;
                 return (
                   <Animated.View key={due.id} entering={FadeInDown.duration(300)}>
-                    <View style={styles.dueRow}>
+                    <View
+                      style={[
+                        styles.dueRow,
+                        i > 0 && {
+                          borderTopWidth: StyleSheet.hairlineWidth,
+                          borderTopColor: theme.cardBorder,
+                        },
+                      ]}>
+                      <View
+                        style={[
+                          styles.dueMarker,
+                          { backgroundColor: leading ? theme.expense : urgent ? `${theme.expense}55` : theme.track },
+                        ]}
+                      />
                       <View style={styles.dueInfo}>
-                        <ThemedText type="default">{account?.name ?? 'Card'}</ThemedText>
+                        <ThemedText type="default" numberOfLines={1}>
+                          {cardTitle(account?.name ?? 'Card')}
+                        </ThemedText>
                         <ThemedText
                           type="small"
-                          style={{ color: urgent ? theme.expense : theme.textSecondary }}>
+                          themeColor={leading ? undefined : 'textSecondary'}
+                          style={leading ? { color: theme.expense } : undefined}>
                           {status === 'overdue'
                             ? `${-daysLeft}d overdue`
                             : `Pay by ${shortDate(due.dueDate)} · ${daysLeft}d left`}
@@ -241,14 +272,28 @@ export default function WalletScreen() {
                         </ThemedText>
                       </View>
                       <View style={styles.dueRight}>
-                        <ThemedText type="smallBold" tabular style={urgent ? { color: theme.expense } : undefined}>
+                        <ThemedText
+                          type="heading"
+                          tabular
+                          style={leading ? { color: theme.expense } : undefined}>
                           {formatAED(remainingFils, { decimals: false })}
                         </ThemedText>
                         <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Mark ${account?.name ?? 'card'} as paid`}
                           onPress={() =>
                             onPayDue(due.id, remainingFils, due.accountId, account?.name ?? 'Card')
-                          }>
-                          <ThemedText type="small" style={{ color: theme.primary, fontWeight: '700' }}>
+                          }
+                          hitSlop={8}
+                          style={({ pressed }) => [
+                            styles.payBtn,
+                            {
+                              backgroundColor: pressed ? `${theme.primary}2e` : `${theme.primary}17`,
+                              borderColor: `${theme.primary}44`,
+                              transform: [{ scale: pressed ? 0.97 : 1 }],
+                            },
+                          ]}>
+                          <ThemedText type="micro" style={{ color: theme.primary, fontWeight: '700' }}>
                             Mark paid
                           </ThemedText>
                         </Pressable>
@@ -296,12 +341,11 @@ export default function WalletScreen() {
                       />
                       <View style={styles.accountInfo}>
                         <ThemedText type="default" numberOfLines={1}>
-                          {account.name}
+                          {cardTitle(account.name)}
                         </ThemedText>
                         <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                          {account.bankName ? `${account.bankName} · ` : ''}
                           {isCredit ? 'Credit' : 'Debit'}
-                          {account.last4 ? ` ••${account.last4}` : ''}
+                          {account.last4 ? ` ·· ${account.last4}` : ''}
                         </ThemedText>
                       </View>
                       <View style={styles.accountRight}>
@@ -359,7 +403,7 @@ export default function WalletScreen() {
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
                         {meta.label}
-                        {account.last4 ? ` ••${account.last4}` : ''}
+                        {account.last4 ? ` ·· ${account.last4}` : ''}
                       </ThemedText>
                     </View>
                     <View style={styles.accountRight}>
@@ -475,9 +519,27 @@ export default function WalletScreen() {
               );
             })}
             {state.goals.length === 0 && (
-              <ThemedText type="small" themeColor="textSecondary">
-                Save toward something with + New goal.
-              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setGoalVisible(true)}
+                style={({ pressed }) => [
+                  styles.goalEmpty,
+                  {
+                    borderColor: theme.cardBorder,
+                    backgroundColor: pressed ? theme.backgroundSelected : 'transparent',
+                  },
+                ]}>
+                <View style={[styles.goalEmptyIcon, { backgroundColor: `${theme.gold}1f` }]}>
+                  <Icon name="target" size={17} color={theme.gold} strokeWidth={1.8} />
+                </View>
+                <View style={styles.accountInfo}>
+                  <ThemedText type="smallBold">Set a savings goal</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Umrah, a car, a rainy-day fund — track it here.
+                  </ThemedText>
+                </View>
+                <Icon name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
             )}
           </View>
 
@@ -643,7 +705,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.three,
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: Spacing.four,
   },
   headerRow: {
@@ -673,7 +734,13 @@ const styles = StyleSheet.create({
   dueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
+    gap: Spacing.two + 2,
+    paddingVertical: Spacing.three,
+  },
+  dueMarker: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderRadius: 2,
   },
   dueInfo: {
     flex: 1,
@@ -681,7 +748,13 @@ const styles = StyleSheet.create({
   },
   dueRight: {
     alignItems: 'flex-end',
-    gap: 2,
+    gap: Spacing.one + 2,
+  },
+  payBtn: {
+    paddingHorizontal: Spacing.two + 2,
+    paddingVertical: Spacing.one + 3,
+    borderRadius: Radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   accountRow: {
     flexDirection: 'row',
@@ -715,6 +788,22 @@ const styles = StyleSheet.create({
   goalRow: {
     gap: Spacing.one + 2,
     paddingVertical: Spacing.one + 2,
+  },
+  goalEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    padding: Spacing.three,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+  },
+  goalEmptyIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   goalTop: {
     flexDirection: 'row',

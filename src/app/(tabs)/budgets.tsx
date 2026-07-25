@@ -10,6 +10,8 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useTabBarClearance } from '@/hooks/use-tab-bar-clearance';
+
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/card';
@@ -27,10 +29,10 @@ import { usePeriod } from '@/lib/period-context';
 import { useStore } from '@/lib/store';
 import type { CategoryId } from '@/lib/types';
 
-const TAB_BAR_CLEARANCE = 110;
 
 export default function BudgetsScreen() {
   const theme = useTheme();
+  const tabBarClearance = useTabBarClearance();
   const { state, upsertBudget, deleteBudget } = useStore();
   const { period } = usePeriod();
   const now = new Date();
@@ -77,7 +79,7 @@ export default function BudgetsScreen() {
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance }]} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View>
               <ThemedText style={styles.title}>{t('budgetsTitle')}</ThemedText>
@@ -273,7 +275,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.three,
-    paddingBottom: TAB_BAR_CLEARANCE,
     gap: Spacing.three,
   },
   headerRow: {
