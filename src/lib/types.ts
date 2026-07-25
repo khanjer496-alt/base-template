@@ -38,6 +38,14 @@ export interface Account {
   /** Latest balance/limit figure the bank itself quoted in an SMS. */
   snapshotFils?: number;
   snapshotKind?: 'balance' | 'limit' | 'outstanding';
+  /**
+   * Total credit limit, entered by the user. Banks quote headroom ("Avl Cr.
+   * limit") but never the limit itself, and some redact the figure entirely
+   * ("Avl Bal AED ····9235.93"), which we refuse to read because the leading
+   * digits are gone. Knowing the limit recovers headroom for those cards:
+   * limit − outstanding, with no guessing.
+   */
+  creditLimitFils?: number;
   /** Timestamp (ms) of the SMS the snapshot came from — newest wins. */
   snapshotTs?: number;
   /** Hidden from lists (expired/unused card). Data stays; a new charge keeps it hidden until unhidden. */

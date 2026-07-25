@@ -13,7 +13,7 @@ import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { t } from '@/lib/i18n';
 import { accountLastActivityISO, isInactiveAccount, openDues } from '@/lib/cards';
-import { formatAED, monthKey, shortDate } from '@/lib/format';
+import { formatAED, monthKey, parseAmountToFils, shortDate } from '@/lib/format';
 import { reliableBalanceFils, useStore } from '@/lib/store';
 import type { Account } from '@/lib/types';
 
@@ -50,8 +50,35 @@ export default function CardsScreen() {
     [cards, state, now],
   );
 
+  /**
+   * Banks quote headroom, never the limit. Entering it once turns every
+   * masked-balance card from "no figure" into a real one.
+   */
+  const askCreditLimit = (card: Account) => {
+    Alert.prompt?.(
+      'Credit limit',
+      `Your bank quotes how much is left, not the limit itself. Enter ${card.name}'s total limit and Wafra works out the headroom.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: (value?: string) => {
+            const fils = parseAmountToFils(value ?? '');
+            if (fils) editAccount(card.id, { creditLimitFils: fils });
+          },
+        },
+      ],
+      'plain-text',
+      card.creditLimitFils ? String(Math.round(card.creditLimitFils / 100)) : '',
+      'numeric',
+    );
+  };
+
   const cardOptions = (card: Account) => {
     Alert.alert(card.name, card.archived ? 'Hidden from lists.' : undefined, [
+      ...(card.cardType === 'credit'
+        ? [{ text: 'Set credit limit', onPress: () => askCreditLimit(card) }]
+        : []),
       {
         text: card.archived ? 'Unhide' : 'Hide card',
         onPress: () => editAccount(card.id, { archived: !card.archived }),
@@ -100,10 +127,17 @@ export default function CardsScreen() {
             // SMS history can't reconstruct one, so we fall back to spend.
             const reliable = reliableBalanceFils(state, card);
             const outstanding = isCredit && reliable !== null ? Math.abs(reliable) : null;
-            const limitLeft =
+            const quotedLeft =
               card.snapshotKind === 'limit' && card.snapshotFils !== undefined
                 ? card.snapshotFils
                 : null;
+            // A bank quote wins; otherwise the user's own limit minus what is
+            // outstanding gives the same answer without inventing anything.
+            const limitLeft =
+              quotedLeft ??
+              (isCredit && card.creditLimitFils !== undefined && outstanding !== null
+                ? Math.max(0, card.creditLimitFils - outstanding)
+                : null);
             const spent = monthSpend.get(card.id) ?? 0;
             const due = dues.find((d) => d.due.accountId === card.id);
             const lastUsed = inactive ? accountLastActivityISO(state, card.id) : null;
@@ -201,18 +235,31 @@ export default function CardsScreen() {
                           {formatAED(spent, { decimals: false })}
                         </ThemedText>
                       </View>
-                    ) : (
-                      lastUsed && (
-                        <View style={[styles.figure, styles.figureRight]}>
-                          <ThemedText type="micro" themeColor="textSecondary">
-                            {t('lastUsed').toUpperCase()}
-                          </ThemedText>
-                          <ThemedText type="small" tabular themeColor="textSecondary">
-                            {shortDate(lastUsed)}
-                          </ThemedText>
-                        </View>
-                      )
-                    )}
+                    ) : lastUsed ? (
+                      <View style={[styles.figure, styles.figureRight]}>
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          {t('lastUsed').toUpperCase()}
+                        </ThemedText>
+                        <ThemedText type="small" tabular themeColor="textSecondary">
+                          {shortDate(lastUsed)}
+                        </ThemedText>
+                      </View>
+                    ) : isCredit ? (
+                      // Blank space reads as broken. Saying the bank never
+                      // quoted it — and offering the way to fix that — is the
+                      // difference between missing data and a bug.
+                      <Pressable
+                        onPress={() => askCreditLimit(card)}
+                        style={[styles.figure, styles.figureRight]}
+                        hitSlop={8}>
+                        <ThemedText type="micro" themeColor="textSecondary">
+                          LIMIT LEFT
+                        </ThemedText>
+                        <ThemedText type="small" style={{ color: theme.primary }}>
+                          Set limit
+                        </ThemedText>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </Pressable>
 
