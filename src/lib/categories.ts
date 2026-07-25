@@ -23,6 +23,7 @@ export const CATEGORIES: CategoryMeta[] = [
   { id: 'entertainment', label: 'Entertainment', icon: 'play', color: '#C084FC', type: 'expense' },
   { id: 'charity', label: 'Charity', icon: 'gift', color: '#2DD4A8', type: 'expense' },
   { id: 'government', label: 'Government', icon: 'bank', color: '#818CF8', type: 'expense' },
+  { id: 'loan', label: 'Loan', icon: 'bank', color: '#F59E0B', type: 'expense' },
   { id: 'other', label: 'Other', icon: 'receipt', color: '#94A3B8', type: 'expense' },
   { id: 'salary', label: 'Salary', icon: 'briefcase', color: '#34D399', type: 'income' },
   { id: 'business', label: 'Business', icon: 'chart', color: '#2DD4A8', type: 'income' },

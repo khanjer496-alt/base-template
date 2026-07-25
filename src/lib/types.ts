@@ -14,6 +14,8 @@ export type CategoryId =
   | 'entertainment'
   | 'charity'
   | 'government'
+  /** Loan and finance instalments, usually paid by direct debit to a bank. */
+  | 'loan'
   | 'salary'
   | 'business'
   | 'other';

@@ -696,6 +696,33 @@ t('developer tooling has a home instead of falling to "other"',
   'Purchase of USD 20.00 with Debit Card ending 1354 at CURSOR, AI POWERED IDE, +9715504. Avl Balance is AED 18,898.98.',
   { merchant: 'Cursor', category: 'entertainment' });
 
+// Direct-debit instalments to a bank are debt servicing, not "other".
+t('HSBC DDR instalment reads as a loan payment',
+  'From HSBC: Account 41-339123-1 was debited for AED 1108.00 on 120902 for DUBAI ISLAMIC BANK PJSC . Please safe keep this unique DDR Reference No. 123070.',
+  { merchant: 'Dubai Islamic Bank', category: 'loan', type: 'expense' });
+
+t('FAB direct-debit instalment reads as a loan payment',
+  'Dear Customer, your DD instalment of AED 2,476.89 has been debited from your FAB Account and has been sent to Dubai Islamic Bank as per your UAE Direct Debit Service Instructions.',
+  { category: 'loan', type: 'expense' });
+
+// Money arriving must not be filed as spending because a reference line
+// happens to contain the word "Payment".
+t('a payout credited to the account is income, not spending',
+  'AED 1,165.33 has been credited to your account no. 095XXX11XXX01 File Ref 1234535B/O DELIVERY HERO TALABAT DB LLCTalabat Biweekly Payment till',
+  { type: 'income', category: 'business' });
+
+t('rent received is income',
+  'AED 15,000.00 has been credited to your account no. 095-XXX11XXX-01 IPI TT REF: 99OTT1238075 AHMADBADRIMOHAMMADALKAILI RENTPAYMENTS',
+  { type: 'income' });
+
+t('a bare article never becomes the merchant',
+  'Dear Customer, Your payment to the account number 122543 has been processed. Amount Due: AED 408.45 Amount Paid: AED 408.45',
+  { merchant: 'Card purchase' });
+
+t('SPRM is a supermarket',
+  'Purchase of AED 10.00 with Debit Card ending 8783 at NEW STAR FAMILIES SPRM, DUBAI. Avl Balance is AED 6,747.70.',
+  { category: 'groceries' });
+
 // ── Dates: a wrong date files a transaction in the wrong month ──
 t('impossible calendar date is rejected, not rolled into the next month',
   'Purchase of AED 90.00 with Credit Card ending 4499 at LULU on 30/02/2026',
