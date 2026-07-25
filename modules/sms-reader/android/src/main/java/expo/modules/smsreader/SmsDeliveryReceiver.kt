@@ -24,8 +24,8 @@ import org.json.JSONObject
 class SmsDeliveryReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     try {
-      if (intent.action != Telephony.Sms.Intent.SMS_RECEIVED_ACTION) return
-      val parts = Telephony.Sms.Intent.getMessagesFromIntent(intent) ?: return
+      if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+      val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
       if (parts.isEmpty()) return
 
       // A long alert arrives as several PDUs; the body only makes sense joined.
