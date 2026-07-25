@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - claude/uae-android-app-ui-muatsu
     paths-ignore:
       - '**.md'
@@ -13,6 +14,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # playwright is a devDependency for the e2e scripts; this build never
+      # launches a browser, so skip the browser download during npm ci.
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
 
