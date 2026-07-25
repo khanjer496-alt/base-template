@@ -22,15 +22,17 @@ export async function hasSmsPermission(): Promise<boolean> {
 
 export async function requestSmsPermission(): Promise<boolean> {
   if (!isSmsScanningAvailable()) return false;
-  const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_SMS, {
-    title: 'Read bank SMS',
-    message:
-      'Wafra scans your inbox for bank alert messages to log transactions automatically. ' +
-      'Messages are processed on this device only and never leave it.',
-    buttonPositive: 'Allow',
-    buttonNegative: 'Not now',
-  });
-  return result === PermissionsAndroid.RESULTS.GRANTED;
+  // READ_SMS covers the inbox history scan, RECEIVE_SMS the delivery
+  // broadcast that catches an alert as it lands. They share a permission
+  // group, so this is one prompt, but each has to be asked for by name or
+  // the receiver silently never fires.
+  const result = await PermissionsAndroid.requestMultiple([
+    PermissionsAndroid.PERMISSIONS.READ_SMS,
+    PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+  ]);
+  // The inbox scan is the feature; live capture is an enhancement on top, so
+  // READ_SMS alone still counts as granted.
+  return result[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 export type ScannedSms = ParsedSms & { smsTs?: number; sender?: string };
@@ -73,6 +75,30 @@ export async function scanInbox(
     onProgress?.(scannedCount, parsed.length);
     untilMs = batch[batch.length - 1].date; // page ends exclusive, walk backwards
     if (batch.length < PAGE_SIZE) break;
+  }
+
+  // Alerts the delivery receiver caught as they arrived. Usually the inbox
+  // query above already found them; this covers the case where a message
+  // never reached the SMS provider, and is the hook a live alert hangs off.
+  // Duplicates collapse on the date/amount/title fingerprint in the plan.
+  if (SmsReader.getReceived) {
+    try {
+      for (const sms of await SmsReader.getReceived(sinceMs)) {
+        scannedCount += 1;
+        if (sms.date > newestTs) newestTs = sms.date;
+        const p = parseSms(sms.body, overrides);
+        if (!p) continue;
+        parsed.push({
+          ...p,
+          date: p.date ?? toISODate(new Date(sms.date)),
+          smsTs: sms.date,
+          sender: sms.address,
+        });
+      }
+      onProgress?.(scannedCount, parsed.length);
+    } catch {
+      // Capture buffer is best-effort; the inbox results stand on their own.
+    }
   }
 
   // Bank-app push notifications captured by the notification listener (banks

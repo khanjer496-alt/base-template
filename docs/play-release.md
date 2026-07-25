@@ -57,6 +57,25 @@ scan → transactions appearing.
 - "Why Wafra needs SMS permission?" paragraph, verbatim style from FinArt:
   optional, only for automatic tracking, banks send SMS for every transaction.
 
+## SMS permissions on Play
+
+`READ_SMS` and `RECEIVE_SMS` are allowed for this app, but only via a
+declaration. Google's SMS/Call Log policy lists the permitted use verbatim as
+**"SMS-based money management: For example, apps that track and manage
+budget"**, eligible for `READ_SMS, RECEIVE_MMS, RECEIVE_SMS,
+RECEIVE_WAP_PUSH`.
+
+- File the **Permissions Declaration Form** in Play Console and select that
+  permitted use. Apps that skip the form "may be removed from Google Play".
+- The binding condition is data handling: budgeting apps must not exfiltrate
+  or share non-financial or personal SMS. Wafra has no backend at all, so
+  nothing leaves the device — say this plainly in the listing and the form.
+- The receiver drops any message without a currency amount before storing it,
+  so personal correspondence is never retained. That is the sentence the
+  reviewer wants to read.
+- Policy reference:
+  https://support.google.com/googleplay/android-developer/answer/10208820
+
 ## Build checklist before submission
 
 - [x] Unique applicationId: app.wafra.android (versionCode 1 in app.json)
