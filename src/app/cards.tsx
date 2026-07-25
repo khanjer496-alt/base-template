@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,25 +53,21 @@ export default function CardsScreen() {
   /**
    * Banks quote headroom, never the limit. Entering it once turns every
    * masked-balance card from "no figure" into a real one.
+   *
+   * A Modal rather than Alert.prompt: that API is iOS-only, and on Android it
+   * is simply absent — the button would have done nothing at all on the
+   * platform this app actually ships to.
    */
+  const [limitFor, setLimitFor] = useState<Account | null>(null);
+  const [limitText, setLimitText] = useState('');
   const askCreditLimit = (card: Account) => {
-    Alert.prompt?.(
-      'Credit limit',
-      `Your bank quotes how much is left, not the limit itself. Enter ${card.name}'s total limit and Wafra works out the headroom.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save',
-          onPress: (value?: string) => {
-            const fils = parseAmountToFils(value ?? '');
-            if (fils) editAccount(card.id, { creditLimitFils: fils });
-          },
-        },
-      ],
-      'plain-text',
-      card.creditLimitFils ? String(Math.round(card.creditLimitFils / 100)) : '',
-      'numeric',
-    );
+    setLimitText(card.creditLimitFils ? String(Math.round(card.creditLimitFils / 100)) : '');
+    setLimitFor(card);
+  };
+  const saveCreditLimit = () => {
+    const fils = parseAmountToFils(limitText);
+    if (limitFor && fils) editAccount(limitFor.id, { creditLimitFils: fils });
+    setLimitFor(null);
   };
 
   const cardOptions = (card: Account) => {
@@ -325,6 +321,38 @@ export default function CardsScreen() {
       </SafeAreaView>
 
       <CardDetailSheet account={detail} onClose={() => setDetail(null)} />
+
+      <Modal visible={limitFor !== null} transparent animationType="fade" onRequestClose={() => setLimitFor(null)}>
+        <Pressable style={styles.limitBackdrop} onPress={() => setLimitFor(null)}>
+          <Pressable
+            style={[styles.limitBox, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => {}}>
+            <ThemedText type="subtitle">Credit limit</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Your bank quotes how much is left, not the limit itself. Enter the total limit and
+              Wafra works out the headroom.
+            </ThemedText>
+            <TextInput
+              value={limitText}
+              onChangeText={setLimitText}
+              keyboardType="numeric"
+              placeholder="e.g. 20000"
+              placeholderTextColor={theme.textSecondary}
+              autoFocus
+              onSubmitEditing={saveCreditLimit}
+              style={[styles.limitInput, { color: theme.text, backgroundColor: theme.backgroundSelected }]}
+            />
+            <View style={styles.limitActions}>
+              <Pressable onPress={() => setLimitFor(null)} hitSlop={8}>
+                <ThemedText type="small" themeColor="textSecondary">Cancel</ThemedText>
+              </Pressable>
+              <Pressable onPress={saveCreditLimit} hitSlop={8}>
+                <ThemedText type="smallBold" style={{ color: theme.primary }}>Save</ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -358,6 +386,23 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.six,
     gap: Spacing.four,
   },
+  limitBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0009', padding: Spacing.five },
+  limitBox: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  limitInput: {
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    fontSize: 17,
+    fontVariant: ['tabular-nums'],
+  },
+  limitActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.five },
   tile: {
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
