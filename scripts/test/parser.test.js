@@ -821,6 +821,20 @@ if (inbound && inbound.type === 'income' && inbound.transferHint === false) {
   pass++; console.log('\u2713 an unnamed incoming transfer still counts as income');
 } else { fail++; console.log('\u2717 an unnamed incoming transfer still counts as income', JSON.stringify(inbound && { m: inbound.merchant, t: inbound.type, h: inbound.transferHint })); }
 
+// Terminal IDs arrive as PLAIN DIGITS on the device. The dots in the accuracy
+// report are that report's own masking of digit runs, applied on export — no
+// bank sends them, so a rule written against the dots never fired in the app.
+t('a plain-digit terminal ID is not part of the shop name',
+  'Purchase of AED 86.10 with Debit Card ending 4744 at BLOOMFIELD TREAT-245814, JLT DUBAI. Avl Balance is AED 8,946.97.',
+  { merchant: 'Bloomfield Treat', amountFils: 8610 });
+t('padded terminal IDs strip too',
+  'Purchase of AED 20.00 with Debit Card ending 4755 at FRUITPUNCH      -154118, SHJ. Avl Balance is AED 3,358.39.',
+  { merchant: 'Fruitpunch' });
+// ...and a real name ending in digits is not a terminal ID.
+t('a shop whose name ends in a number keeps it',
+  'Purchase of AED 100.00 with Debit Card ending 4733 at Loop DXB LLC 1, Dubai. Avl Balance is AED 25,928.01.',
+  { merchant: 'Loop DXB Llc 1' });
+
 // Fourth corpus. The first two are regressions from my own guards.
 t('a shop with US in its name keeps it',
   'Purchase of AED 397.00 with Debit Card ending 4733 at HOMES R US TRADING LLC, DUBAI. Avl Balance is AED 39,788.47.',

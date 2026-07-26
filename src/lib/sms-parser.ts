@@ -177,8 +177,16 @@ const MERCHANT_RE = new RegExp(
     MERCHANT_STOP,
   'gi',
 );
-/** Acquirer terminal ID glued to the descriptor: "GALADARI ICE CRE-····1022". */
-const TERMINAL_ID_RE = /[-\s]+[·•X]{2,}\d*$/i;
+/**
+ * Acquirer terminal ID glued to the descriptor: "GALADARI ICE CRE-151022".
+ *
+ * The version of this that only matched "····" was chasing a ghost: those dots
+ * are the accuracy REPORT's own masking of digit runs, applied on export, not
+ * something any bank sends. On the device the text is plain digits, so the
+ * rule never fired where it mattered and "Bloomfield Treat-245814" stayed
+ * split from "Bloomfield Treat".
+ */
+const TERMINAL_ID_RE = /[-\s]+(?:[·•X]{2,}\d*|\d{4,})$/i;
 
 const DATE_RE = /\b(?:on|by|before|is)\s+(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i;
 // "03/07/26 05:53" — a bare date WITH a time is the transaction timestamp and
