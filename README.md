@@ -1,56 +1,38 @@
-# Welcome to your Expo app 👋
+# Wafra — UAE Money Manager 🇦🇪
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Wafra** (وفرة — "abundance") is a personal finance app for the UAE, built with Expo SDK 55 and React Native. Track spending in AED, set monthly budgets, and get plain-language analysis of where your money goes. All data stays on the device.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Home dashboard** — total balance hero card, monthly income vs spend, smart-insight carousel, budget snapshot, and recent activity.
+- **Transactions** — add income/expenses with UAE-flavored categories (DEWA-style utilities, Salik/RTA transport, telecom, charity/zakat, and more), searchable and filterable history grouped by day.
+- **Smart insights** — an analysis engine that turns the ledger into readable observations: spending pace projections, month-over-month change, budget alerts, savings rate, top categories, and daily averages.
+- **Analytics** — month-by-month donut breakdown, 6-month income/expense trend chart, and key stats (daily average, projected spend, net saved).
+- **Budgets** — monthly limits per category with pace tracking, near-limit warnings, and over-budget alerts.
+- **Wallet** — multiple accounts (bank / card / cash) with derived balances and net worth.
+- **Beautiful UI** — dark-first fintech design with light-mode support, a floating pill tab bar with a raised action button, SVG charts, and Reanimated micro-animations.
 
-   ```bash
-   npm install
-   ```
+The app ships with a deterministic UAE demo dataset (Carrefour, Careem, DEWA, Etisalat, Talabat…) so every screen is alive on first launch. Erase it or load it again from **Wallet → Data**.
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Running
 
 ```bash
-npm run reset-project
+npm install
+npm run android   # or: npm run ios / npm run web
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Stack
 
-### Other setup steps
+- Expo SDK 55 (expo-router, Reanimated 4, react-native-svg)
+- AsyncStorage persistence — no backend required
+- TypeScript throughout (`npx tsc --noEmit` to typecheck)
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Structure
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+  app/            # expo-router routes: (tabs)/, add-transaction modal, transactions list
+  components/     # tab bar, transaction row, insight card, ui/ primitives (charts, icons…)
+  constants/      # theme tokens (colors, spacing, radius)
+  lib/            # store (context + AsyncStorage), insights engine, categories, seed data
+```
