@@ -113,7 +113,10 @@ export function CardDetailSheet({ account, onClose }: CardDetailSheetProps) {
                 </View>
               )}
 
-              <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}>
                 <ThemedText type="micro" themeColor="textSecondary" style={styles.sectionLabel}>
                   STATEMENTS
                 </ThemedText>
@@ -206,6 +209,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0008' },
   sheet: {
     maxHeight: '86%',
+    flexShrink: 1,
     borderTopLeftRadius: Radius.lg,
     borderTopRightRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -231,7 +235,9 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   track: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: Spacing.one },
   fill: { height: '100%', borderRadius: 2 },
-  scroll: { marginTop: Spacing.three },
+  scroll: { flex: 1, marginTop: Spacing.three },
+  // The last row must clear the gesture bar, or it sits under it.
+  scrollContent: { paddingBottom: Spacing.six },
   sectionLabel: { marginBottom: Spacing.one },
   section: { marginTop: Spacing.five },
   sectionHead: {
