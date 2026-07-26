@@ -118,6 +118,10 @@ jobs:
               exit 1
             fi
             echo "Signing with the upload keystore from secrets (alias: $alias_name)."
+            # Same fingerprint every run means every APK installs over the last.
+            fp="$(keytool -list -keystore android/app/wafra-upload.jks -storepass "$store_password" -alias "$alias_name" 2>/dev/null | grep -i 'SHA256:' | head -1)"
+            echo "### ✅ Signed with the upload key" >> "$GITHUB_STEP_SUMMARY"
+            echo "Installs over the previous build. \`$fp\`" >> "$GITHUB_STEP_SUMMARY"
           else
             store_password="$(openssl rand -base64 24)"
             key_password="$store_password"
@@ -126,7 +130,21 @@ jobs:
               -alias "$alias_name" -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "$store_password" -keypass "$key_password" \
               -dname "CN=Wafra, OU=Wafra, O=Wafra, L=Dubai, C=AE"
-            echo "::warning::WAFRA_KEYSTORE_B64 not set - signed with a throwaway key. Not installable as an update, not uploadable to Play."
+            echo "::warning::WAFRA_KEYSTORE_B64 not set - signed with a throwaway key."
+            # A log line is easy to miss, and missing it costs a reinstall on
+            # every single build: Android refuses an update whose signature
+            # changed, and this branch mints a new key each run.
+            {
+              echo "### ⚠️ Signed with a throwaway key"
+              echo
+              echo "\`WAFRA_KEYSTORE_B64\` is not set, so this run generated a new"
+              echo "signing key. **This APK cannot install over a previous one** —"
+              echo "Android will ask you to uninstall first — and it cannot be"
+              echo "uploaded to Play."
+              echo
+              echo "Fix once: set the \`WAFRA_KEYSTORE_B64\` and"
+              echo "\`WAFRA_KEYSTORE_PASSWORD\` repository secrets."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
           # Gradle reads ORG_GRADLE_PROJECT_<name> as project property <name>.
