@@ -821,6 +821,28 @@ if (inbound && inbound.type === 'income' && inbound.transferHint === false) {
   pass++; console.log('\u2713 an unnamed incoming transfer still counts as income');
 } else { fail++; console.log('\u2717 an unnamed incoming transfer still counts as income', JSON.stringify(inbound && { m: inbound.merchant, t: inbound.type, h: inbound.transferHint })); }
 
+// Food and grocery words the acquirer truncates or misspells. Each is a common
+// noun — "cafteria", "barbecua", "burgr", "ice cre" — not a claim about a
+// particular shop, which is why they are safe where a shop name is not.
+for (const [descriptor, category] of [
+  ['CHARCOAL GARDEN', 'dining'],
+  ['ICE CAP CAFTERIA LLC', 'dining'],
+  ['LOG CABIN BARBECUA LLC', 'dining'],
+  ['THE BURGR FACTORY', 'dining'],
+  ['GALADARI ICE CRE', 'dining'],
+  ['ARABIAN FISH HOUSE CA', 'dining'],
+  ['CAFFEINE AND CULTURE C', 'dining'],
+  ['MAIZ TACOS', 'dining'],
+  ['SWEDISH CANDY', 'dining'],
+  ['AL JOUD SPICES TR', 'groceries'],
+  ['RAMZ AL MADEENA GRO', 'groceries'],
+  ['NEW CITY CNT.HYMKT BR.', 'groceries'],
+]) {
+  t(`${descriptor} reads as ${category}`,
+    `Purchase of AED 50.00 with Debit Card ending 4733 at ${descriptor}, DUBAI. Avl Balance is AED 100.00.`,
+    { category });
+}
+
 // Terminal IDs arrive as PLAIN DIGITS on the device. The dots in the accuracy
 // report are that report's own masking of digit runs, applied on export — no
 // bank sends them, so a rule written against the dots never fired in the app.
